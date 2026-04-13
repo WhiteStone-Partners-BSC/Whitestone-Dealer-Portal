@@ -39,6 +39,7 @@
     <div class="tab" data-tab="enroll">Enroll a Customer</div>
     <div class="tab" data-tab="faq">FAQ</div>
     <div class="tab" data-tab="contact">Contact Whitestone</div>
+    <div class="tab admin-pricing-tab" data-tab="pricing" style="display:none;">Pricing Model</div>
   </div>
 
   <div class="portal-content">
@@ -255,6 +256,100 @@
         <div id="dc-ok" class="ok"><h3>Message sent</h3><p>We'll be in touch within 1-2 business days.</p></div>
         <div id="dc-err" class="err">Something went wrong. Please email ben@whitestone-partners.com directly.</div>
         <p style="font-size:12px;color:var(--light);margin-top:1rem;text-align:center;">Or email us directly: <a href="mailto:ben@whitestone-partners.com" style="color:var(--blue);">ben@whitestone-partners.com</a></p>
+      </div>
+    </div>
+
+    <!-- PRICING MODEL (admin only) -->
+    <div class="tab-panel" id="panel-pricing">
+      <div class="pricing-panel-shell">
+        <div class="card pricing-card-main">
+          <div class="card-title">Service pricing model</div>
+          <div class="card-sub">Edit covered services, set commission and claims assumptions, and review contract economics.</div>
+          <div class="table-scroll">
+            <table class="dealer-table pricing-services-table" id="pricing-services-table">
+              <thead>
+                <tr>
+                  <th>Service name</th>
+                  <th>Retail</th>
+                  <th>Market avg</th>
+                  <th>Hours</th>
+                  <th>Yearly</th>
+                  <th>Service cycle</th>
+                  <th>WP cap (80%)</th>
+                  <th>WP margin</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="pricing-services-tbody"></tbody>
+            </table>
+          </div>
+          <button type="button" class="btn-add" id="pricing-add-service">Add Service</button>
+          <div class="pricing-mutual-note">
+            <strong>Note:</strong> Outdrive Service and V-Drive Service are mutually exclusive — only one applies per vessel depending on drivetrain type.
+          </div>
+        </div>
+
+        <div class="card pricing-sliders-card">
+          <div class="fg pricing-slider-wrap">
+            <label for="pricing-slider-commission">Dealer commission: <span id="pricing-label-commission">20</span>%</label>
+            <input type="range" id="pricing-slider-commission" class="pricing-slider" min="10" max="30" step="1" value="20" />
+            <p class="pricing-slider-note">Paid once at point of sale — not recurring</p>
+          </div>
+          <div class="fg pricing-slider-wrap">
+            <label for="pricing-slider-claims">Est. claims rate: <span id="pricing-label-claims">70</span>%</label>
+            <input type="range" id="pricing-slider-claims" class="pricing-slider" min="40" max="100" step="5" value="70" />
+            <p class="pricing-slider-note">% of covered services a customer actually uses per year</p>
+          </div>
+        </div>
+
+        <div class="stats-grid pricing-summary-stats">
+          <div class="stat-card pricing-stat pricing-stat-red">
+            <div class="stat-card-label">Baseline cost</div>
+            <div class="stat-card-value" id="pricing-stat-baseline">$0</div>
+            <div class="stat-card-hint">Sum of retail prices</div>
+          </div>
+          <div class="stat-card pricing-stat pricing-stat-red">
+            <div class="stat-card-label">Est. annual cost</div>
+            <div class="stat-card-value" id="pricing-stat-annual">$0</div>
+            <div class="stat-card-hint">Baseline × claims rate</div>
+          </div>
+          <div class="stat-card gold-accent pricing-stat">
+            <div class="stat-card-label">One-time commission</div>
+            <div class="stat-card-value" id="pricing-stat-commission">$0</div>
+            <div class="stat-card-hint">1-yr retail × commission %</div>
+          </div>
+          <div class="stat-card pricing-stat" id="pricing-stat-wp-wrap">
+            <div class="stat-card-label">WP margin (1yr)</div>
+            <div class="stat-card-value" id="pricing-stat-wp-margin">$0</div>
+            <div class="stat-card-hint">1-yr retail − commission − est. annual cost</div>
+          </div>
+        </div>
+
+        <div class="pricing-contract-row">
+          <div class="card pricing-contract-card" id="pricing-contract-1" data-years="1">
+            <div class="pricing-contract-badge">1-year contract</div>
+            <div class="pricing-contract-price" id="pricing-c1-retail">$3,699</div>
+            <div class="pricing-contract-lines" id="pricing-c1-lines"></div>
+          </div>
+          <div class="card pricing-contract-card pricing-contract-best" id="pricing-contract-2" data-years="2">
+            <div class="pricing-contract-badge">2-year contract</div>
+            <div class="pricing-contract-best-label">Best margin</div>
+            <div class="pricing-contract-price" id="pricing-c2-retail">$6,798</div>
+            <div class="pricing-contract-lines" id="pricing-c2-lines"></div>
+          </div>
+          <div class="card pricing-contract-card" id="pricing-contract-3" data-years="3">
+            <div class="pricing-contract-badge">3-year contract</div>
+            <div class="pricing-contract-price" id="pricing-c3-retail">$9,297</div>
+            <div class="pricing-contract-lines" id="pricing-c3-lines"></div>
+          </div>
+        </div>
+        <p class="pricing-commission-footnote">Commission paid once regardless of contract length</p>
+
+        <div class="card pricing-chart-card">
+          <div class="card-title">WP profit vs claims rate (1-year contract)</div>
+          <div class="pricing-chart-wrap"><canvas id="pricing-profit-chart" height="200"></canvas></div>
+          <p class="pricing-breakeven-note" id="pricing-breakeven-note"></p>
+        </div>
       </div>
     </div>
 

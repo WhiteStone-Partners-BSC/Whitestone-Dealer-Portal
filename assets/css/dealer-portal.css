@@ -230,5 +230,40 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .admin-section-divider span{font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:rgba(200,220,235,0.55);}
 .admin-dealer-mgmt-card{margin-top:0;}
 
+/* PRICING MODEL (admin) */
+.pricing-panel-shell{max-width:960px;}
+.pricing-card-main{margin-bottom:1.25rem;}
+.pricing-services-table{font-size:12px;}
+.pricing-services-table input[type="text"],.pricing-services-table input[type="number"]{width:100%;min-width:0;padding:6px 8px;font-size:12px;}
+.pricing-services-table .pricing-cycle-cell{font-size:11px;color:var(--mid);max-width:140px;}
+.pricing-wp-cap{color:#1b5e20;font-weight:600;}
+.pricing-wp-margin-cell{color:var(--gold);font-weight:600;}
+.pricing-mutual-note{margin-top:1.25rem;padding:0.85rem 1rem;border-left:4px solid var(--gold);background:var(--silver-bg);font-size:12px;color:var(--mid);line-height:1.5;}
+.pricing-sliders-card{margin-bottom:1.25rem;}
+.pricing-slider-wrap{margin-bottom:1rem;}
+.pricing-slider{width:100%;max-width:480px;accent-color:var(--gold);height:8px;}
+.pricing-slider-note{font-size:11px;color:var(--light);margin-top:0.35rem;}
+.pricing-summary-stats{margin-bottom:1.25rem;grid-template-columns:repeat(2,1fr);}
+@media(min-width:900px){.pricing-summary-stats{grid-template-columns:repeat(4,1fr);}}
+.pricing-dollar{font-size:11px;color:var(--mid);margin-right:2px;}
+.pricing-stat-red .stat-card-value{color:#c0392b;}
+.pricing-stat.positive .stat-card-value{color:#1b5e20 !important;}
+.pricing-stat.negative .stat-card-value{color:#c0392b !important;}
+.pricing-contract-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:0.5rem;}
+@media(max-width:900px){.pricing-contract-row{grid-template-columns:1fr;}}
+.pricing-contract-card{position:relative;padding-top:1.5rem;}
+.pricing-contract-best{border:2px solid #2563eb;box-shadow:0 0 0 1px rgba(37,99,235,0.15);}
+.pricing-contract-best-label{position:absolute;top:0.65rem;right:0.75rem;font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#2563eb;}
+.pricing-contract-badge{font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--mid);margin-bottom:0.35rem;}
+.pricing-contract-price{font-family:"Cormorant Garamond",serif;font-size:1.75rem;color:var(--navy);margin-bottom:0.75rem;}
+.pricing-contract-lines{font-size:12px;color:var(--mid);line-height:1.65;}
+.pricing-contract-lines div{display:flex;justify-content:space-between;gap:0.5rem;border-bottom:1px solid var(--border);padding:0.35rem 0;}
+.pricing-contract-lines .profit-pos{color:#1b5e20;font-weight:600;}
+.pricing-contract-lines .profit-neg{color:#c0392b;font-weight:600;}
+.pricing-commission-footnote{text-align:center;font-size:11px;color:var(--light);margin-bottom:1.25rem;}
+.pricing-chart-card{margin-bottom:1.5rem;}
+.pricing-chart-wrap{position:relative;height:240px;max-width:100%;}
+.pricing-breakeven-note{margin-top:1rem;font-size:13px;font-weight:500;}
+
 @media(max-width:768px){.stats-grid{grid-template-columns:1fr;}.stat-card{min-height:auto;}}
 @media(max-width:600px){.fr,.add-dealer-row{grid-template-columns:1fr;}.portal-content{padding:1.5rem;}.portal-tabs{padding:0 1rem;}.tab{padding:0.75rem 0.75rem;font-size:12px;}.portal-nav{padding:0 1.25rem;}.ticket-grid{grid-template-columns:1fr 1fr;}.admin-stat-grid{grid-template-columns:1fr;}}

@@ -100,6 +100,396 @@ function escHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+var pricingModelServices = [];
+var pricingProfitChartInstance = null;
+var pricingControlsBound = false;
+var pricingTabInitialized = false;
+
+var PRICING_RETAIL_1YR = 3699;
+var PRICING_RETAIL_2YR = 6798;
+var PRICING_RETAIL_3YR = 9297;
+
+function pricingDefaultServices() {
+  return [
+    { name: "Summer Prep", retail: 299, marketAvg: 299, hours: null, yearly: true },
+    { name: "Impeller Service", retail: 399, marketAvg: 380, hours: 50, yearly: true },
+    { name: "Engine Oil Service", retail: 398, marketAvg: 326, hours: 50, yearly: true },
+    { name: "Fuel Filter Service", retail: 298, marketAvg: 185, hours: 150, yearly: false },
+    { name: "Transmission Oil", retail: 275, marketAvg: 295, hours: 100, yearly: true },
+    { name: "Outdrive Service", retail: 389, marketAvg: 380, hours: 100, yearly: true },
+    { name: "Shaft Alignment", retail: 319, marketAvg: 435, hours: 150, yearly: true },
+    { name: "Winterization", retail: 299, marketAvg: 430, hours: null, yearly: true },
+    { name: "V-Drive Service", retail: 215, marketAvg: 372, hours: 200, yearly: true },
+    { name: "Ballast Cartridge", retail: 800, marketAvg: 800, hours: 100, yearly: false }
+  ];
+}
+
+function pricingFormatCycle(s) {
+  var y = s.yearly;
+  var hn = Number(s.hours);
+  var h = s.hours != null && String(s.hours).trim() !== "" && !isNaN(hn) && hn > 0;
+  if (y && h) return "Yearly / every " + hn + " hrs";
+  if (h) return "Every " + hn + " hrs";
+  if (y) return "Yearly";
+  return "—";
+}
+
+function pricingWpCap(mkt) {
+  var m = parseFloat(mkt) || 0;
+  return Math.round(m * 0.8 * 100) / 100;
+}
+
+function pricingWpMarginCell(mkt) {
+  var m = parseFloat(mkt) || 0;
+  return Math.round((m - pricingWpCap(m)) * 100) / 100;
+}
+
+function pricingSumBaseline() {
+  return pricingModelServices.reduce(function(sum, s) {
+    return sum + (parseFloat(s.retail) || 0);
+  }, 0);
+}
+
+function pricingLoadFromStorage() {
+  try {
+    var raw = localStorage.getItem("wsp_services");
+    if (raw) {
+      var p = JSON.parse(raw);
+      pricingModelServices = Array.isArray(p) && p.length ? p : pricingDefaultServices();
+    } else pricingModelServices = pricingDefaultServices();
+  } catch (e) {
+    pricingModelServices = pricingDefaultServices();
+  }
+  var c = document.getElementById("pricing-slider-commission");
+  var cl = document.getElementById("pricing-slider-claims");
+  var cv = localStorage.getItem("wsp_pricing_commission");
+  var clv = localStorage.getItem("wsp_pricing_claims");
+  if (c && cv !== null && cv !== "") c.value = cv;
+  if (cl && clv !== null && clv !== "") cl.value = clv;
+}
+
+function pricingSaveToStorage() {
+  try {
+    localStorage.setItem("wsp_services", JSON.stringify(pricingModelServices));
+    var c = document.getElementById("pricing-slider-commission");
+    var cl = document.getElementById("pricing-slider-claims");
+    if (c) localStorage.setItem("wsp_pricing_commission", c.value);
+    if (cl) localStorage.setItem("wsp_pricing_claims", cl.value);
+  } catch (e) {}
+}
+
+function pricingRenderServicesTable() {
+  var tbody = document.getElementById("pricing-services-tbody");
+  if (!tbody) return;
+  var html = "";
+  pricingModelServices.forEach(function(s, i) {
+    var cap = pricingWpCap(s.marketAvg);
+    var mar = pricingWpMarginCell(s.marketAvg);
+    html += "<tr data-idx='" + i + "'>";
+    html += "<td><input type='text' class='pricing-in-name' data-idx='" + i + "' value='" + escHtml(s.name) + "' /></td>";
+    html += "<td><span class='pricing-dollar'>$</span><input type='number' class='pricing-in-retail' data-idx='" + i + "' min='0' step='1' value='" + (parseFloat(s.retail) || 0) + "' /></td>";
+    html += "<td><span class='pricing-dollar'>$</span><input type='number' class='pricing-in-mkt' data-idx='" + i + "' min='0' step='1' value='" + (parseFloat(s.marketAvg) || 0) + "' /></td>";
+    html += "<td><input type='number' class='pricing-in-hours' data-idx='" + i + "' min='0' step='1' placeholder='hrs' value='" + (s.hours != null && s.hours !== "" ? s.hours : "") + "' /></td>";
+    html += "<td style='text-align:center'><input type='checkbox' class='pricing-in-yearly' data-idx='" + i + "' " + (s.yearly ? "checked" : "") + " /></td>";
+    html += "<td class='pricing-cycle-cell'>" + escHtml(pricingFormatCycle(s)) + "</td>";
+    html += "<td class='pricing-wp-cap'>$" + cap.toLocaleString() + "</td>";
+    html += "<td class='pricing-wp-margin-cell'>$" + mar.toLocaleString() + "</td>";
+    html += "<td><button type='button' class='btn-sm btn-remove pricing-btn-remove' data-idx='" + i + "'>Remove</button></td>";
+    html += "</tr>";
+  });
+  tbody.innerHTML = html;
+}
+
+function pricingSyncRowFromDom(idx) {
+  var s = pricingModelServices[idx];
+  if (!s) return;
+  var row = document.querySelector("#pricing-services-tbody tr[data-idx='" + idx + "']");
+  if (!row) return;
+  var n = row.querySelector(".pricing-in-name");
+  var r = row.querySelector(".pricing-in-retail");
+  var m = row.querySelector(".pricing-in-mkt");
+  var h = row.querySelector(".pricing-in-hours");
+  var y = row.querySelector(".pricing-in-yearly");
+  if (n) s.name = n.value;
+  if (r) s.retail = parseFloat(r.value) || 0;
+  if (m) s.marketAvg = parseFloat(m.value) || 0;
+  if (h) {
+    var hv = h.value.trim();
+    s.hours = hv === "" ? null : parseFloat(hv);
+  }
+  if (y) s.yearly = y.checked;
+}
+
+function pricingUpdateCycleCells() {
+  var rows = document.querySelectorAll("#pricing-services-tbody tr");
+  rows.forEach(function(row) {
+    var idx = parseInt(row.getAttribute("data-idx"), 10);
+    if (isNaN(idx) || !pricingModelServices[idx]) return;
+    pricingSyncRowFromDom(idx);
+    var cell = row.querySelector(".pricing-cycle-cell");
+    var cap = row.querySelector(".pricing-wp-cap");
+    var mar = row.querySelector(".pricing-wp-margin-cell");
+    if (cell) cell.textContent = pricingFormatCycle(pricingModelServices[idx]);
+    if (cap) cap.textContent = "$" + pricingWpCap(pricingModelServices[idx].marketAvg).toLocaleString();
+    if (mar) mar.textContent = "$" + pricingWpMarginCell(pricingModelServices[idx].marketAvg).toLocaleString();
+  });
+}
+
+function pricingRemoveService(idx) {
+  pricingModelServices.splice(idx, 1);
+  pricingSaveToStorage();
+  pricingRenderServicesTable();
+  pricingUpdateAll();
+}
+
+function pricingAddService() {
+  pricingModelServices.push({ name: "", retail: 0, marketAvg: 0, hours: null, yearly: false });
+  pricingSaveToStorage();
+  pricingRenderServicesTable();
+  pricingUpdateAll();
+}
+
+function pricingBindTableDelegation() {
+  var tbody = document.getElementById("pricing-services-tbody");
+  if (!tbody || tbody.dataset.delegationBound === "1") return;
+  tbody.dataset.delegationBound = "1";
+  tbody.addEventListener("input", function(e) {
+    var t = e.target;
+    var idx = t.getAttribute("data-idx");
+    if (idx == null) return;
+    idx = parseInt(idx, 10);
+    pricingSyncRowFromDom(idx);
+    pricingSaveToStorage();
+    pricingUpdateCycleCells();
+    pricingUpdateAll();
+  });
+  tbody.addEventListener("change", function(e) {
+    var t = e.target;
+    if (t.classList.contains("pricing-in-yearly")) {
+      var idx = parseInt(t.getAttribute("data-idx"), 10);
+      pricingSyncRowFromDom(idx);
+      pricingSaveToStorage();
+      pricingUpdateCycleCells();
+      pricingUpdateAll();
+    }
+  });
+  tbody.addEventListener("click", function(e) {
+    if (e.target.classList.contains("pricing-btn-remove")) {
+      var idx = parseInt(e.target.getAttribute("data-idx"), 10);
+      if (!isNaN(idx)) pricingRemoveService(idx);
+    }
+  });
+}
+
+function pricingBindControlsOnce() {
+  if (pricingControlsBound) return;
+  pricingControlsBound = true;
+  var c = document.getElementById("pricing-slider-commission");
+  var cl = document.getElementById("pricing-slider-claims");
+  var addBtn = document.getElementById("pricing-add-service");
+  if (c) {
+    c.addEventListener("input", function() {
+      document.getElementById("pricing-label-commission").textContent = c.value;
+      pricingSaveToStorage();
+      pricingUpdateAll();
+    });
+  }
+  if (cl) {
+    cl.addEventListener("input", function() {
+      document.getElementById("pricing-label-claims").textContent = cl.value;
+      pricingSaveToStorage();
+      pricingUpdateAll();
+    });
+  }
+  if (addBtn) addBtn.addEventListener("click", pricingAddService);
+  pricingBindTableDelegation();
+}
+
+function pricingDestroyProfitChart() {
+  if (pricingProfitChartInstance) {
+    pricingProfitChartInstance.destroy();
+    pricingProfitChartInstance = null;
+  }
+}
+
+function pricingRenderProfitChart() {
+  var canvas = document.getElementById("pricing-profit-chart");
+  if (!canvas || typeof Chart === "undefined") return;
+  var baseline = pricingSumBaseline();
+  var cEl = document.getElementById("pricing-slider-commission");
+  var comm = cEl ? parseFloat(cEl.value) : 20;
+  if (isNaN(comm)) comm = 20;
+  var net1 = PRICING_RETAIL_1YR - PRICING_RETAIL_1YR * (comm / 100);
+  var labels = [];
+  var data = [];
+  var colors = [];
+  for (var r = 40; r <= 100; r += 5) {
+    labels.push(r + "%");
+    var profit = Math.round(net1 - baseline * (r / 100));
+    data.push(profit);
+    colors.push(profit >= 0 ? "#22c55e" : "#ef4444");
+  }
+  pricingDestroyProfitChart();
+  pricingProfitChartInstance = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "WP profit (1-yr)",
+        data: data,
+        borderColor: "#b8963e",
+        backgroundColor: "rgba(184,150,62,0.1)",
+        tension: 0.2,
+        fill: false,
+        pointRadius: 5,
+        pointBackgroundColor: colors,
+        pointBorderColor: colors
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              return "Profit: $" + ctx.parsed.y.toLocaleString();
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          ticks: { color: "#6b8599", callback: function(v) { return "$" + v; } },
+          grid: { color: "rgba(130,160,180,0.15)" }
+        },
+        x: { ticks: { color: "#6b8599" }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function pricingUpdateBreakevenNote(baseline, commPct) {
+  var el = document.getElementById("pricing-breakeven-note");
+  if (!el) return;
+  var net1 = PRICING_RETAIL_1YR - PRICING_RETAIL_1YR * (commPct / 100);
+  var profits = [];
+  for (var r = 40; r <= 100; r += 5) {
+    profits.push(Math.round(net1 - baseline * (r / 100)));
+  }
+  var allPos = profits.every(function(p) { return p > 0; });
+  var allNeg = profits.every(function(p) { return p < 0; });
+  if (baseline <= 0) {
+    el.textContent = "Add retail prices to model baseline cost.";
+    el.style.color = "#6b8599";
+    return;
+  }
+  if (allPos) {
+    el.textContent = "Profitable at all modeled claims rates (40%–100%).";
+    el.style.color = "#1b5e20";
+    return;
+  }
+  if (allNeg) {
+    el.textContent = "Loss at all modeled claims rates — review baseline or pricing.";
+    el.style.color = "#c0392b";
+    return;
+  }
+  var be = net1 / baseline * 100;
+  el.textContent = "Breakeven claims rate ≈ " + be.toFixed(1) + "% (where 1-yr WP profit crosses $0).";
+  el.style.color = "#c0392b";
+}
+
+function pricingFillContractLines(elId, retail, months, years) {
+  var el = document.getElementById(elId);
+  if (!el) return;
+  var cEl = document.getElementById("pricing-slider-commission");
+  var clEl = document.getElementById("pricing-slider-claims");
+  var comm = cEl ? parseFloat(cEl.value) : 20;
+  var claims = clEl ? parseFloat(clEl.value) : 70;
+  if (isNaN(comm)) comm = 20;
+  if (isNaN(claims)) claims = 70;
+  var baseline = pricingSumBaseline();
+  var monthly = retail / months;
+  var prepay = retail * 0.95;
+  var commission = retail * (comm / 100);
+  var serviceCost = baseline * (claims / 100) * years;
+  var profit = retail - commission - serviceCost;
+  var marginPct = retail > 0 ? (profit / retail) * 100 : 0;
+  var profitPerYear = profit / years;
+  var pcls = profit >= 0 ? "profit-pos" : "profit-neg";
+  var html = "";
+  html += "<div><span>Monthly payment</span><span>$" + monthly.toFixed(2) + "</span></div>";
+  html += "<div><span>Prepay (5% discount)</span><span>$" + Math.round(prepay).toLocaleString() + "</span></div>";
+  html += "<div><span>Commission (one-time)</span><span>$" + Math.round(commission).toLocaleString() + "</span></div>";
+  html += "<div><span>Est. service cost (" + years + " yr)</span><span>$" + Math.round(serviceCost).toLocaleString() + "</span></div>";
+  html += "<div><span>Total WP profit</span><span class='" + pcls + "'>$" + Math.round(profit).toLocaleString() + "</span></div>";
+  html += "<div><span>Margin %</span><span class='" + pcls + "'>" + marginPct.toFixed(1) + "%</span></div>";
+  html += "<div><span>Profit per year</span><span class='" + pcls + "'>$" + Math.round(profitPerYear).toLocaleString() + "</span></div>";
+  el.innerHTML = html;
+}
+
+function pricingUpdateAll() {
+  var baseline = pricingSumBaseline();
+  var cEl = document.getElementById("pricing-slider-commission");
+  var clEl = document.getElementById("pricing-slider-claims");
+  var comm = cEl ? parseFloat(cEl.value) : 20;
+  var claims = clEl ? parseFloat(clEl.value) : 70;
+  if (isNaN(comm)) comm = 20;
+  if (isNaN(claims)) claims = 70;
+  if (document.getElementById("pricing-label-commission")) document.getElementById("pricing-label-commission").textContent = String(comm);
+  if (document.getElementById("pricing-label-claims")) document.getElementById("pricing-label-claims").textContent = String(claims);
+  var annualCost = baseline * (claims / 100);
+  var oneTimeComm = PRICING_RETAIL_1YR * (comm / 100);
+  var wpMargin1 = PRICING_RETAIL_1YR - oneTimeComm - annualCost;
+  var sb = document.getElementById("pricing-stat-baseline");
+  var sa = document.getElementById("pricing-stat-annual");
+  var sc = document.getElementById("pricing-stat-commission");
+  var sw = document.getElementById("pricing-stat-wp-margin");
+  var wrap = document.getElementById("pricing-stat-wp-wrap");
+  if (sb) sb.textContent = "$" + Math.round(baseline).toLocaleString();
+  if (sa) sa.textContent = "$" + Math.round(annualCost).toLocaleString();
+  if (sc) sc.textContent = "$" + Math.round(oneTimeComm).toLocaleString();
+  if (sw) sw.textContent = "$" + Math.round(wpMargin1).toLocaleString();
+  if (wrap) wrap.className = "stat-card pricing-stat " + (wpMargin1 >= 0 ? "positive" : "negative");
+  pricingFillContractLines("pricing-c1-lines", PRICING_RETAIL_1YR, 12, 1);
+  pricingFillContractLines("pricing-c2-lines", PRICING_RETAIL_2YR, 24, 2);
+  pricingFillContractLines("pricing-c3-lines", PRICING_RETAIL_3YR, 36, 3);
+  pricingUpdateBreakevenNote(baseline, comm);
+  pricingDestroyProfitChart();
+  pricingRenderProfitChart();
+}
+
+function pricingInitOnTab() {
+  if (!pricingTabInitialized) {
+    pricingLoadFromStorage();
+    pricingTabInitialized = true;
+    pricingRenderServicesTable();
+    pricingBindControlsOnce();
+  }
+  var c = document.getElementById("pricing-slider-commission");
+  var cl = document.getElementById("pricing-slider-claims");
+  if (c && document.getElementById("pricing-label-commission")) document.getElementById("pricing-label-commission").textContent = c.value;
+  if (cl && document.getElementById("pricing-label-claims")) document.getElementById("pricing-label-claims").textContent = cl.value;
+  pricingUpdateAll();
+}
+
+function applyAdminTabVisibility() {
+  document.querySelectorAll('[data-tab="ticket"], [data-tab="history"], [data-tab="contact"]').forEach(function(el) {
+    el.style.display = "none";
+  });
+  var pr = document.querySelector('[data-tab="pricing"]');
+  if (pr) pr.style.display = "block";
+}
+
+function resetAdminTabVisibility() {
+  document.querySelectorAll('[data-tab="ticket"], [data-tab="history"], [data-tab="contact"]').forEach(function(el) {
+    el.style.display = "";
+  });
+  var pr = document.querySelector('[data-tab="pricing"]');
+  if (pr) pr.style.display = "none";
+}
+
 function adminNormalizeName(s) {
   return String(s || "").trim().toLowerCase();
 }
@@ -419,6 +809,7 @@ document.addEventListener("DOMContentLoaded", function() {
       loadDashboard();
       // Add admin tab if admin
       if (currentDealer.isAdmin) {
+        applyAdminTabVisibility();
         var tabs = document.getElementById("portal-tabs");
         var adminTab = document.createElement("div");
         adminTab.className = "tab admin-tab";
@@ -441,6 +832,7 @@ document.addEventListener("DOMContentLoaded", function() {
     if (panel) panel.classList.add("active");
     if (name === "dashboard") loadDashboard();
     if (name === "history") loadTickets();
+    if (name === "pricing") pricingInitOnTab();
     if (name === "admin") adminLoadNetworkDashboard();
   }
 
@@ -622,6 +1014,9 @@ document.addEventListener("DOMContentLoaded", function() {
     // Remove admin tab if present
     var adminTab = document.querySelector(".admin-tab");
     if (adminTab) adminTab.remove();
+    resetAdminTabVisibility();
+    pricingTabInitialized = false;
+    pricingDestroyProfitChart();
   });
 
   document.querySelectorAll(".tab:not(.admin-tab)").forEach(function(tab) {
