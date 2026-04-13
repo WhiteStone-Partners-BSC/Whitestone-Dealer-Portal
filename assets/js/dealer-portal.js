@@ -2,8 +2,14 @@ var SHEETS_URL = "PASTE_YOUR_APPS_SCRIPT_URL_HERE";
 var FORMSPREE_CONTACT = "https://formspree.io/f/mvzvzkqa";
 var currentDealer = null;
 var allTickets = [];
+var adminNetworkTickets = [];
+var adminChartInstance = null;
 var dashboardPeriod = "year";
 var earningsAnimRaf = null;
+
+var ADMIN_CONTRACT_AVG = 3699;
+var ADMIN_AVG_REIMB = 150;
+var ADMIN_COMMISSION_RATE = 0.2;
 
 // Default dealers — stored in localStorage so admin changes persist
 var DEFAULT_DEALERS = {
@@ -94,6 +100,283 @@ function escHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+function adminNormalizeName(s) {
+  return String(s || "").trim().toLowerCase();
+}
+
+function adminNetworkCustomerKey(t) {
+  var d = String(t.dealership || "").trim().toLowerCase();
+  var ck = customerKey(t);
+  if (!ck) return "";
+  return d + "|" + ck;
+}
+
+function adminIsInLast30Days(t) {
+  var d = parseTicketDate(t);
+  if (!d) return false;
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+  cutoff.setHours(0, 0, 0, 0);
+  return d >= cutoff;
+}
+
+function adminIsThisMonth(t) {
+  var d = parseTicketDate(t);
+  if (!d) return false;
+  var n = new Date();
+  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth();
+}
+
+function adminTicketsForDealer(dealerName) {
+  var want = adminNormalizeName(dealerName);
+  return adminNetworkTickets.filter(function(t) {
+    return adminNormalizeName(t.dealership) === want;
+  });
+}
+
+function adminFetchAllTicketsFallback() {
+  var dealers = getDealers();
+  var names = Object.keys(dealers).filter(function(u) {
+    return u !== "admin" && dealers[u].active;
+  }).map(function(u) { return dealers[u].name; });
+  if (names.length === 0) return Promise.resolve([]);
+  var promises = names.map(function(name) {
+    return fetch(SHEETS_URL + "?action=getTickets&dealer=" + encodeURIComponent(name))
+      .then(function(r) { return r.json(); })
+      .then(function(res) { return (res && res.success && res.tickets) ? res.tickets : []; })
+      .catch(function() { return []; });
+  });
+  return Promise.all(promises).then(function(arrays) {
+    var merged = [];
+    arrays.forEach(function(a) { merged = merged.concat(a); });
+    return merged;
+  });
+}
+
+function adminFetchAllTickets() {
+  return fetch(SHEETS_URL + "?action=getTickets&dealer=ALL")
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.success && Array.isArray(res.tickets)) return res.tickets;
+      return adminFetchAllTicketsFallback();
+    })
+    .catch(function() { return adminFetchAllTicketsFallback(); });
+}
+
+function adminCountServicesCompleted(tickets) {
+  var n = 0;
+  tickets.forEach(function(t) {
+    var st = (t.serviceType || "").trim();
+    if (!st) { n += 1; return; }
+    var parts = st.split(",").map(function(s) { return s.trim(); }).filter(Boolean);
+    n += parts.length || 1;
+  });
+  return n;
+}
+
+function adminRenderStats() {
+  var tk = adminNetworkTickets;
+  var totalT = tk.length;
+  var contracts = totalT > 0 ? Math.ceil(totalT / 3) : 0;
+  var revenue = contracts * ADMIN_CONTRACT_AVG;
+  var reimb = totalT * ADMIN_AVG_REIMB;
+  var commission = contracts * (ADMIN_CONTRACT_AVG * ADMIN_COMMISSION_RATE);
+  var margin = revenue - reimb - commission;
+  var elC = document.getElementById("admin-stat-contracts");
+  var elR = document.getElementById("admin-stat-revenue");
+  var elB = document.getElementById("admin-stat-reimb");
+  var elM = document.getElementById("admin-stat-margin");
+  if (elC) elC.textContent = contracts.toLocaleString();
+  if (elR) elR.textContent = "$" + Math.round(revenue).toLocaleString();
+  if (elB) elB.textContent = "$" + Math.round(reimb).toLocaleString();
+  if (elM) elM.textContent = "$" + Math.round(margin).toLocaleString();
+}
+
+function adminRenderChart() {
+  var canvas = document.getElementById("admin-network-chart");
+  if (!canvas || typeof Chart === "undefined") return;
+  var y = new Date().getFullYear();
+  var counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  adminNetworkTickets.forEach(function(t) {
+    var d = parseTicketDate(t);
+    if (!d || d.getFullYear() !== y) return;
+    counts[d.getMonth()]++;
+  });
+  if (adminChartInstance) {
+    adminChartInstance.destroy();
+    adminChartInstance = null;
+  }
+  adminChartInstance = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+      datasets: [{
+        label: "Tickets",
+        data: counts,
+        backgroundColor: "#b8963e",
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { color: "#6b8599" }, grid: { color: "rgba(130,160,180,0.15)" } },
+        x: { ticks: { color: "#6b8599" }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function adminRenderLeaderboard() {
+  var dealers = getDealers();
+  var rows = [];
+  Object.keys(dealers).forEach(function(username) {
+    if (username === "admin") return;
+    var d = dealers[username];
+    if (!d.active) return;
+    var tk = adminTicketsForDealer(d.name);
+    var count = tk.length;
+    var lastDate = null;
+    tk.forEach(function(t) {
+      var dt = parseTicketDate(t);
+      if (dt && (!lastDate || dt > lastDate)) lastDate = dt;
+    });
+    var lastStr = lastDate ? lastDate.toLocaleDateString() : "—";
+    var estCont = count > 0 ? Math.ceil(count / 3) : 0;
+    var estReimb = count * ADMIN_AVG_REIMB;
+    var statusBadge;
+    var statusClass;
+    if (count === 0) {
+      statusBadge = "No data";
+      statusClass = "badge-nodata";
+    } else {
+      var daysSince = (new Date() - lastDate) / 86400000;
+      if (daysSince <= 30) {
+        statusBadge = "Active";
+        statusClass = "badge-active";
+      } else {
+        statusBadge = "Inactive";
+        statusClass = "admin-lb-inactive";
+      }
+    }
+    rows.push({
+      name: d.name,
+      count: count,
+      estCont: estCont,
+      estReimb: estReimb,
+      lastStr: lastStr,
+      statusBadge: statusBadge,
+      statusClass: statusClass
+    });
+  });
+  rows.sort(function(a, b) { return b.count - a.count; });
+  var tbody = document.getElementById("admin-leaderboard-body");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  rows.forEach(function(r, idx) {
+    var tr = document.createElement("tr");
+    if (idx === 0 && r.count > 0) tr.className = "admin-row-top";
+    var rankCell = String(idx + 1);
+    if (idx === 0 && r.count > 0) rankCell += " <span class='top-badge'>Top Performer</span>";
+    tr.innerHTML = "<td>" + rankCell + "</td>" +
+      "<td>" + escHtml(r.name) + "</td>" +
+      "<td>" + r.count + "</td>" +
+      "<td>" + r.estCont + "</td>" +
+      "<td>$" + r.estReimb.toLocaleString() + "</td>" +
+      "<td>" + escHtml(r.lastStr) + "</td>" +
+      "<td><span class='" + r.statusClass + "'>" + r.statusBadge + "</span></td>";
+    tbody.appendChild(tr);
+  });
+}
+
+function adminRenderFlags() {
+  var dealers = getDealers();
+  var follow = [];
+  var good = [];
+  Object.keys(dealers).forEach(function(username) {
+    if (username === "admin") return;
+    var d = dealers[username];
+    if (!d.active) return;
+    var tk = adminTicketsForDealer(d.name);
+    var last30 = tk.filter(adminIsInLast30Days).length;
+    if (last30 === 0) follow.push(d.name);
+    var thisMo = tk.filter(adminIsThisMonth).length;
+    if (thisMo >= 3) good.push(d.name);
+  });
+  var flEl = document.getElementById("admin-followup-list");
+  var gEl = document.getElementById("admin-performing-list");
+  if (flEl) {
+    if (follow.length === 0) flEl.innerHTML = "<div class='admin-pill-empty'>None — all dealers have recent ticket activity.</div>";
+    else flEl.innerHTML = follow.map(function(n) {
+      return "<div class='admin-pill admin-pill-warn'><strong>" + escHtml(n) + "</strong><span>Call them</span></div>";
+    }).join("");
+  }
+  if (gEl) {
+    if (good.length === 0) gEl.innerHTML = "<div class='admin-pill-empty'>None yet this month.</div>";
+    else gEl.innerHTML = good.map(function(n) {
+      return "<div class='admin-pill admin-pill-good'><strong>" + escHtml(n) + "</strong></div>";
+    }).join("");
+  }
+}
+
+function adminRenderRenewalsNetwork() {
+  var byKey = {};
+  adminNetworkTickets.forEach(function(t) {
+    var k = adminNetworkCustomerKey(t);
+    if (!k) return;
+    var d = parseTicketDate(t);
+    if (!d) return;
+    if (!byKey[k] || d < byKey[k].enroll) byKey[k] = { enroll: d, t: t };
+  });
+  var rows = [];
+  Object.keys(byKey).forEach(function(k) {
+    var info = byKey[k];
+    var days = daysUntilNextAnniversary(info.enroll);
+    if (days < 0 || days > 90) return;
+    var t = info.t;
+    var name = ((t.firstName || "") + " " + (t.lastName || "")).trim() || "Customer";
+    var dealership = (t.dealership || "—").trim();
+    var badgeClass = days <= 30 ? "urgent" : days <= 60 ? "soon" : "upcoming";
+    rows.push({ name: name, dealership: dealership, days: days, badgeClass: badgeClass });
+  });
+  rows.sort(function(a, b) { return a.days - b.days; });
+  var el = document.getElementById("admin-renewals-body");
+  if (!el) return;
+  if (rows.length === 0) {
+    el.innerHTML = "<div class='renewals-empty'>No renewals due in the next 90 days.</div>";
+    return;
+  }
+  el.innerHTML = rows.map(function(r) {
+    return "<div class='admin-renewal-row'><div><div class='renewal-name'>" + escHtml(r.name) + "</div><div class='renewal-boat'>" + escHtml(r.dealership) + "</div></div><span class='renewal-badge " + r.badgeClass + "'>" + r.days + " days until renewal</span></div>";
+  }).join("");
+}
+
+function adminRenderFinancialHealth() {
+  var tk = adminNetworkTickets;
+  var totalT = tk.length;
+  var contracts = totalT > 0 ? Math.ceil(totalT / 3) : 0;
+  var possible = contracts * 10;
+  var completed = adminCountServicesCompleted(tk);
+  var rate = possible > 0 ? (completed / possible) * 100 : 0;
+  var claimsEl = document.getElementById("admin-health-claims");
+  var barEl = document.getElementById("admin-health-bar");
+  var warnEl = document.getElementById("admin-health-warning");
+  var projEl = document.getElementById("admin-health-projected");
+  if (claimsEl) claimsEl.textContent = rate.toFixed(1) + "%";
+  if (barEl) {
+    barEl.style.width = Math.min(100, Math.max(0, rate)) + "%";
+    barEl.className = "admin-health-bar-fill " + (rate < 70 ? "health-green" : rate <= 85 ? "health-amber" : "health-red");
+  }
+  if (warnEl) {
+    warnEl.style.display = rate >= 78 && rate <= 85 ? "block" : "none";
+  }
+  var last30 = tk.filter(adminIsInLast30Days).length;
+  var projected = last30 * ADMIN_AVG_REIMB;
+  if (projEl) projEl.textContent = "$" + Math.round(projected).toLocaleString() + " / mo est. (last 30-day pace)";
+}
+
 function startOfDay(d) {
   var x = new Date(d.getTime());
   x.setHours(0, 0, 0, 0);
@@ -158,7 +441,7 @@ document.addEventListener("DOMContentLoaded", function() {
     if (panel) panel.classList.add("active");
     if (name === "dashboard") loadDashboard();
     if (name === "history") loadTickets();
-    if (name === "admin") renderDealerTable();
+    if (name === "admin") adminLoadNetworkDashboard();
   }
 
   function animateEarningsTo(targetDollars, el) {
@@ -543,7 +826,45 @@ document.addEventListener("DOMContentLoaded", function() {
         delete dealers[user];
         saveDealers(dealers);
         renderDealerTable();
+        if (currentDealer && currentDealer.isAdmin) {
+          var adminPanel = document.getElementById("panel-admin");
+          if (adminPanel && adminPanel.classList.contains("active")) {
+            adminRenderLeaderboard();
+            adminRenderFlags();
+          }
+        }
       });
+    });
+  }
+
+  function adminLoadNetworkDashboard() {
+    if (!currentDealer || !currentDealer.isAdmin) return;
+    var loading = document.getElementById("admin-dashboard-loading");
+    var content = document.getElementById("admin-dashboard-content");
+    if (loading) loading.style.display = "block";
+    if (content) content.style.display = "none";
+    adminFetchAllTickets().then(function(tickets) {
+      adminNetworkTickets = tickets || [];
+      if (loading) loading.style.display = "none";
+      if (content) content.style.display = "block";
+      adminRenderStats();
+      adminRenderChart();
+      adminRenderLeaderboard();
+      adminRenderFlags();
+      adminRenderRenewalsNetwork();
+      adminRenderFinancialHealth();
+      renderDealerTable();
+    }).catch(function() {
+      adminNetworkTickets = [];
+      if (loading) loading.style.display = "none";
+      if (content) content.style.display = "block";
+      adminRenderStats();
+      adminRenderChart();
+      adminRenderLeaderboard();
+      adminRenderFlags();
+      adminRenderRenewalsNetwork();
+      adminRenderFinancialHealth();
+      renderDealerTable();
     });
   }
 
@@ -564,6 +885,13 @@ document.addEventListener("DOMContentLoaded", function() {
     addOk.style.display = "block"; addErr.style.display = "none";
     setTimeout(function() { addOk.style.display = "none"; }, 3000);
     renderDealerTable();
+    if (currentDealer && currentDealer.isAdmin) {
+      var adminPanel = document.getElementById("panel-admin");
+      if (adminPanel && adminPanel.classList.contains("active")) {
+        adminRenderLeaderboard();
+        adminRenderFlags();
+      }
+    }
   });
 
 });

@@ -183,5 +183,52 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .btn-reenroll{padding:6px 14px;font-size:11px;font-weight:500;border-radius:3px;border:1px solid var(--navy);background:var(--white);color:var(--navy);cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;}
 .btn-reenroll:hover{background:var(--navy);color:var(--white);}
 
+/* ADMIN — NETWORK COMMAND CENTER */
+.admin-panel-shell{background:var(--admin-bg,#07121e);border-radius:10px;padding:0 0 1.5rem;margin-bottom:1.5rem;border:1px solid rgba(184,150,62,0.15);}
+.admin-cc-banner{background:linear-gradient(135deg,#0a1826,var(--navy));padding:1rem 1.5rem;display:flex;align-items:center;gap:10px;border-radius:10px 10px 0 0;border-bottom:2px solid var(--gold);}
+.admin-cc-lock{font-size:18px;}
+.admin-cc-title{font-size:12px;font-weight:600;letter-spacing:0.12em;color:var(--gold);font-family:"DM Sans",sans-serif;}
+.admin-dashboard-loading{text-align:center;padding:2.5rem;color:rgba(200,220,235,0.7);font-size:14px;}
+.admin-stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;padding:1.5rem 1.5rem 0;}
+@media(min-width:900px){.admin-stat-grid{grid-template-columns:repeat(4,1fr);}}
+.stat-card.admin-stat-card{background:var(--navy);border:1px solid rgba(184,150,62,0.25);border-top:3px solid var(--gold);min-height:120px;padding:1.35rem 1.25rem;}
+.admin-stat-label{font-size:10px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:rgba(200,220,235,0.65);margin-bottom:0.5rem;}
+.admin-stat-value{font-family:"Cormorant Garamond",serif;font-size:2rem;font-weight:400;color:var(--gold);line-height:1.1;}
+.admin-stat-note{font-size:11px;color:rgba(200,220,235,0.45);margin-top:0.5rem;line-height:1.4;}
+.admin-chart-card,.admin-leaderboard-card,.admin-flag-card,.admin-renewals-network-card,.admin-financial-card,.admin-dealer-mgmt-card{margin:0 1.5rem 1rem;background:var(--white);border-color:rgba(130,160,180,0.22);}
+.admin-chart-card{margin-top:0;}
+.admin-chart-wrap{position:relative;height:220px;padding:0.5rem 0;}
+.admin-flags-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:0 1.5rem 1rem;}
+@media(max-width:700px){.admin-flags-row{grid-template-columns:1fr;}}
+.admin-pill-list{display:flex;flex-direction:column;gap:0.5rem;}
+.admin-pill{padding:0.65rem 0.85rem;border-radius:8px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;}
+.admin-pill-warn{background:#fff5f5;border:1px solid #f5c4c4;color:var(--navy);}
+.admin-pill-warn span{font-size:11px;color:var(--red-text);}
+.admin-pill-good{background:var(--green);border:1px solid var(--green-border);}
+.admin-pill-empty{font-size:12px;color:var(--light);padding:0.5rem 0;}
+.table-scroll{overflow-x:auto;}
+.admin-leaderboard-table{font-size:12px;}
+.admin-leaderboard-table th{white-space:nowrap;}
+.admin-row-top{border-left:4px solid var(--gold);background:rgba(184,150,62,0.06);}
+.top-badge{font-size:9px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;background:var(--gold);color:var(--navy);padding:2px 8px;border-radius:20px;vertical-align:middle;}
+.badge-nodata{background:#eef0f2;color:var(--mid);font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500;}
+.admin-lb-inactive{background:#ffebee;color:#c0392b;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500;}
+.admin-renewal-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;padding:0.75rem 0;border-bottom:1px solid var(--border);}
+.admin-renewal-row:last-child{border-bottom:none;}
+.admin-financial-inner{padding-top:0.5rem;}
+.admin-financial-row{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:0.75rem;}
+.admin-financial-label{font-size:13px;color:var(--mid);}
+.admin-financial-hint{font-size:11px;color:var(--light);margin:0.5rem 0 1rem;}
+.admin-health-bar-track{height:12px;background:var(--silver-bg);border-radius:6px;overflow:hidden;margin-bottom:0.75rem;}
+.admin-health-bar-fill{height:100%;width:0%;border-radius:6px;transition:width 0.4s ease;}
+.admin-health-bar-fill.health-green{background:linear-gradient(90deg,#43a047,#66bb6a);}
+.admin-health-bar-fill.health-amber{background:linear-gradient(90deg,#fbc02d,#fdd835);}
+.admin-health-bar-fill.health-red{background:linear-gradient(90deg,#e53935,#ef5350);}
+.admin-breakeven-banner{background:#fff8e1;border:1px solid #ffe082;color:#795548;font-size:12px;padding:0.65rem 0.85rem;border-radius:6px;margin-bottom:0.75rem;}
+.admin-projected-row{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);}
+.admin-section-divider{text-align:center;margin:2rem 1.5rem 1.25rem;padding-top:1.5rem;border-top:1px solid rgba(184,150,62,0.2);}
+.admin-section-divider span{font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:rgba(200,220,235,0.55);}
+.admin-dealer-mgmt-card{margin-top:0;}
+
 @media(max-width:768px){.stats-grid{grid-template-columns:1fr;}.stat-card{min-height:auto;}}
-@media(max-width:600px){.fr,.add-dealer-row{grid-template-columns:1fr;}.portal-content{padding:1.5rem;}.portal-tabs{padding:0 1rem;}.tab{padding:0.75rem 0.75rem;font-size:12px;}.portal-nav{padding:0 1.25rem;}.ticket-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:600px){.fr,.add-dealer-row{grid-template-columns:1fr;}.portal-content{padding:1.5rem;}.portal-tabs{padding:0 1rem;}.tab{padding:0.75rem 0.75rem;font-size:12px;}.portal-nav{padding:0 1.25rem;}.ticket-grid{grid-template-columns:1fr 1fr;}.admin-stat-grid{grid-template-columns:1fr;}}

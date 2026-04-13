@@ -258,29 +258,127 @@
       </div>
     </div>
 
-    <!-- ADMIN -->
+    <!-- ADMIN — NETWORK COMMAND CENTER -->
     <div class="tab-panel" id="panel-admin">
-      <div class="admin-banner">
-        <div class="admin-banner-icon">🔐</div>
-        <p><strong>Admin Panel</strong> — Manage dealer accounts. Changes take effect immediately.</p>
-      </div>
-      <div class="card">
-        <div class="card-title">Dealer Accounts</div>
-        <div class="card-sub">Add, remove, or manage dealer login credentials.</div>
-        <table class="dealer-table" id="dealer-table">
-          <thead><tr><th>Username</th><th>Dealership Name</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="dealer-tbody"></tbody>
-        </table>
-        <div class="add-dealer-form">
-          <h4>Add New Dealer</h4>
-          <div class="add-dealer-row">
-            <div class="fg"><label>Username</label><input type="text" id="new-username" placeholder="e.g. dealer3"></div>
-            <div class="fg"><label>Password</label><input type="text" id="new-password" placeholder="e.g. marina2026"></div>
-            <div class="fg"><label>Dealership Name</label><input type="text" id="new-name" placeholder="e.g. Harbor Marine"></div>
-            <button class="btn-add" id="add-dealer-btn">Add Dealer</button>
+      <div class="admin-panel-shell">
+        <div class="admin-cc-banner">
+          <span class="admin-cc-lock" aria-hidden="true">🔐</span>
+          <span class="admin-cc-title">WHITESTONE PARTNERS — NETWORK COMMAND CENTER</span>
+        </div>
+
+        <div id="admin-dashboard-loading" class="admin-dashboard-loading">Loading network data…</div>
+
+        <div id="admin-dashboard-content" style="display:none;">
+          <div class="admin-stat-grid">
+            <div class="stat-card admin-stat-card">
+              <div class="admin-stat-label">Total contracts enrolled</div>
+              <div class="admin-stat-value" id="admin-stat-contracts">—</div>
+              <div class="admin-stat-note">Unique customers proxy: ⌈tickets ÷ 3⌉</div>
+            </div>
+            <div class="stat-card admin-stat-card">
+              <div class="admin-stat-label">Network revenue generated</div>
+              <div class="admin-stat-value" id="admin-stat-revenue">—</div>
+              <div class="admin-stat-note">Contracts × $3,699 avg.</div>
+            </div>
+            <div class="stat-card admin-stat-card">
+              <div class="admin-stat-label">Total reimbursements paid (est.)</div>
+              <div class="admin-stat-value" id="admin-stat-reimb">—</div>
+              <div class="admin-stat-note">All tickets × $150</div>
+            </div>
+            <div class="stat-card admin-stat-card">
+              <div class="admin-stat-label">WP net margin (est.)</div>
+              <div class="admin-stat-value" id="admin-stat-margin">—</div>
+              <div class="admin-stat-note">Revenue − reimbursements − commissions</div>
+            </div>
           </div>
-          <div id="add-ok" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--green-text);">✓ Dealer added successfully.</div>
-          <div id="add-err" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--red-text);">Please fill in all fields.</div>
+
+          <div class="card admin-chart-card">
+            <div class="card-title">Network Activity — Tickets This Year</div>
+            <div class="admin-chart-wrap"><canvas id="admin-network-chart" height="120"></canvas></div>
+          </div>
+
+          <div class="card admin-leaderboard-card">
+            <div class="card-title">Dealer leaderboard</div>
+            <div class="card-sub">Ranked by tickets submitted (network-wide).</div>
+            <div class="table-scroll">
+              <table class="dealer-table admin-leaderboard-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Dealership</th>
+                    <th>Tickets</th>
+                    <th>Est. contracts</th>
+                    <th>Est. reimbursements</th>
+                    <th>Last activity</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-leaderboard-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="admin-flags-row">
+            <div class="card admin-flag-card admin-flag-needs">
+              <div class="card-title">Needs follow up</div>
+              <p class="card-sub">No tickets in the last 30 days.</p>
+              <div id="admin-followup-list" class="admin-pill-list"></div>
+            </div>
+            <div class="card admin-flag-card admin-flag-good">
+              <div class="card-title">Performing well</div>
+              <p class="card-sub">3+ tickets this calendar month.</p>
+              <div id="admin-performing-list" class="admin-pill-list"></div>
+            </div>
+          </div>
+
+          <div class="card admin-renewals-network-card">
+            <div class="card-title">Renewals due across network</div>
+            <div class="card-sub">Earliest ticket per customer as enrollment proxy; anniversaries in the next 90 days.</div>
+            <div id="admin-renewals-body" class="admin-renewals-network-body"></div>
+          </div>
+
+          <div class="card admin-financial-card">
+            <div class="card-title">Financial health indicator</div>
+            <div class="admin-financial-inner">
+              <div class="admin-financial-row">
+                <span class="admin-financial-label">Estimated claims rate</span>
+                <strong id="admin-health-claims">—</strong>
+              </div>
+              <div class="admin-health-bar-track">
+                <div class="admin-health-bar-fill" id="admin-health-bar"></div>
+              </div>
+              <p class="admin-financial-hint">Services completed ÷ (contracts × 10 possible services per contract).</p>
+              <div id="admin-health-warning" class="admin-breakeven-banner" style="display:none;">Claims rate approaching breakeven — monitor closely</div>
+              <div class="admin-financial-row admin-projected-row">
+                <span class="admin-financial-label">Projected monthly reimbursements (pace)</span>
+                <strong id="admin-health-projected">—</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-section-divider">
+          <span>Dealer account management</span>
+        </div>
+
+        <div class="card admin-dealer-mgmt-card">
+          <div class="card-title">Dealer Accounts</div>
+          <div class="card-sub">Add, remove, or manage dealer login credentials.</div>
+          <table class="dealer-table" id="dealer-table">
+            <thead><tr><th>Username</th><th>Dealership Name</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="dealer-tbody"></tbody>
+          </table>
+          <div class="add-dealer-form">
+            <h4>Add New Dealer</h4>
+            <div class="add-dealer-row">
+              <div class="fg"><label>Username</label><input type="text" id="new-username" placeholder="e.g. dealer3"></div>
+              <div class="fg"><label>Password</label><input type="text" id="new-password" placeholder="e.g. marina2026"></div>
+              <div class="fg"><label>Dealership Name</label><input type="text" id="new-name" placeholder="e.g. Harbor Marine"></div>
+              <button class="btn-add" id="add-dealer-btn">Add Dealer</button>
+            </div>
+            <div id="add-ok" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--green-text);">✓ Dealer added successfully.</div>
+            <div id="add-err" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--red-text);">Please fill in all fields.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -288,6 +386,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="assets/js/dealer-portal.js" defer></script>
 </body>
 </html>
