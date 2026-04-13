@@ -265,5 +265,30 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .pricing-chart-wrap{position:relative;height:240px;max-width:100%;}
 .pricing-breakeven-note{margin-top:1rem;font-size:13px;font-weight:500;}
 
+/* Ticket history status */
+.ticket-status{margin-top:0.65rem;padding:0.5rem 0.75rem;border-radius:8px;font-size:12px;font-weight:500;line-height:1.4;}
+.ticket-status-pending{background:#fff8e1;border:1px solid #ffe082;color:#795548;}
+.ticket-status-approved{background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20;}
+.ticket-status-rejected{background:#ffebee;border:1px solid #ffcdd2;color:#b71c1c;}
+
+/* Claims (admin) */
+.claims-shell{max-width:960px;}
+.claims-section-card{margin-bottom:1.25rem;}
+.claims-body{font-size:13px;color:var(--mid);}
+.claims-year-total{font-size:13px;font-weight:600;color:var(--navy);margin-bottom:0.75rem;padding:0.5rem 0;}
+.claims-queue-row{border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:0.75rem;background:var(--white);}
+.claims-queue-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:0.5rem;margin-bottom:0.5rem;}
+.claims-queue-meta{font-size:11px;color:var(--light);}
+.claims-queue-actions{display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;margin-top:0.75rem;}
+.claims-queue-actions input[type="text"]{flex:1;min-width:140px;padding:6px 10px;font-size:12px;border:1px solid var(--border);border-radius:6px;}
+.btn-claims-approve{background:#2e7d32;color:#fff;border:none;padding:0.45rem 1rem;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;}
+.btn-claims-approve:hover{filter:brightness(1.05);}
+.btn-claims-reject{background:#c62828;color:#fff;border:none;padding:0.45rem 1rem;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;}
+.btn-claims-reject:hover{filter:brightness(1.05);}
+.btn-claims-paid{background:var(--navy);color:var(--gold);border:1px solid rgba(184,150,62,0.4);padding:0.4rem 0.85rem;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;}
+.claims-unpaid-group{border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:0.65rem;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:0.75rem;}
+.claims-history-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:0.5rem;padding:0.6rem 0;border-bottom:1px solid var(--border);font-size:12px;}
+.claims-history-row:last-child{border-bottom:none;}
+
 @media(max-width:768px){.stats-grid{grid-template-columns:1fr;}.stat-card{min-height:auto;}}
 @media(max-width:600px){.fr,.add-dealer-row{grid-template-columns:1fr;}.portal-content{padding:1.5rem;}.portal-tabs{padding:0 1rem;}.tab{padding:0.75rem 0.75rem;font-size:12px;}.portal-nav{padding:0 1.25rem;}.ticket-grid{grid-template-columns:1fr 1fr;}.admin-stat-grid{grid-template-columns:1fr;}}

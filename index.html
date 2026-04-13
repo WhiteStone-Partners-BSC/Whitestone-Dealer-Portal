@@ -96,7 +96,7 @@
 
       <div class="card renewals-card">
         <div class="card-title" style="margin-bottom:0.5rem;">Renewals due soon</div>
-        <div class="card-sub" style="margin-bottom:1rem;">Annual contracts renew 1 year from each customer’s first ticket. Showing anniversaries in the next 90 days.</div>
+        <div class="card-sub" style="margin-bottom:1rem;">Annual contracts ending soon. Showing renewals in the next 90 days (by contract end date).</div>
         <div id="renewals-container">
           <div class="renewals-loading">Loading renewal dates…</div>
         </div>
@@ -259,6 +259,28 @@
       </div>
     </div>
 
+    <!-- CLAIMS (admin only — tab injected on login) -->
+    <div class="tab-panel" id="panel-claims">
+      <div class="admin-panel-shell claims-shell">
+        <div class="card claims-section-card">
+          <div class="card-title">Pending claims queue</div>
+          <div class="card-sub">Tickets awaiting review — approve or reject with a reason.</div>
+          <div id="claims-pending-body" class="claims-body">Loading…</div>
+        </div>
+        <div class="card claims-section-card">
+          <div class="card-title">Approved &amp; unpaid reimbursements</div>
+          <div class="card-sub">Outstanding amounts owed to dealers (approved tickets, reimbursement not yet paid).</div>
+          <div id="claims-unpaid-body" class="claims-body">Loading…</div>
+        </div>
+        <div class="card claims-section-card">
+          <div class="card-title">Reimbursement history</div>
+          <div class="card-sub">Paid reimbursements, most recent first.</div>
+          <div id="claims-history-total" class="claims-year-total"></div>
+          <div id="claims-history-body" class="claims-body">Loading…</div>
+        </div>
+      </div>
+    </div>
+
     <!-- PRICING MODEL (admin only) -->
     <div class="tab-panel" id="panel-pricing">
       <div class="pricing-panel-shell">
@@ -368,17 +390,17 @@
             <div class="stat-card admin-stat-card">
               <div class="admin-stat-label">Total contracts enrolled</div>
               <div class="admin-stat-value" id="admin-stat-contracts">—</div>
-              <div class="admin-stat-note">Unique customers proxy: ⌈tickets ÷ 3⌉</div>
+              <div class="admin-stat-note">Active contracts (Supabase)</div>
             </div>
             <div class="stat-card admin-stat-card">
               <div class="admin-stat-label">Network revenue generated</div>
               <div class="admin-stat-value" id="admin-stat-revenue">—</div>
-              <div class="admin-stat-note">Contracts × $3,699 avg.</div>
+              <div class="admin-stat-note">Sum of retail_price on active contracts</div>
             </div>
             <div class="stat-card admin-stat-card">
-              <div class="admin-stat-label">Total reimbursements paid (est.)</div>
+              <div class="admin-stat-label">Total reimbursements paid</div>
               <div class="admin-stat-value" id="admin-stat-reimb">—</div>
-              <div class="admin-stat-note">All tickets × $150</div>
+              <div class="admin-stat-note">Sum of paid reimbursement rows</div>
             </div>
             <div class="stat-card admin-stat-card">
               <div class="admin-stat-label">WP net margin (est.)</div>
@@ -428,7 +450,7 @@
 
           <div class="card admin-renewals-network-card">
             <div class="card-title">Renewals due across network</div>
-            <div class="card-sub">Earliest ticket per customer as enrollment proxy; anniversaries in the next 90 days.</div>
+            <div class="card-sub">Contracts with end_date in the next 90 days.</div>
             <div id="admin-renewals-body" class="admin-renewals-network-body"></div>
           </div>
 
