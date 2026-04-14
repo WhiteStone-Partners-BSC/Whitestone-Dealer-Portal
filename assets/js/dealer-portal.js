@@ -1551,42 +1551,216 @@ function generateDealerContractPDF() {
   var now = new Date();
   var dateStr = now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   var version = "v" + now.getFullYear() + ("0" + (now.getMonth() + 1)).slice(-2) + ("0" + now.getDate()).slice(-2);
-  var content = "WHITESTONE PARTNERS LLC\nDEALER SERVICES AGREEMENT\n\n" +
-    "CONFIDENTIAL — FOR AUTHORIZED USE ONLY\nGenerated: " + dateStr + " | Version: " + version + "\n" +
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-    "DEALER: " + dealer + "\nAGREEMENT DATE: " + dateStr + "\n\n" +
-    "2.1 DEALER COMMISSION\n" +
-    "Dealer earns a one-time commission of " + rates.commission_pct + "%.\n\n" +
-    "Contract Retail Prices:\n" +
-    "  • 1-Year Contract:  $" + Math.round(rates.contract_retail_1yr || 0).toLocaleString() + "\n" +
-    "  • 2-Year Contract:  $" + Math.round(rates.contract_retail_2yr || 0).toLocaleString() + "\n" +
-    "  • 3-Year Contract:  $" + Math.round(rates.contract_retail_3yr || 0).toLocaleString() + "\n\n" +
-    "2.2 SERVICE REIMBURSEMENTS\n" +
-    "Dealer is reimbursed at a rate of $" + Math.round(rates.reimbursement_rate || 0) + " per approved service ticket.\n\n" +
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nCONFIDENTIAL — Whitestone Partners LLC";
-  var blob = new Blob([content], { type: "text/plain" });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement("a");
-  a.href = url;
-  a.download = "Whitestone_Partners_Dealer_Agreement_" + dealer.replace(/\s+/g, "_") + "_" + version + ".txt";
-  a.click();
-  URL.revokeObjectURL(url);
+  var pct = String(rates.commission_pct != null ? rates.commission_pct : "");
+  var r1 = Math.round(rates.contract_retail_1yr || 0).toLocaleString();
+  var r2 = Math.round(rates.contract_retail_2yr || 0).toLocaleString();
+  var r3 = Math.round(rates.contract_retail_3yr || 0).toLocaleString();
+  var reimb = Math.round(rates.reimbursement_rate || 0).toLocaleString();
+  var dealerEsc = escHtml(dealer);
+  var html = "<!DOCTYPE html>\n" +
+"<html>\n" +
+"<head>\n" +
+"<meta charset=\"UTF-8\">\n" +
+"<title>Whitestone Partners — Dealer Services Agreement</title>\n" +
+"<style>\n" +
+"  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&display=swap');\n" +
+"  * { box-sizing: border-box; margin: 0; padding: 0; }\n" +
+"  body { font-family: 'DM Sans', Georgia, serif; font-size: 10.5pt; line-height: 1.7; color: #1a1a1a; background: white; }\n" +
+"  .page { max-width: 750px; margin: 0 auto; padding: 60px 70px; }\n" +
+"  .header { text-align: center; border-bottom: 3px solid #0c1e2e; padding-bottom: 28px; margin-bottom: 32px; }\n" +
+"  .header-logo-text { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26pt; font-weight: 300; color: #0c1e2e; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }\n" +
+"  .header-sub { font-size: 8pt; letter-spacing: 0.2em; text-transform: uppercase; color: #b8963e; margin-bottom: 16px; }\n" +
+"  .doc-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 18pt; font-weight: 600; color: #0c1e2e; margin-bottom: 6px; }\n" +
+"  .doc-meta { font-size: 8.5pt; color: #6b8599; }\n" +
+"  .conf-badge { display: inline-block; background: #0c1e2e; color: white; font-size: 7.5pt; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase; padding: 4px 14px; border-radius: 2px; margin-top: 10px; }\n" +
+"  .section { margin-bottom: 28px; }\n" +
+"  .section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 13pt; font-weight: 600; color: #0c1e2e; border-bottom: 1.5px solid #b8963e; padding-bottom: 5px; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.06em; }\n" +
+"  .section-number { color: #b8963e; margin-right: 8px; }\n" +
+"  .clause { margin-bottom: 10px; }\n" +
+"  .clause-num { font-weight: 600; color: #0c1e2e; margin-right: 6px; }\n" +
+"  p { margin-bottom: 10px; font-size: 10pt; }\n" +
+"  .pricing-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 9.5pt; }\n" +
+"  .pricing-table th { background: #0c1e2e; color: white; padding: 7px 12px; text-align: left; font-size: 8pt; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }\n" +
+"  .pricing-table td { padding: 7px 12px; border-bottom: 1px solid #eef0f3; }\n" +
+"  .pricing-table tr:nth-child(even) td { background: #f8f9fb; }\n" +
+"  .highlight-box { background: #f0f4f8; border: 1px solid #c5d4e0; border-left: 4px solid #0c1e2e; border-radius: 4px; padding: 14px 18px; margin: 14px 0; font-size: 9.5pt; }\n" +
+"  .party-line { font-size: 10.5pt; margin-bottom: 6px; }\n" +
+"  .party-label { font-weight: 600; color: #0c1e2e; }\n" +
+"  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #dde3ea; display: flex; justify-content: space-between; align-items: center; }\n" +
+"  .footer-left { font-size: 7.5pt; color: #9aafbf; }\n" +
+"  .footer-right { font-size: 7.5pt; color: #b8963e; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }\n" +
+"  .gold-bar { height: 4px; background: linear-gradient(90deg, #b8963e, #d4ac52, #b8963e); }\n" +
+"  @media print { body { font-size: 10pt; } .page { padding: 40px 50px; } }\n" +
+"</style>\n" +
+"</head>\n" +
+"<body>\n" +
+"<div class=\"gold-bar\"></div>\n" +
+"<div class=\"page\">\n" +
+"  <div class=\"header\">\n" +
+"    <div class=\"header-logo-text\">Whitestone Partners</div>\n" +
+"    <div class=\"header-sub\">Certified Marine Dealer Program</div>\n" +
+"    <div class=\"doc-title\">Dealer Services Agreement</div>\n" +
+"    <div class=\"doc-meta\">Confidential — For authorized dealer use only · Generated " + escHtml(dateStr) + " · " + escHtml(version) + "</div>\n" +
+"    <div><span class=\"conf-badge\">Confidential</span></div>\n" +
+"  </div>\n" +
+"  <div class=\"section\">\n" +
+"    <div class=\"party-line\"><span class=\"party-label\">Dealer:</span> " + dealerEsc + "</div>\n" +
+"    <div class=\"party-line\"><span class=\"party-label\">Agreement date:</span> " + escHtml(dateStr) + "</div>\n" +
+"  </div>\n" +
+"  <div class=\"section\">\n" +
+"    <div class=\"section-title\"><span class=\"section-number\">2.1</span>Dealer commission</div>\n" +
+"    <p>The dealer earns a one-time commission of <strong>" + escHtml(pct) + "%</strong> on qualifying contract sales in accordance with Whitestone Partners program rules.</p>\n" +
+"    <table class=\"pricing-table\">\n" +
+"      <thead><tr><th>Term</th><th>Contract retail price</th></tr></thead>\n" +
+"      <tbody>\n" +
+"        <tr><td>1-year contract</td><td>$" + escHtml(r1) + "</td></tr>\n" +
+"        <tr><td>2-year contract</td><td>$" + escHtml(r2) + "</td></tr>\n" +
+"        <tr><td>3-year contract</td><td>$" + escHtml(r3) + "</td></tr>\n" +
+"      </tbody>\n" +
+"    </table>\n" +
+"  </div>\n" +
+"  <div class=\"section\">\n" +
+"    <div class=\"section-title\"><span class=\"section-number\">2.2</span>Service reimbursements</div>\n" +
+"    <p>The dealer is reimbursed at a rate of <strong>$" + escHtml(reimb) + "</strong> per approved service ticket submitted through the Whitestone Partners portal.</p>\n" +
+"    <div class=\"highlight-box\"><strong>Documentation:</strong> Service records must be logged in the Whitestone Partners system for reimbursement eligibility.</div>\n" +
+"  </div>\n" +
+"  <div class=\"footer\">\n" +
+"    <div class=\"footer-left\">Whitestone Partners LLC &nbsp;|&nbsp; St. George, Utah &nbsp;|&nbsp; sales@whitestone-partners.com</div>\n" +
+"    <div class=\"footer-right\">Dealer copy</div>\n" +
+"  </div>\n" +
+"</div>\n" +
+"<div class=\"gold-bar\"></div>\n" +
+"<script>\n" +
+"  window.onload = function() { window.print(); }\n" +
+"</script>\n" +
+"</body>\n" +
+"</html>";
+  var printWindow = window.open("", "_blank", "width=900,height=700");
+  if (printWindow) {
+    printWindow.document.write(html);
+    printWindow.document.close();
+  }
   writeAuditLog("pricing", pricingState.pricingId, "contract_generated", null, { dealer: dealer, version: version, date: dateStr }, dealer, null, "Dealer contract PDF generated");
 }
 
 function downloadCustomerContract() {
-  var content = "WHITESTONE PARTNERS LLC\nANNUAL BOAT SERVICE CONTRACT\n\n" +
-    "SECTION 1 — WHAT'S COVERED\n\n" +
-    "01. Summer Prep\n02. Impeller Service\n03. Engine Oil Service\n04. Fuel Filter Service\n05. Transmission Oil Service\n" +
-    "06. Outdrive Service\n07. Shaft Alignment\n08. Winterization\n09. V-Drive Service\n10. Ballast Cartridge Service\n\n" +
-    "Whitestone Partners LLC\nSt. George, Utah\nsales@whitestone-partners.com";
-  var blob = new Blob([content], { type: "text/plain" });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement("a");
-  a.href = url;
-  a.download = "Whitestone_Partners_Customer_Service_Contract.txt";
-  a.click();
-  URL.revokeObjectURL(url);
+  var html = "<!DOCTYPE html>\n" +
+"<html>\n" +
+"<head>\n" +
+"<meta charset=\"UTF-8\">\n" +
+"<title>Whitestone Partners — Annual Boat Service Contract</title>\n" +
+"<style>\n" +
+"  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&display=swap');\n" +
+"  * { box-sizing: border-box; margin: 0; padding: 0; }\n" +
+"  body { font-family: 'DM Sans', Georgia, serif; font-size: 10.5pt; line-height: 1.7; color: #1a1a1a; background: white; }\n" +
+"  .page { max-width: 750px; margin: 0 auto; padding: 60px 70px; }\n" +
+"  .header { text-align: center; border-bottom: 3px solid #0c1e2e; padding-bottom: 28px; margin-bottom: 32px; }\n" +
+"  .header-logo-text { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26pt; font-weight: 300; color: #0c1e2e; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }\n" +
+"  .header-sub { font-size: 8pt; letter-spacing: 0.2em; text-transform: uppercase; color: #b8963e; margin-bottom: 16px; }\n" +
+"  .doc-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 18pt; font-weight: 600; color: #0c1e2e; margin-bottom: 6px; }\n" +
+"  .doc-meta { font-size: 8.5pt; color: #6b8599; }\n" +
+"  .owner-badge { display: inline-block; background: #b8963e; color: white; font-size: 7.5pt; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase; padding: 4px 14px; border-radius: 2px; margin-top: 10px; }\n" +
+"  .section { margin-bottom: 28px; }\n" +
+"  .section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 13pt; font-weight: 600; color: #0c1e2e; border-bottom: 1.5px solid #b8963e; padding-bottom: 5px; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.06em; }\n" +
+"  .section-number { color: #b8963e; margin-right: 8px; }\n" +
+"  .clause { margin-bottom: 10px; }\n" +
+"  .clause-num { font-weight: 600; color: #0c1e2e; margin-right: 6px; }\n" +
+"  p { margin-bottom: 10px; font-size: 10pt; }\n" +
+"  .services-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 9.5pt; }\n" +
+"  .services-table th { background: #0c1e2e; color: white; padding: 7px 12px; text-align: left; font-size: 8pt; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }\n" +
+"  .services-table td { padding: 7px 12px; border-bottom: 1px solid #eef0f3; }\n" +
+"  .services-table tr:nth-child(even) td { background: #f8f9fb; }\n" +
+"  .services-table .num { color: #b8963e; font-weight: 600; width: 30px; }\n" +
+"  .services-table .freq { color: #6b8599; font-size: 8.5pt; }\n" +
+"  .highlight-box { background: #f8f5ee; border: 1px solid #e0c97a; border-left: 4px solid #b8963e; border-radius: 4px; padding: 14px 18px; margin: 14px 0; font-size: 9.5pt; }\n" +
+"  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #dde3ea; display: flex; justify-content: space-between; align-items: center; }\n" +
+"  .footer-left { font-size: 7.5pt; color: #9aafbf; }\n" +
+"  .footer-right { font-size: 7.5pt; color: #b8963e; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }\n" +
+"  .gold-bar { height: 4px; background: linear-gradient(90deg, #b8963e, #d4ac52, #b8963e); }\n" +
+"  .tagline { text-align: center; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 13pt; font-style: italic; color: #0c1e2e; margin: 28px 0; padding: 16px; border-top: 1px solid #eef0f3; border-bottom: 1px solid #eef0f3; }\n" +
+"  @media print { body { font-size: 10pt; } .page { padding: 40px 50px; } }\n" +
+"</style>\n" +
+"</head>\n" +
+"<body>\n" +
+"<div class=\"gold-bar\"></div>\n" +
+"<div class=\"page\">\n" +
+"  <div class=\"header\">\n" +
+"    <div class=\"header-logo-text\">Whitestone Partners</div>\n" +
+"    <div class=\"header-sub\">Certified Marine Dealer Program</div>\n" +
+"    <div class=\"doc-title\">Annual Boat Service Contract</div>\n" +
+"    <div class=\"doc-meta\">Boat Owner Copy — Keep for Your Records</div>\n" +
+"    <div><span class=\"owner-badge\">Boat Owner Copy</span></div>\n" +
+"  </div>\n" +
+"  <div class=\"section\">\n" +
+"    <div class=\"section-title\"><span class=\"section-number\">1.</span>What's Covered</div>\n" +
+"    <p>Your Whitestone Partners annual service contract covers the following ten (10) maintenance services performed by your assigned certified dealer:</p>\n" +
+"    <table class=\"services-table\">\n" +
+"      <thead><tr><th>#</th><th>Service</th><th>Frequency</th></tr></thead>\n" +
+"      <tbody>\n" +
+"        <tr><td class=\"num\">01</td><td>Summer Prep</td><td class=\"freq\">Yearly</td></tr>\n" +
+"        <tr><td class=\"num\">02</td><td>Impeller Service</td><td class=\"freq\">Start of season / every 50 hrs</td></tr>\n" +
+"        <tr><td class=\"num\">03</td><td>Engine Oil Service</td><td class=\"freq\">Yearly / every 50 hrs</td></tr>\n" +
+"        <tr><td class=\"num\">04</td><td>Fuel Filter Service</td><td class=\"freq\">Every 150 hrs</td></tr>\n" +
+"        <tr><td class=\"num\">05</td><td>Transmission Oil Service</td><td class=\"freq\">Yearly / every 100 hrs</td></tr>\n" +
+"        <tr><td class=\"num\">06</td><td>Outdrive Service</td><td class=\"freq\">Yearly / every 100 hrs</td></tr>\n" +
+"        <tr><td class=\"num\">07</td><td>Shaft Alignment</td><td class=\"freq\">Yearly / every 150 hrs</td></tr>\n" +
+"        <tr><td class=\"num\">08</td><td>Winterization</td><td class=\"freq\">Yearly</td></tr>\n" +
+"        <tr><td class=\"num\">09</td><td>V-Drive Service</td><td class=\"freq\">Yearly / every 200 hrs (V-drive vessels only)</td></tr>\n" +
+"        <tr><td class=\"num\">10</td><td>Ballast Cartridge Service</td><td class=\"freq\">Every 100 hrs (ballast-equipped vessels only)</td></tr>\n" +
+"      </tbody>\n" +
+"    </table>\n" +
+"  </div>\n" +
+"  <div class=\"section\">\n" +
+"    <div class=\"section-title\"><span class=\"section-number\">2.</span>What's Not Covered</div>\n" +
+"    <div class=\"clause\"><span class=\"clause-num\">2.1</span>Parts replacement beyond normal service items included in the covered services above.</div>\n" +
+"    <div class=\"clause\"><span class=\"clause-num\">2.2</span>Damage resulting from misuse, neglect, accidents, collision, or weather events.</div>\n" +
+"    <div class=\"clause\"><span class=\"clause-num\">2.3</span>Pre-existing conditions at the time of enrollment.</div>\n" +
+"    <div class=\"clause\"><span class=\"clause-num\">2.4</span>Services not listed in Section 1 of this contract.</div>\n" +
+"    <div class=\"clause\"><span class=\"clause-num\">2.5</span>Commercial vessel use of any kind.</div>\n" +
+"    <div class=\"clause\"><span class=\"clause-num\">2.6</span>Services performed by non-certified Whitestone Partners dealers.</div>\n" +
+"  </div>\n" +
+"  <div class=\"section\">\n" +
+"    <div class=\"section-title\"><span class=\"section-number\">3.</span>Your Contract Terms</div>\n" +
+"    <div class=\"clause\"><span class=\"clause-num\">3.1</span><strong>Vessel Tie.</strong> This contract is tied to your boat's Hull Identification Number (HIN) and is not transferable to a new owner upon sale of the vessel.</div>\n" +
+"    <div class=\"clause\"><span class=\"clause-num\">3.2</span><strong>No Cash Value.</strong> Unused services do not roll over to the next contract period and carry no cash value.</div>\n" +
+"    <div class=\"clause\"><span class=\"clause-num\">3.3</span><strong>Assigned Dealer.</strong> All covered services must be performed by your assigned Whitestone Partners certified dealer.</div>\n" +
+"    <div class=\"highlight-box\"><strong>Service Documentation:</strong> Every completed service is logged in the Whitestone Partners system, creating a complete documented service history for your vessel — a valuable asset when it comes time to sell your boat.</div>\n" +
+"  </div>\n" +
+"  <div class=\"section\">\n" +
+"    <div class=\"section-title\"><span class=\"section-number\">4.</span>Scheduling Service</div>\n" +
+"    <p>Contact your assigned dealer to schedule each covered service. Your dealer will submit service records through the Whitestone Partners portal after each visit, maintaining your complete service history automatically.</p>\n" +
+"  </div>\n" +
+"  <div class=\"section\">\n" +
+"    <div class=\"section-title\"><span class=\"section-number\">5.</span>Cancellation Policy</div>\n" +
+"    <p>Cancellation requests submitted within 30 days of contract activation will receive a full refund minus the value of any services already performed. After 30 days from activation, no refund is available. All cancellation requests must be submitted in writing to sales@whitestone-partners.com.</p>\n" +
+"  </div>\n" +
+"  <div class=\"section\">\n" +
+"    <div class=\"section-title\"><span class=\"section-number\">6.</span>Limitation of Liability</div>\n" +
+"    <p>Whitestone Partners' total liability under this contract shall not exceed the original contract purchase price. Whitestone is not liable for incidental or consequential damages, including but not limited to loss of use of your vessel.</p>\n" +
+"  </div>\n" +
+"  <div class=\"section\">\n" +
+"    <div class=\"section-title\"><span class=\"section-number\">7.</span>Dispute Resolution</div>\n" +
+"    <p>Disputes shall first be submitted to good-faith negotiation between the parties. If unresolved within 30 days, binding arbitration in Washington County, Utah shall govern. The laws of the State of Utah apply to this contract.</p>\n" +
+"  </div>\n" +
+"  <div class=\"section\">\n" +
+"    <div class=\"section-title\"><span class=\"section-number\">8.</span>Contact</div>\n" +
+"    <p><strong>Whitestone Partners LLC</strong><br>St. George, Utah<br>sales@whitestone-partners.com<br>whitestone-partners.com</p>\n" +
+"  </div>\n" +
+"  <div class=\"tagline\">\"The contract that brings your customers back. Every season.\"</div>\n" +
+"  <div class=\"footer\">\n" +
+"    <div class=\"footer-left\">Whitestone Partners LLC &nbsp;|&nbsp; St. George, Utah &nbsp;|&nbsp; sales@whitestone-partners.com</div>\n" +
+"    <div class=\"footer-right\">Boat Owner Copy</div>\n" +
+"  </div>\n" +
+"</div>\n" +
+"<div class=\"gold-bar\"></div>\n" +
+"<script>\n" +
+"  window.onload = function() { window.print(); }\n" +
+"</script>\n" +
+"</body>\n" +
+"</html>";
+  var printWindow = window.open("", "_blank", "width=900,height=700");
+  printWindow.document.write(html);
+  printWindow.document.close();
 }
 
 window.downloadCustomerContract = downloadCustomerContract;
