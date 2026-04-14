@@ -124,6 +124,16 @@ function escHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+function toggleSettingsSection(id) {
+  var content = document.getElementById(id);
+  var arrowId = id.replace("-content", "-arrow");
+  var arrow = document.getElementById(arrowId);
+  if (!content) return;
+  var isOpen = window.getComputedStyle(content).display !== "none";
+  content.style.display = isOpen ? "none" : "block";
+  if (arrow) arrow.textContent = isOpen ? "▶" : "▼";
+}
+
 function generateUsername(dealershipName) {
   var s = String(dealershipName || "")
     .toLowerCase()

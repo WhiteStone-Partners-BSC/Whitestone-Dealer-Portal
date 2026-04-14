@@ -780,13 +780,44 @@
         <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);">
           <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);margin-bottom:0.85rem;">Legal</div>
           <div style="display:flex;flex-direction:column;gap:0.6rem;">
-            <div style="padding:0.75rem 1rem;background:var(--silver-bg);border-radius:6px;border:1px solid var(--border);">
-              <div style="font-size:13.5px;font-weight:500;color:var(--navy);margin-bottom:4px;">Terms &amp; Conditions</div>
-              <div style="font-size:12px;color:var(--mid);">Whitestone Partners service contract terms governing all customer contracts.</div>
+            <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:0.6rem;">
+              <div onclick="toggleSettingsSection('tc-content')" style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--silver-bg);cursor:pointer;">
+                <div>
+                  <div style="font-size:13.5px;font-weight:500;color:var(--navy);">Terms &amp; Conditions</div>
+                  <div style="font-size:11px;color:var(--light);">Customer contract terms</div>
+                </div>
+                <span id="tc-arrow" style="color:var(--mid);font-size:12px;">▶</span>
+              </div>
+              <div id="tc-content" style="display:none;padding:1rem;background:white;border-top:1px solid var(--border);font-size:12.5px;color:var(--mid);line-height:1.7;">
+                <p style="margin-bottom:0.75rem;"><strong style="color:var(--navy);">1. Contract Overview</strong><br>Whitestone Partners LLC offers annual boat maintenance contracts covering ten (10) core services performed by our certified dealer network. The contract is valid for one (1) year from activation.</p>
+                <p style="margin-bottom:0.75rem;"><strong style="color:var(--navy);">2. Covered Services</strong><br>Summer Prep (yearly), Impeller Service (every 50 hrs), Engine Oil Service (yearly/50 hrs), Fuel Filter Service (150 hrs), Transmission Oil (yearly/100 hrs), Outdrive Service (yearly/100 hrs), Shaft Alignment (yearly/150 hrs), Winterization (yearly), V-Drive Service (yearly/200 hrs), Ballast Cartridge Service (100 hrs).</p>
+                <p style="margin-bottom:0.75rem;"><strong style="color:var(--navy);">3. Exclusions</strong><br>Not covered: misuse or neglect, accident damage, major parts replacement, non-listed services, commercial vessel use, pre-existing conditions.</p>
+                <p style="margin-bottom:0.75rem;"><strong style="color:var(--navy);">4. Dealer Network</strong><br>All covered services must be performed by a Whitestone Partners certified dealer.</p>
+                <p style="margin-bottom:0.75rem;"><strong style="color:var(--navy);">5. Cancellation</strong><br>Within 30 days: full refund minus services used. After 30 days: no refund.</p>
+                <p style="margin-bottom:0.75rem;"><strong style="color:var(--navy);">6. Limitation of Liability</strong><br>Total liability shall not exceed the original contract price.</p>
+                <p style="margin-bottom:0.75rem;"><strong style="color:var(--navy);">7. Disputes</strong><br>Good-faith negotiation first. If unresolved within 30 days, binding arbitration in Washington County, Utah. Utah law governs.</p>
+                <p><strong style="color:var(--navy);">8. Contact</strong><br>Whitestone Partners LLC — support@whitestone-partners.com — St. George, Utah</p>
+              </div>
             </div>
-            <div style="padding:0.75rem 1rem;background:var(--silver-bg);border-radius:6px;border:1px solid var(--border);">
-              <div style="font-size:13.5px;font-weight:500;color:var(--navy);margin-bottom:4px;">Dealer Agreement</div>
-              <div style="font-size:12px;color:var(--mid);">Generate dealer-specific agreements from the Pricing section.</div>
+            <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+              <div onclick="toggleSettingsSection('da-content')" style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--silver-bg);cursor:pointer;">
+                <div>
+                  <div style="font-size:13.5px;font-weight:500;color:var(--navy);">Dealer Agreement</div>
+                  <div style="font-size:11px;color:var(--light);">Generate personalized agreements in Pricing</div>
+                </div>
+                <span id="da-arrow" style="color:var(--mid);font-size:12px;">▶</span>
+              </div>
+              <div id="da-content" style="display:none;padding:1rem;background:white;border-top:1px solid var(--border);font-size:12.5px;color:var(--mid);line-height:1.7;">
+                <p style="margin-bottom:0.75rem;"><strong style="color:var(--navy);">1. Program Overview</strong><br>Whitestone Partners administers a pre-paid annual boat maintenance contract program exclusively through its certified marine dealer network. Whitestone handles billing, contract administration, and customer enrollment support.</p>
+                <p style="margin-bottom:0.75rem;"><strong style="color:var(--navy);">2. Compensation</strong><br>Dealer earns a one-time commission at point of sale plus per-ticket reimbursements for covered services performed. Specific rates are set per dealer in the Pricing section and reflected in each dealer's signed agreement.</p>
+                <p style="margin-bottom:0.75rem;"><strong style="color:var(--navy);">3. Dealer Obligations</strong><br>Maintain certified technicians. Submit tickets within 48 hours. Verify HIN on every enrollment and ticket. No fraudulent submissions — violations result in immediate termination and clawback.</p>
+                <p style="margin-bottom:0.75rem;"><strong style="color:var(--navy);">4. Whitestone Obligations</strong><br>Process reimbursements within 30 days of approval. Pay commissions within 30 days of activation. Provide portal access and program support.</p>
+                <p style="margin-bottom:0.75rem;"><strong style="color:var(--navy);">5. Term</strong><br>One year from signing, auto-renewing with 30 days written notice to terminate. Immediate termination for cause.</p>
+                <p style="margin-bottom:0.75rem;"><strong style="color:var(--navy);">6. Legal</strong><br>Governed by Utah law. Disputes to binding arbitration in Washington County, Utah.</p>
+                <div style="background:var(--silver-bg);border-radius:6px;padding:0.75rem;margin-top:0.75rem;font-size:12px;color:var(--navy);">
+                  To generate a dealer-specific signed agreement with exact pricing, go to <strong>Pricing → Select Dealer → Generate Contract</strong>.
+                </div>
+              </div>
             </div>
           </div>
         </div>
