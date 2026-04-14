@@ -133,57 +133,57 @@ function ticketBillable(t) {
   return st === "approved" || st === "pending";
 }
 
-async function verifyHIN(hin, customerFirstName, customerLastName, dealerName) {
-  var hinU = normalizeHin(hin);
-  var res = await fetch(
-    SUPABASE_URL + "/rest/v1/contracts?hin=eq." + encodeURIComponent(hinU) + "&select=*",
-    { headers: supabaseHeaders() }
-  );
-  var existing = await res.json();
-  if (!res.ok || !Array.isArray(existing)) {
-    return { allowed: false, message: "Could not verify HIN. Please try again." };
+async function verifyHINForEnrollment(hin, firstName, lastName, dealerName) {
+  if (!hin || hin.trim() === "") {
+    return { allowed: false, message: "Hull ID (HIN) is required. No HIN, no enrollment." };
   }
-  if (!existing || existing.length === 0) {
+  hin = hin.toUpperCase().trim();
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/contracts?hin=eq." + encodeURIComponent(hin) + "&select=*",
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+    );
+    var existing = await res.json();
+    if (!existing || existing.length === 0) return { allowed: true };
+    var active = existing.filter(function(c) { return c.status === "active"; });
+    var existingName = (existing[0].customer_first_name + " " + existing[0].customer_last_name).toLowerCase().trim();
+    var newName = (firstName + " " + lastName).toLowerCase().trim();
+    var sameCustomer = existingName === newName;
+    if (sameCustomer && active.length > 0) {
+      return { allowed: false, message: "This boat already has an active contract. It expires on " + active[0].end_date + ". Please wait until expiry to renew." };
+    }
+    if (!sameCustomer && active.length > 0) {
+      await logHINConflict(hin, dealerName, firstName + " " + lastName, existing[0].customer_first_name + " " + existing[0].customer_last_name, "active", "HIN has active contract under different customer");
+      return { allowed: false, message: "This HIN is registered to another customer with an active contract. Contracts do not transfer with ownership. Please contact Whitestone Partners at sales@whitestone-partners.com to resolve." };
+    }
+    return { allowed: true, isRenewal: sameCustomer, isNewOwner: !sameCustomer };
+  } catch (e) {
     return { allowed: true };
   }
-  var activeContracts = existing.filter(function(c) { return String(c.status || "").toLowerCase() === "active"; });
-  var existingCustomer =
-    String(existing[0].customer_first_name || "").trim() + " " + String(existing[0].customer_last_name || "").trim();
-  var newCustomer =
-    String(customerFirstName || "").trim() + " " + String(customerLastName || "").trim();
-  var isSameCustomer = existingCustomer.toLowerCase().trim() === newCustomer.toLowerCase().trim();
-  if (isSameCustomer && activeContracts.length > 0) {
-    return {
-      allowed: false,
-      reason: "active_same_customer",
-      message:
-        "This boat already has an active Whitestone contract. The current contract must expire before renewal. Contract ends: " +
-        (activeContracts[0].end_date || "—")
-    };
+}
+
+async function verifyHINForTicket(hin) {
+  if (!hin || hin.trim() === "") {
+    return { valid: false, message: "HIN is required to submit a ticket." };
   }
-  if (!isSameCustomer && activeContracts.length > 0) {
-    await logHINConflict(
-      hinU,
-      dealerName,
-      newCustomer.trim(),
-      existingCustomer.trim(),
-      "active",
-      "HIN has active contract under different customer name"
+  hin = hin.toUpperCase().trim();
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/contracts?hin=eq." + encodeURIComponent(hin) + "&select=*",
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
     );
-    return {
-      allowed: false,
-      reason: "active_different_customer",
-      message:
-        "This HIN is registered to another customer with an active contract. Contracts do not transfer with ownership. Please contact Whitestone Partners at sales@whitestone-partners.com to resolve."
-    };
+    var contracts = await res.json();
+    if (!contracts || contracts.length === 0) {
+      return { valid: false, message: "No contract found for this HIN. Please enroll this customer first." };
+    }
+    var active = contracts.filter(function(c) { return c.status === "active"; });
+    if (active.length === 0) {
+      return { valid: false, expired: true, message: "This customer's contract has expired. Please re-enroll them before submitting a ticket.", customer: contracts[0].customer_first_name + " " + contracts[0].customer_last_name };
+    }
+    return { valid: true, contract: active[0], customer: active[0].customer_first_name + " " + active[0].customer_last_name };
+  } catch (e) {
+    return { valid: true };
   }
-  if (!isSameCustomer && activeContracts.length === 0) {
-    return { allowed: true, isNewOwner: true };
-  }
-  if (isSameCustomer && activeContracts.length === 0) {
-    return { allowed: true, isRenewal: true };
-  }
-  return { allowed: true };
 }
 
 async function logHINConflict(hin, dealerName, attemptedCustomer, existingCustomer, contractStatus, reason) {
@@ -204,50 +204,28 @@ async function logHINConflict(hin, dealerName, attemptedCustomer, existingCustom
   } catch (e) {}
 }
 
+async function writeAuditLog(entityType, entityId, action, oldValue, newValue, dealerName, customerName, notes) {
+  try {
+    await fetch(SUPABASE_URL + "/rest/v1/audit_log", {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({
+        entity_type: entityType,
+        entity_id: entityId || null,
+        action: action,
+        old_value: oldValue || null,
+        new_value: newValue || null,
+        dealer_name: dealerName || null,
+        customer_name: customerName || null,
+        notes: notes || null,
+        performed_by: window.currentDealer ? window.currentDealer.name : "unknown"
+      })
+    });
+  } catch (e) {}
+}
+
 async function verifyCustomerContract(firstName, lastName, hin, dealerName) {
-  var hinU = normalizeHin(hin);
-  if (!hinU) {
-    return { valid: false, ui: "err", message: "HIN is required to submit a ticket." };
-  }
-  var res = await fetch(
-    SUPABASE_URL + "/rest/v1/contracts?hin=eq." + encodeURIComponent(hinU) + "&status=eq.active&select=*",
-    { headers: supabaseHeaders() }
-  );
-  var contracts = await res.json();
-  if (!res.ok || !Array.isArray(contracts)) {
-    return { valid: false, ui: "err", message: "Could not verify contract. Please try again." };
-  }
-  if (!contracts || contracts.length === 0) {
-    var expRes = await fetch(
-      SUPABASE_URL + "/rest/v1/contracts?hin=eq." + encodeURIComponent(hinU) + "&status=eq.expired&select=*",
-      { headers: supabaseHeaders() }
-    );
-    var expContracts = await expRes.json();
-    if (expRes.ok && Array.isArray(expContracts) && expContracts.length > 0) {
-      return {
-        valid: false,
-        ui: "warn",
-        message: "This customer's contract has expired. Please re-enroll them before submitting a ticket."
-      };
-    }
-    return {
-      valid: false,
-      ui: "err",
-      message: "No active contract found for this HIN. Please enroll this customer first."
-    };
-  }
-  var c = contracts[0];
-  var nameOnFile = ((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim().toLowerCase();
-  var entered = ((firstName || "") + " " + (lastName || "")).trim().toLowerCase();
-  if (nameOnFile !== entered) {
-    return {
-      valid: false,
-      ui: "err",
-      message: "The name entered does not match the customer on file for this HIN."
-    };
-  }
-  var dispName = ((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim();
-  return { valid: true, contract: c, displayName: dispName, ui: "ok" };
+  return verifyHINForTicket(hin);
 }
 
 function contractCardStatus(c) {
@@ -1186,9 +1164,10 @@ async function loadAdminHinConflicts() {
           var patch = await fetch(SUPABASE_URL + "/rest/v1/hin_conflicts?id=eq." + encodeURIComponent(id), {
             method: "PATCH",
             headers: supabaseHeaders({ Prefer: "return=minimal" }),
-            body: JSON.stringify({ resolved: true })
+            body: JSON.stringify({ resolved: true, resolved_by: "admin", resolved_at: new Date().toISOString() })
           });
           if (!patch.ok) throw new Error();
+          await writeAuditLog("hin_conflict", id, "conflict_resolved", null, null, "admin", null, null);
           loadAdminHinConflicts();
         } catch (e) {
           alert("Could not update. Please try again.");
@@ -1197,6 +1176,47 @@ async function loadAdminHinConflicts() {
     });
   } catch (e) {
     el.innerHTML = "<div class='admin-hin-empty'>Could not load HIN conflicts. If this is new, run the SQL migration for <code>hin_conflicts</code> in Supabase.</div>";
+  }
+}
+
+async function adminLoadActivityFeed() {
+  var el = document.getElementById("activity-feed-admin");
+  if (!el) return;
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/audit_log?select=*&order=created_at.desc&limit=25",
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+    );
+    var logs = await res.json() || [];
+    if (!logs || logs.length === 0) {
+      el.innerHTML = "<div style='color:var(--light);font-size:13px;padding:1rem 0;'>No activity yet.</div>";
+      return;
+    }
+    var actionIcons = {
+      ticket_submitted: { icon: "📋", color: "#1a5276" },
+      ticket_approved: { icon: "✓", color: "#0F6E56" },
+      ticket_rejected: { icon: "✗", color: "#c0392b" },
+      reimbursement_paid: { icon: "💰", color: "#0F6E56" },
+      reimbursement_rejected: { icon: "↩", color: "#c0392b" },
+      customer_enrolled: { icon: "⚓", color: "#b8963e" },
+      application_approved: { icon: "🤝", color: "#0F6E56" },
+      application_declined: { icon: "✗", color: "#c0392b" },
+      conflict_resolved: { icon: "🔓", color: "#0F6E56" }
+    };
+    el.innerHTML = logs.map(function(l) {
+      var meta = actionIcons[l.action] || { icon: "●", color: "#6b8599" };
+      var label = String(l.action || "activity").replace(/_/g, " ");
+      return "<div style='display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);'>" +
+        "<div style='width:24px;height:24px;border-radius:50%;background:" + meta.color + ";color:white;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;'>" + meta.icon + "</div>" +
+        "<div style='flex:1;'>" +
+        "<span style='font-size:13px;font-weight:500;color:var(--navy);'>" + escHtml(label) + "</span>" +
+        (l.dealer_name ? "<span style='font-size:12px;color:var(--light);'> — " + escHtml(l.dealer_name) + "</span>" : "") +
+        (l.customer_name ? "<span style='font-size:12px;color:var(--light);'> · " + escHtml(l.customer_name) + "</span>" : "") +
+        "<div style='font-size:11px;color:var(--light);'>" + escHtml(new Date(l.created_at).toLocaleString()) + "</div>" +
+        "</div></div>";
+    }).join("");
+  } catch (e) {
+    el.innerHTML = "<div style='color:var(--light);font-size:13px;padding:1rem 0;'>Could not load activity feed.</div>";
   }
 }
 
@@ -1240,6 +1260,7 @@ document.addEventListener("DOMContentLoaded", function() {
           name: dealer.dealership_name,
           isAdmin: dealer.is_admin === true
         };
+        window.currentDealer = currentDealer;
         document.getElementById("dealer-display").textContent = dealer.dealership_name;
         document.getElementById("login-screen").style.display = "none";
         document.getElementById("portal-screen").style.display = "block";
@@ -1345,7 +1366,10 @@ document.addEventListener("DOMContentLoaded", function() {
 
   function updateDashboardStats() {
     var filtered = allTickets.filter(function(t) { return ticketMatchesPeriod(t, dashboardPeriod); });
-    var billableFiltered = filtered.filter(ticketBillable);
+    var billableTickets = filtered.filter(function(t) {
+      var s = (t.status || "pending").toLowerCase();
+      return s === "approved" || s === "pending";
+    });
     var ticketCount = filtered.length;
     var contractsAllTime = countUniqueCustomers(allTickets);
     var y = new Date().getFullYear();
@@ -1357,10 +1381,9 @@ document.addEventListener("DOMContentLoaded", function() {
     if (stTix) stTix.textContent = String(ticketCount);
     if (stHint) stHint.textContent = dashboardPeriod === "year" ? "Submitted in " + y : "All submitted tickets";
     if (stCust) stCust.textContent = String(dealerContractCount > 0 ? dealerContractCount : contractsAllTime);
-    var earnings = billableFiltered.length * 150;
+    var earnings = billableTickets.length * 150;
     if (earnHint) {
-      earnHint.textContent =
-        "~$150 avg per ticket (approved + pending) · " + (dashboardPeriod === "year" ? "this calendar year" : "all time");
+      earnHint.textContent = "~$150 avg per ticket (approved + pending)";
     }
     animateEarningsTo(earnings, earnEl);
     renderSparkline(filtered);
@@ -1483,6 +1506,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
   document.getElementById("logout-btn").addEventListener("click", function() {
     currentDealer = null;
+    window.currentDealer = null;
     document.getElementById("login-screen").style.display = "flex";
     document.getElementById("portal-screen").style.display = "none";
     document.getElementById("username").value = "";
@@ -1519,7 +1543,7 @@ document.addEventListener("DOMContentLoaded", function() {
     document.getElementById("e-model").value = c.boat_model || "";
     document.getElementById("e-year").value = c.boat_year || "";
     document.getElementById("e-hin").value = normalizeHin(c.hin || "");
-    var herr = document.getElementById("e-hin-err");
+    var herr = document.getElementById("e-hin-error");
     if (herr) {
       herr.style.display = "none";
       herr.textContent = "";
@@ -1674,38 +1698,31 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 
   async function updateTicketContractIndicator() {
-    var fn = document.getElementById("t-fname").value;
-    var ln = document.getElementById("t-lname").value;
     var hinEl = document.getElementById("t-hin");
-    var el = document.getElementById("t-contract-status");
+    var el = document.getElementById("t-hin-status");
     if (!el || !hinEl) return;
     var hin = normalizeHin(hinEl.value);
     if (!hin) {
-      el.innerHTML = "";
+      el.textContent = "";
       return;
     }
-    el.innerHTML = "<span class='contract-verify-loading'>Checking contract…</span>";
+    el.textContent = "Checking...";
+    el.style.color = "#6b8599";
     try {
-      var r = await verifyCustomerContract(fn, ln, hin, currentDealer ? currentDealer.name : "");
+      var r = await verifyHINForTicket(hin);
       if (r.valid) {
-        el.innerHTML =
-          "<span class='contract-verify-ok'>🟢 Active contract found — " + escHtml(r.displayName || "") + "</span>";
-      } else if (r.ui === "warn") {
-        el.innerHTML = "<span class='contract-verify-warn'>🟡 Contract expired — please re-enroll</span>";
+        el.textContent = "✓ Active contract — " + (r.customer || "");
+        el.style.color = "#0F6E56";
+      } else if (r.expired) {
+        el.textContent = "⚠ Contract expired — " + (r.customer || "customer") + ". Please re-enroll.";
+        el.style.color = "#BA7517";
       } else {
-        var msg = r.message || "";
-        if (
-          msg.indexOf("No active contract") !== -1 ||
-          msg.indexOf("enroll") !== -1 ||
-          msg.indexOf("Enroll") !== -1
-        ) {
-          el.innerHTML = "<span class='contract-verify-err'>🔴 No active contract — enrollment required</span>";
-        } else {
-          el.innerHTML = "<span class='contract-verify-err'>🔴 " + escHtml(msg) + "</span>";
-        }
+        el.textContent = "✗ " + (r.message || "No contract found.");
+        el.style.color = "#c0392b";
       }
     } catch (e) {
-      el.innerHTML = "<span class='contract-verify-err'>Could not verify. Please try again.</span>";
+      el.textContent = "✗ Could not verify HIN right now.";
+      el.style.color = "#c0392b";
     }
   }
 
@@ -1714,12 +1731,11 @@ document.addEventListener("DOMContentLoaded", function() {
     if (h) {
       h.addEventListener("input", function() {
         h.value = normalizeHin(h.value);
+        var statusEl = document.getElementById("t-hin-status");
+        if (statusEl) statusEl.textContent = "";
       });
+      h.addEventListener("blur", updateTicketContractIndicator);
     }
-    ["t-hin", "t-fname", "t-lname"].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.addEventListener("blur", updateTicketContractIndicator);
-    });
   })();
 
   (function bindEnrollHinUppercase() {
@@ -1727,7 +1743,7 @@ document.addEventListener("DOMContentLoaded", function() {
     if (h) {
       h.addEventListener("input", function() {
         h.value = normalizeHin(h.value);
-        var herr = document.getElementById("e-hin-err");
+        var herr = document.getElementById("e-hin-error");
         if (herr) herr.style.display = "none";
       });
     }
@@ -1740,11 +1756,9 @@ document.addEventListener("DOMContentLoaded", function() {
     if (!fname || !lname) { alert("Please enter the customer name."); return; }
     if (!currentDealer || !currentDealer.id) { alert("Session error. Please sign in again."); return; }
     var hinVal = normalizeHin(document.getElementById("t-hin").value);
-    var cv = await verifyCustomerContract(fname, lname, hinVal, currentDealer.name);
-    if (!cv.valid) {
-      document.getElementById("t-err").textContent = cv.message || "Cannot submit ticket.";
-      document.getElementById("t-err").style.display = "block";
-      document.getElementById("t-ok").style.display = "none";
+    var hinResult = await verifyHINForTicket(hinVal);
+    if (!hinResult.valid) {
+      alert(hinResult.message);
       return;
     }
     var btn = document.getElementById("ticket-btn");
@@ -1794,6 +1808,7 @@ document.addEventListener("DOMContentLoaded", function() {
           status: "pending"
         })
       });
+      await writeAuditLog("ticket", newTicket.id, "ticket_submitted", null, { hin: hinVal, services: services }, currentDealer.name, fname + " " + lname, null);
       document.getElementById("t-num").textContent = ticketNum;
       document.getElementById("t-ok").style.display = "block";
       document.getElementById("t-err").style.display = "none";
@@ -1814,7 +1829,7 @@ document.addEventListener("DOMContentLoaded", function() {
     var fname = document.getElementById("e-fname").value;
     var lname = document.getElementById("e-lname").value;
     var email = document.getElementById("e-email").value;
-    var hinErrEl = document.getElementById("e-hin-err");
+    var hinErrEl = document.getElementById("e-hin-error");
     var hinVal = normalizeHin(document.getElementById("e-hin").value);
     if (hinErrEl) {
       hinErrEl.style.display = "none";
@@ -1826,6 +1841,8 @@ document.addEventListener("DOMContentLoaded", function() {
       return;
     }
     if (!hinVal) {
+      alert("Hull ID (HIN) is required. No HIN, no enrollment.");
+      document.getElementById("e-hin").focus();
       if (hinErrEl) {
         hinErrEl.textContent = "Hull ID (HIN) is required. No HIN, no enrollment.";
         hinErrEl.style.display = "block";
@@ -1840,12 +1857,21 @@ document.addEventListener("DOMContentLoaded", function() {
     var btn = document.getElementById("enroll-btn");
     btn.disabled = true;
     btn.textContent = "Verifying…";
-    var hv = await verifyHIN(hinVal, fname, lname, currentDealer.name);
-    if (!hv.allowed) {
-      if (hinErrEl) {
-        hinErrEl.textContent = hv.message || "Enrollment not allowed.";
-        hinErrEl.style.display = "block";
+    var hinCheck = await verifyHINForEnrollment(
+      hinVal,
+      document.getElementById("e-fname").value,
+      document.getElementById("e-lname").value,
+      currentDealer.name
+    );
+    if (!hinCheck.allowed) {
+      if (!hinErrEl) {
+        hinErrEl = document.createElement("div");
+        hinErrEl.id = "e-hin-error";
+        hinErrEl.style.cssText = "font-size:13px;color:#c0392b;margin-top:6px;padding:8px 12px;background:#fff0f0;border-radius:4px;border-left:3px solid #c0392b;";
+        document.getElementById("e-hin").parentNode.appendChild(hinErrEl);
       }
+      hinErrEl.textContent = hinCheck.message || "Enrollment not allowed.";
+      hinErrEl.style.display = "block";
       btn.disabled = false;
       btn.textContent = "Generate Payment Link";
       return;
@@ -1877,6 +1903,9 @@ document.addEventListener("DOMContentLoaded", function() {
         })
       });
       if (!res.ok) throw new Error();
+      var contractRows = await res.json();
+      var newContract = Array.isArray(contractRows) ? contractRows[0] : null;
+      await writeAuditLog("contract", newContract ? newContract.id : null, "customer_enrolled", null, { hin: hinVal, customer: fname + " " + lname, contract_type: "1yr" }, currentDealer.name, fname + " " + lname, null);
       document.getElementById("enroll-link-box").style.display = "block";
       document.getElementById("enroll-link-box").scrollIntoView({ behavior: "smooth", block: "center" });
     } catch (e) {
@@ -1939,6 +1968,7 @@ document.addEventListener("DOMContentLoaded", function() {
         body: JSON.stringify({ status: "approved" })
       });
       if (!r1.ok) throw new Error();
+      await writeAuditLog("ticket", ticketId, "ticket_approved", { status: "pending" }, { status: "approved" }, "admin", null, null);
       await claimsLoadTab();
     } catch (e) {
       alert("Could not approve. Please try again.");
@@ -1959,6 +1989,8 @@ document.addEventListener("DOMContentLoaded", function() {
         headers: supabaseHeaders({ Prefer: "return=minimal" }),
         body: JSON.stringify({ status: "rejected" })
       });
+      await writeAuditLog("reimbursement", ticketId, "reimbursement_rejected", { status: "pending" }, { status: "rejected" }, "admin", null, reason);
+      await writeAuditLog("ticket", ticketId, "ticket_rejected", { status: "pending" }, { status: "rejected", reason: reason }, "admin", null, reason);
       await claimsLoadTab();
     } catch (e) {
       alert("Could not reject. Please try again.");
@@ -1984,6 +2016,7 @@ document.addEventListener("DOMContentLoaded", function() {
           headers: supabaseHeaders({ Prefer: "return=minimal" }),
           body: JSON.stringify({ status: "paid", paid_date: today })
         });
+        await writeAuditLog("reimbursement", list[i].id, "reimbursement_paid", { status: "pending" }, { status: "paid", paid_date: today }, list[i].dealership_name || dealershipName, null, null);
       }
       await claimsLoadTab();
     } catch (e) {
@@ -2271,6 +2304,7 @@ document.addEventListener("DOMContentLoaded", function() {
       renderDealerTable();
       renderAdminMasterTable();
       loadAdminHinConflicts();
+      adminLoadActivityFeed();
     } catch (e) {
       var mst2 = document.getElementById("admin-master-search-loading");
       if (mst2) mst2.style.display = "none";
@@ -2291,6 +2325,7 @@ document.addEventListener("DOMContentLoaded", function() {
       renderDealerTable();
       renderAdminMasterTable();
       loadAdminHinConflicts();
+      adminLoadActivityFeed();
     }
   }
 

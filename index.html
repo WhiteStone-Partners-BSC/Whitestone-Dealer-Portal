@@ -133,13 +133,16 @@
         <div class="card-sub">Select all services performed and complete all fields below.</div>
         <p class="slbl">Services Performed <span style="font-weight:300;text-transform:none;letter-spacing:0;font-size:11px;color:var(--light);">— select all that apply</span></p>
         <div class="tg" id="service-btns">
-          <div class="tb">Basic Summer Prep Inboard</div><div class="tb">Basic Summer Prep Outboard</div>
-          <div class="tb">Fuel System Service</div><div class="tb">Impeller Cooling System Service</div>
-          <div class="tb">Engine Oil Service</div><div class="tb">Transmission Oil Service</div>
-          <div class="tb">Outdrive Service</div><div class="tb">Drivetrain Alignment Service</div>
-          <div class="tb">V Drive Oil Service</div><div class="tb">Brake Fluid Service Flush</div>
-          <div class="tb">Trailer Tire Rotation</div><div class="tb">Full Trailer Service</div>
-          <div class="tb">Other</div>
+          <div class="tb">Summer Prep</div>
+          <div class="tb">Impeller Service</div>
+          <div class="tb">Engine Oil Service</div>
+          <div class="tb">Fuel Filter Service</div>
+          <div class="tb">Transmission Oil Service</div>
+          <div class="tb">Outdrive Service</div>
+          <div class="tb">Shaft Alignment</div>
+          <div class="tb">Winterization</div>
+          <div class="tb">V-Drive Service</div>
+          <div class="tb">Ballast Cartridge Service</div>
         </div>
         <hr class="fdiv">
         <p class="slbl">Technician</p>
@@ -162,9 +165,8 @@
         </div>
         <div class="fr">
           <div class="fg"><label>Year</label><input type="text" id="t-year" placeholder="e.g. 2023"></div>
-          <div class="fg"><label>Hull ID (HIN) <span class="req-star">*</span></label><input type="text" id="t-hin" placeholder="Hull identification number" autocomplete="off"></div>
+          <div class="fg"><label>Hull ID (HIN) <span class="req-star">*</span></label><input type="text" id="t-hin" placeholder="e.g. MALIA23K304" autocomplete="off" style="text-transform:uppercase;"><div id="t-hin-status" style="font-size:12px;margin-top:4px;"></div></div>
         </div>
-        <div id="t-contract-status" class="contract-verify-status" role="status" aria-live="polite"></div>
         <div class="fr">
           <div class="fg"><label>Engine Hours</label><input type="text" id="t-hours" placeholder="e.g. 312"></div>
           <div class="fg"><label>Service Date</label><input type="date" id="t-date"></div>
@@ -208,7 +210,7 @@
           <div class="fg"><label>Boat Year</label><input type="text" id="e-year" placeholder="e.g. 2023"></div>
           <div class="fg"><label>Hull ID (HIN) <span class="req-star">*</span></label><input type="text" id="e-hin" placeholder="Hull identification number" autocomplete="off"></div>
         </div>
-        <div id="e-hin-err" class="field-err" style="display:none;"></div>
+        <div id="e-hin-error" class="field-err" style="display:none;"></div>
         <div class="stripe-note"><span class="stripe-badge">Stripe</span> Payment of $4,000 is processed securely through Stripe.</div>
         <button class="sub-btn" id="enroll-btn">Generate Payment Link</button>
         <div id="enroll-link-box" class="enroll-link-box">
@@ -463,6 +465,12 @@
           <div class="card admin-chart-card">
             <div class="card-title">Network Activity — Tickets This Year</div>
             <div class="admin-chart-wrap"><canvas id="admin-network-chart" height="120"></canvas></div>
+          </div>
+
+          <div class="card" style="margin-bottom:1.5rem;">
+            <div class="card-title">Live Activity Feed</div>
+            <div class="card-sub">Last 25 actions across the entire network.</div>
+            <div id="activity-feed-admin"></div>
           </div>
 
           <div class="card admin-leaderboard-card">
