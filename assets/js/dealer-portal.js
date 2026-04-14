@@ -13,6 +13,8 @@ var dashboardPeriod = "year";
 var earningsAnimRaf = null;
 var dealerContractCount = 0;
 var renewalContractsDealer = [];
+var adminContractsCache = [];
+var dealerContractsCache = [];
 
 var ADMIN_CONTRACT_AVG = 3699;
 var ADMIN_AVG_REIMB = 150;
@@ -32,6 +34,7 @@ function supabaseHeaders(extra) {
 
 function mapTicketFromRow(row) {
   var created = row.created_at ? new Date(row.created_at) : null;
+  var hinRaw = row.hin || "";
   return {
     id: row.id,
     ticketNum: row.ticket_number || "",
@@ -48,7 +51,7 @@ function mapTicketFromRow(row) {
     boatMake: row.boat_make || "",
     boatModel: row.boat_model || "",
     year: row.boat_year || "",
-    hin: row.hin || "",
+    hin: String(hinRaw).trim().toUpperCase(),
     engineHours: row.engine_hours || "",
     technician: row.technician || "",
     serviceNotes: row.service_notes || "",
@@ -119,6 +122,147 @@ function escHtml(s) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/"/g, "&quot;");
+}
+
+function normalizeHin(s) {
+  return String(s || "").trim().toUpperCase();
+}
+
+function ticketBillable(t) {
+  var st = (t.status || "pending").toLowerCase();
+  return st === "approved" || st === "pending";
+}
+
+async function verifyHIN(hin, customerFirstName, customerLastName, dealerName) {
+  var hinU = normalizeHin(hin);
+  var res = await fetch(
+    SUPABASE_URL + "/rest/v1/contracts?hin=eq." + encodeURIComponent(hinU) + "&select=*",
+    { headers: supabaseHeaders() }
+  );
+  var existing = await res.json();
+  if (!res.ok || !Array.isArray(existing)) {
+    return { allowed: false, message: "Could not verify HIN. Please try again." };
+  }
+  if (!existing || existing.length === 0) {
+    return { allowed: true };
+  }
+  var activeContracts = existing.filter(function(c) { return String(c.status || "").toLowerCase() === "active"; });
+  var existingCustomer =
+    String(existing[0].customer_first_name || "").trim() + " " + String(existing[0].customer_last_name || "").trim();
+  var newCustomer =
+    String(customerFirstName || "").trim() + " " + String(customerLastName || "").trim();
+  var isSameCustomer = existingCustomer.toLowerCase().trim() === newCustomer.toLowerCase().trim();
+  if (isSameCustomer && activeContracts.length > 0) {
+    return {
+      allowed: false,
+      reason: "active_same_customer",
+      message:
+        "This boat already has an active Whitestone contract. The current contract must expire before renewal. Contract ends: " +
+        (activeContracts[0].end_date || "—")
+    };
+  }
+  if (!isSameCustomer && activeContracts.length > 0) {
+    await logHINConflict(
+      hinU,
+      dealerName,
+      newCustomer.trim(),
+      existingCustomer.trim(),
+      "active",
+      "HIN has active contract under different customer name"
+    );
+    return {
+      allowed: false,
+      reason: "active_different_customer",
+      message:
+        "This HIN is registered to another customer with an active contract. Contracts do not transfer with ownership. Please contact Whitestone Partners at sales@whitestone-partners.com to resolve."
+    };
+  }
+  if (!isSameCustomer && activeContracts.length === 0) {
+    return { allowed: true, isNewOwner: true };
+  }
+  if (isSameCustomer && activeContracts.length === 0) {
+    return { allowed: true, isRenewal: true };
+  }
+  return { allowed: true };
+}
+
+async function logHINConflict(hin, dealerName, attemptedCustomer, existingCustomer, contractStatus, reason) {
+  try {
+    await fetch(SUPABASE_URL + "/rest/v1/hin_conflicts", {
+      method: "POST",
+      headers: supabaseHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({
+        hin: hin,
+        attempted_by_dealer: dealerName,
+        attempted_customer_name: attemptedCustomer,
+        existing_customer_name: existingCustomer,
+        existing_contract_status: contractStatus,
+        reason: reason,
+        resolved: false
+      })
+    });
+  } catch (e) {}
+}
+
+async function verifyCustomerContract(firstName, lastName, hin, dealerName) {
+  var hinU = normalizeHin(hin);
+  if (!hinU) {
+    return { valid: false, ui: "err", message: "HIN is required to submit a ticket." };
+  }
+  var res = await fetch(
+    SUPABASE_URL + "/rest/v1/contracts?hin=eq." + encodeURIComponent(hinU) + "&status=eq.active&select=*",
+    { headers: supabaseHeaders() }
+  );
+  var contracts = await res.json();
+  if (!res.ok || !Array.isArray(contracts)) {
+    return { valid: false, ui: "err", message: "Could not verify contract. Please try again." };
+  }
+  if (!contracts || contracts.length === 0) {
+    var expRes = await fetch(
+      SUPABASE_URL + "/rest/v1/contracts?hin=eq." + encodeURIComponent(hinU) + "&status=eq.expired&select=*",
+      { headers: supabaseHeaders() }
+    );
+    var expContracts = await expRes.json();
+    if (expRes.ok && Array.isArray(expContracts) && expContracts.length > 0) {
+      return {
+        valid: false,
+        ui: "warn",
+        message: "This customer's contract has expired. Please re-enroll them before submitting a ticket."
+      };
+    }
+    return {
+      valid: false,
+      ui: "err",
+      message: "No active contract found for this HIN. Please enroll this customer first."
+    };
+  }
+  var c = contracts[0];
+  var nameOnFile = ((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim().toLowerCase();
+  var entered = ((firstName || "") + " " + (lastName || "")).trim().toLowerCase();
+  if (nameOnFile !== entered) {
+    return {
+      valid: false,
+      ui: "err",
+      message: "The name entered does not match the customer on file for this HIN."
+    };
+  }
+  var dispName = ((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim();
+  return { valid: true, contract: c, displayName: dispName, ui: "ok" };
+}
+
+function contractCardStatus(c) {
+  var st = String(c.status || "").toLowerCase();
+  var end = c.end_date ? new Date(c.end_date) : null;
+  if (end) end.setHours(0, 0, 0, 0);
+  var now = new Date();
+  now.setHours(0, 0, 0, 0);
+  if (st === "cancelled") return { label: "Expired", cls: "badge-contract-expired", sort: 3 };
+  if (st !== "active") return { label: "Expired", cls: "badge-contract-expired", sort: 3 };
+  if (!end) return { label: "Active", cls: "badge-contract-active", sort: 0 };
+  var days = Math.round((end - now) / 86400000);
+  if (days < 0) return { label: "Expired", cls: "badge-contract-expired", sort: 3 };
+  if (days <= 30) return { label: "Expiring Soon", cls: "badge-contract-soon", sort: 1 };
+  return { label: "Active", cls: "badge-contract-active", sort: 0 };
 }
 
 var pricingModelServices = [];
@@ -701,6 +845,22 @@ function fetchDealersSupabase() {
     .catch(function() { return []; });
 }
 
+function adminFetchAllContracts() {
+  return fetch(SUPABASE_URL + "/rest/v1/contracts?select=*&order=created_at.desc", {
+    headers: supabaseHeaders()
+  })
+    .then(function(r) {
+      if (!r.ok) throw new Error();
+      return r.json();
+    })
+    .then(function(rows) {
+      return Array.isArray(rows) ? rows : [];
+    })
+    .catch(function() {
+      return [];
+    });
+}
+
 function adminRenderStats() {
   var c = adminDashboardMetrics.count;
   var revenue = adminDashboardMetrics.revenue;
@@ -767,7 +927,8 @@ function adminRenderLeaderboard() {
     });
     var lastStr = lastDate ? lastDate.toLocaleDateString() : "—";
     var estCont = count > 0 ? Math.ceil(count / 3) : 0;
-    var estReimb = count * ADMIN_AVG_REIMB;
+    var billCount = tk.filter(ticketBillable).length;
+    var estReimb = billCount * ADMIN_AVG_REIMB;
     var statusBadge;
     var statusClass;
     if (count === 0) {
@@ -883,9 +1044,160 @@ function adminRenderFinancialHealth() {
   if (warnEl) {
     warnEl.style.display = rate >= 78 && rate <= 85 ? "block" : "none";
   }
-  var last30 = tk.filter(adminIsInLast30Days).length;
+  var last30 = tk.filter(adminIsInLast30Days).filter(ticketBillable).length;
   var projected = last30 * ADMIN_AVG_REIMB;
-  if (projEl) projEl.textContent = "$" + Math.round(projected).toLocaleString() + " / mo est. (last 30-day pace)";
+  if (projEl) projEl.textContent = "$" + Math.round(projected).toLocaleString() + " / mo est. (billable tickets, last 30 days)";
+}
+
+function formatContractDateShort(ds) {
+  if (!ds) return "—";
+  try {
+    return new Date(ds).toLocaleDateString();
+  } catch (e) {
+    return String(ds);
+  }
+}
+
+function renderAdminMasterTable() {
+  var tbody = document.getElementById("admin-master-tbody");
+  var inp = document.getElementById("admin-customer-search");
+  if (!tbody) return;
+  if (tbody.dataset.clickBound !== "1") {
+    tbody.dataset.clickBound = "1";
+    tbody.addEventListener("click", function(e) {
+      var tr = e.target.closest("tr.admin-mc-summary");
+      if (!tr) return;
+      var next = tr.nextElementSibling;
+      if (next && next.classList.contains("admin-mc-detail")) {
+        next.style.display = next.style.display === "none" ? "table-row" : "none";
+      }
+    });
+  }
+  if (inp && inp.dataset.bound !== "1") {
+    inp.dataset.bound = "1";
+    inp.addEventListener("input", function() {
+      renderAdminMasterTable();
+    });
+  }
+  var q = (inp && inp.value ? inp.value : "").toLowerCase().trim();
+  var rows = adminContractsCache.filter(function(c) {
+    if (!q) return true;
+    var blob = [
+      c.customer_first_name,
+      c.customer_last_name,
+      c.customer_email,
+      c.customer_phone,
+      c.boat_make,
+      c.boat_model,
+      c.boat_year,
+      c.hin,
+      c.dealership_name,
+      c.engine_type,
+      c.notes
+    ]
+      .map(function(x) {
+        return String(x || "").toLowerCase();
+      })
+      .join(" ");
+    return blob.indexOf(q) !== -1;
+  });
+  if (rows.length === 0) {
+    tbody.innerHTML = "<tr><td colspan='8' style='text-align:center;padding:1rem;color:var(--light);'>No contracts match your search.</td></tr>";
+    return;
+  }
+  var html = "";
+  rows.forEach(function(c) {
+    var name = ((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim() || "—";
+    var boat = [c.boat_make, c.boat_model, c.boat_year].filter(Boolean).join(" ") || "—";
+    var st = contractCardStatus(c);
+    html += "<tr class='admin-mc-summary'>";
+    html += "<td>" + escHtml(name) + "</td>";
+    html += "<td>" + escHtml(c.dealership_name || "—") + "</td>";
+    html += "<td>" + escHtml(boat) + "</td>";
+    html += "<td>" + escHtml(c.hin || "—") + "</td>";
+    html += "<td>" + escHtml(String(c.contract_type || "—")) + "</td>";
+    html += "<td><span class='" + escHtml(st.cls) + "' style='font-size:11px;'>" + escHtml(st.label) + "</span></td>";
+    html += "<td>" + escHtml(formatContractDateShort(c.start_date)) + "</td>";
+    html += "<td>" + escHtml(formatContractDateShort(c.end_date)) + "</td>";
+    html += "</tr>";
+    html += "<tr class='admin-mc-detail' style='display:none'><td colspan='8'>";
+    html += "<div class='admin-mc-detail-inner'>";
+    html += "<div><span>Email</span>" + escHtml(c.customer_email || "—") + "</div>";
+    html += "<div><span>Phone</span>" + escHtml(c.customer_phone || "—") + "</div>";
+    html += "<div><span>Engine type</span>" + escHtml(c.engine_type || "—") + "</div>";
+    html += "<div><span>HIN</span>" + escHtml(c.hin || "—") + "</div>";
+    html += "<div style='grid-column:1/-1;'><span>Notes</span>" + escHtml(c.notes || "—") + "</div>";
+    html += "</div></td></tr>";
+  });
+  tbody.innerHTML = html;
+}
+
+async function loadAdminHinConflicts() {
+  var el = document.getElementById("admin-hin-conflicts-body");
+  if (!el) return;
+  el.textContent = "Loading…";
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/hin_conflicts?resolved=eq.false&select=*&order=created_at.desc",
+      { headers: supabaseHeaders() }
+    );
+    var rows = await res.json();
+    if (!res.ok) throw new Error();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      el.innerHTML = "<div class='admin-hin-empty'>No HIN conflicts — all clear.</div>";
+      return;
+    }
+    el.innerHTML = rows
+      .map(function(r) {
+        var dt = r.created_at ? new Date(r.created_at).toLocaleString() : "—";
+        return (
+          "<div class='admin-hin-conflict-row' data-hin-cid='" +
+          escHtml(String(r.id)) +
+          "'>" +
+          "<div><strong>HIN</strong> " +
+          escHtml(r.hin || "—") +
+          "</div>" +
+          "<div style='font-size:12px;margin-top:0.35rem;'>Dealer: " +
+          escHtml(r.attempted_by_dealer || "—") +
+          " · Attempted: " +
+          escHtml(r.attempted_customer_name || "—") +
+          "</div>" +
+          "<div style='font-size:12px;'>Existing customer: " +
+          escHtml(r.existing_customer_name || "—") +
+          " (" +
+          escHtml(r.existing_contract_status || "—") +
+          ")</div>" +
+          "<div style='font-size:11px;color:var(--light);margin-top:0.25rem;'>" +
+          escHtml(r.reason || "") +
+          " · " +
+          escHtml(dt) +
+          "</div>" +
+          "<button type='button' class='btn-hin-resolve' data-hin-cid='" +
+          escHtml(String(r.id)) +
+          "'>Mark resolved</button>" +
+          "</div>"
+        );
+      })
+      .join("");
+    el.querySelectorAll(".btn-hin-resolve").forEach(function(btn) {
+      btn.addEventListener("click", async function() {
+        var id = btn.getAttribute("data-hin-cid");
+        try {
+          var patch = await fetch(SUPABASE_URL + "/rest/v1/hin_conflicts?id=eq." + encodeURIComponent(id), {
+            method: "PATCH",
+            headers: supabaseHeaders({ Prefer: "return=minimal" }),
+            body: JSON.stringify({ resolved: true })
+          });
+          if (!patch.ok) throw new Error();
+          loadAdminHinConflicts();
+        } catch (e) {
+          alert("Could not update. Please try again.");
+        }
+      });
+    });
+  } catch (e) {
+    el.innerHTML = "<div class='admin-hin-empty'>Could not load HIN conflicts. If this is new, run the SQL migration for <code>hin_conflicts</code> in Supabase.</div>";
+  }
 }
 
 function startOfDay(d) {
@@ -966,6 +1278,7 @@ document.addEventListener("DOMContentLoaded", function() {
     if (panel) panel.classList.add("active");
     if (name === "dashboard") loadDashboard();
     if (name === "history") loadTickets();
+    if (name === "customers") loadCustomersTab();
     if (name === "pricing") pricingInitOnTab();
     if (name === "claims") claimsLoadTab();
     if (name === "admin") adminLoadNetworkDashboard();
@@ -1010,7 +1323,7 @@ document.addEventListener("DOMContentLoaded", function() {
         labels.push(keyA);
       }
     }
-    ticketsInPeriod.forEach(function(t) {
+    ticketsInPeriod.filter(ticketBillable).forEach(function(t) {
       var d = parseTicketDate(t);
       if (!d) return;
       var keyB = d.getFullYear() + "-" + pad2(d.getMonth() + 1);
@@ -1032,6 +1345,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
   function updateDashboardStats() {
     var filtered = allTickets.filter(function(t) { return ticketMatchesPeriod(t, dashboardPeriod); });
+    var billableFiltered = filtered.filter(ticketBillable);
     var ticketCount = filtered.length;
     var contractsAllTime = countUniqueCustomers(allTickets);
     var y = new Date().getFullYear();
@@ -1043,8 +1357,11 @@ document.addEventListener("DOMContentLoaded", function() {
     if (stTix) stTix.textContent = String(ticketCount);
     if (stHint) stHint.textContent = dashboardPeriod === "year" ? "Submitted in " + y : "All submitted tickets";
     if (stCust) stCust.textContent = String(dealerContractCount > 0 ? dealerContractCount : contractsAllTime);
-    var earnings = ticketCount * 150;
-    if (earnHint) earnHint.textContent = "$150 avg. per ticket · " + (dashboardPeriod === "year" ? "this calendar year" : "all time");
+    var earnings = billableFiltered.length * 150;
+    if (earnHint) {
+      earnHint.textContent =
+        "~$150 avg per ticket (approved + pending) · " + (dashboardPeriod === "year" ? "this calendar year" : "all time");
+    }
     animateEarningsTo(earnings, earnEl);
     renderSparkline(filtered);
   }
@@ -1192,6 +1509,124 @@ document.addEventListener("DOMContentLoaded", function() {
   document.getElementById("qa-ticket").addEventListener("click", function() { switchTab("ticket"); });
   document.getElementById("qa-enroll").addEventListener("click", function() { switchTab("enroll"); });
 
+  function prefillEnrollFromContract(c) {
+    if (!c) return;
+    document.getElementById("e-fname").value = c.customer_first_name || "";
+    document.getElementById("e-lname").value = c.customer_last_name || "";
+    document.getElementById("e-email").value = c.customer_email || "";
+    document.getElementById("e-phone").value = c.customer_phone || "";
+    document.getElementById("e-make").value = c.boat_make || "";
+    document.getElementById("e-model").value = c.boat_model || "";
+    document.getElementById("e-year").value = c.boat_year || "";
+    document.getElementById("e-hin").value = normalizeHin(c.hin || "");
+    var herr = document.getElementById("e-hin-err");
+    if (herr) {
+      herr.style.display = "none";
+      herr.textContent = "";
+    }
+    document.getElementById("e-err").style.display = "none";
+    document.getElementById("enroll-link-box").style.display = "none";
+    switchTab("enroll");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function renderCustomerCards() {
+    var box = document.getElementById("customers-container");
+    var qs = document.getElementById("customer-search");
+    if (!box) return;
+    var q = (qs && qs.value ? qs.value : "").toLowerCase().trim();
+    var list = dealerContractsCache.filter(function(c) {
+      if (!q) return true;
+      var blob = [c.customer_first_name, c.customer_last_name, c.boat_make, c.boat_model, c.hin, c.boat_year]
+        .map(function(x) {
+          return String(x || "").toLowerCase();
+        })
+        .join(" ");
+      return blob.indexOf(q) !== -1;
+    });
+    if (list.length === 0) {
+      if (!dealerContractsCache.length) {
+        box.innerHTML =
+          "<div class='renewals-empty'>No customers enrolled yet. Use the Enroll Customer tab to add your first customer.</div>";
+      } else {
+        box.innerHTML = "<div class='renewals-empty'>No customers match your search.</div>";
+      }
+      return;
+    }
+    var html = "";
+    list.forEach(function(c) {
+      var name = ((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim() || "Customer";
+      var boat = [c.boat_make, c.boat_model, c.boat_year].filter(Boolean).join(" ") || "—";
+      var st = contractCardStatus(c);
+      var enrolled = formatContractDateShort(c.start_date);
+      var expires = formatContractDateShort(c.end_date);
+      var ctype = String(c.contract_type || "—");
+      html += "<div class='customer-card' data-contract-id='" + escHtml(String(c.id)) + "'>";
+      html += "<div class='customer-card-name'>" + escHtml(name) + " <span class='" + st.cls + "'>" + escHtml(st.label) + "</span></div>";
+      html += "<div class='customer-card-meta'>";
+      html += "<div class='customer-card-row'><strong>Boat</strong> · " + escHtml(boat) + "</div>";
+      html += "<div class='customer-card-row'><strong>HIN</strong> · " + escHtml(normalizeHin(c.hin || "")) + "</div>";
+      html += "<div class='customer-card-row'><strong>Contract</strong> · " + escHtml(ctype) + "</div>";
+      html += "<div class='customer-card-row'><strong>Enrolled</strong> · " + escHtml(enrolled) + "</div>";
+      html += "<div class='customer-card-row'><strong>Expires</strong> · " + escHtml(expires) + "</div>";
+      html += "</div>";
+      if (st.sort === 3) {
+        html +=
+          "<button type='button' class='btn-reenroll-sm' data-contract-id='" +
+          escHtml(String(c.id)) +
+          "'>Re-enroll</button>";
+      }
+      html += "</div>";
+    });
+    box.innerHTML = html;
+  }
+
+  function bindCustomerSearchOnce() {
+    var qs = document.getElementById("customer-search");
+    if (!qs || qs.dataset.bound === "1") return;
+    qs.dataset.bound = "1";
+    qs.addEventListener("input", function() {
+      renderCustomerCards();
+    });
+  }
+
+  async function loadCustomersTab() {
+    var box = document.getElementById("customers-container");
+    if (!box || !currentDealer) return;
+    box.innerHTML = "<div class='customers-loading'>Loading customers…</div>";
+    try {
+      var url =
+        SUPABASE_URL +
+        "/rest/v1/contracts?dealership_name=eq." +
+        encodeURIComponent(currentDealer.name) +
+        "&select=*&order=created_at.desc";
+      var res = await fetch(url, { headers: supabaseHeaders() });
+      var rows = await res.json();
+      if (!res.ok) throw new Error();
+      dealerContractsCache = Array.isArray(rows) ? rows : [];
+      dealerContractsCache.sort(function(a, b) {
+        var sa = contractCardStatus(a).sort;
+        var sb = contractCardStatus(b).sort;
+        if (sa !== sb) return sa - sb;
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      });
+      renderCustomerCards();
+      bindCustomerSearchOnce();
+    } catch (e) {
+      box.innerHTML = "<div class='renewals-empty'>Could not load customers. Please try again.</div>";
+    }
+  }
+
+  document.getElementById("customers-container").addEventListener("click", function(e) {
+    var btn = e.target.closest(".btn-reenroll-sm");
+    if (!btn) return;
+    var id = btn.getAttribute("data-contract-id");
+    var c = dealerContractsCache.find(function(x) {
+      return String(x.id) === String(id);
+    });
+    prefillEnrollFromContract(c);
+  });
+
   document.getElementById("renewals-container").addEventListener("click", function(e) {
     if (e.target && e.target.classList.contains("btn-reenroll")) switchTab("enroll");
   });
@@ -1238,12 +1673,80 @@ document.addEventListener("DOMContentLoaded", function() {
     return "<div class='ticket-status ticket-status-pending'>🟡 Pending — Under review</div>";
   }
 
+  async function updateTicketContractIndicator() {
+    var fn = document.getElementById("t-fname").value;
+    var ln = document.getElementById("t-lname").value;
+    var hinEl = document.getElementById("t-hin");
+    var el = document.getElementById("t-contract-status");
+    if (!el || !hinEl) return;
+    var hin = normalizeHin(hinEl.value);
+    if (!hin) {
+      el.innerHTML = "";
+      return;
+    }
+    el.innerHTML = "<span class='contract-verify-loading'>Checking contract…</span>";
+    try {
+      var r = await verifyCustomerContract(fn, ln, hin, currentDealer ? currentDealer.name : "");
+      if (r.valid) {
+        el.innerHTML =
+          "<span class='contract-verify-ok'>🟢 Active contract found — " + escHtml(r.displayName || "") + "</span>";
+      } else if (r.ui === "warn") {
+        el.innerHTML = "<span class='contract-verify-warn'>🟡 Contract expired — please re-enroll</span>";
+      } else {
+        var msg = r.message || "";
+        if (
+          msg.indexOf("No active contract") !== -1 ||
+          msg.indexOf("enroll") !== -1 ||
+          msg.indexOf("Enroll") !== -1
+        ) {
+          el.innerHTML = "<span class='contract-verify-err'>🔴 No active contract — enrollment required</span>";
+        } else {
+          el.innerHTML = "<span class='contract-verify-err'>🔴 " + escHtml(msg) + "</span>";
+        }
+      }
+    } catch (e) {
+      el.innerHTML = "<span class='contract-verify-err'>Could not verify. Please try again.</span>";
+    }
+  }
+
+  (function bindTicketHinVerification() {
+    var h = document.getElementById("t-hin");
+    if (h) {
+      h.addEventListener("input", function() {
+        h.value = normalizeHin(h.value);
+      });
+    }
+    ["t-hin", "t-fname", "t-lname"].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener("blur", updateTicketContractIndicator);
+    });
+  })();
+
+  (function bindEnrollHinUppercase() {
+    var h = document.getElementById("e-hin");
+    if (h) {
+      h.addEventListener("input", function() {
+        h.value = normalizeHin(h.value);
+        var herr = document.getElementById("e-hin-err");
+        if (herr) herr.style.display = "none";
+      });
+    }
+  })();
+
   // SERVICE TICKET
   document.getElementById("ticket-btn").addEventListener("click", async function() {
     var fname = document.getElementById("t-fname").value;
     var lname = document.getElementById("t-lname").value;
     if (!fname || !lname) { alert("Please enter the customer name."); return; }
     if (!currentDealer || !currentDealer.id) { alert("Session error. Please sign in again."); return; }
+    var hinVal = normalizeHin(document.getElementById("t-hin").value);
+    var cv = await verifyCustomerContract(fname, lname, hinVal, currentDealer.name);
+    if (!cv.valid) {
+      document.getElementById("t-err").textContent = cv.message || "Cannot submit ticket.";
+      document.getElementById("t-err").style.display = "block";
+      document.getElementById("t-ok").style.display = "none";
+      return;
+    }
     var btn = document.getElementById("ticket-btn");
     btn.disabled = true; btn.textContent = "Submitting...";
     document.getElementById("t-ok").style.display = "none";
@@ -1263,7 +1766,7 @@ document.addEventListener("DOMContentLoaded", function() {
       boat_make: document.getElementById("t-make").value,
       boat_model: document.getElementById("t-model").value,
       boat_year: document.getElementById("t-year").value,
-      hin: document.getElementById("t-hin").value,
+      hin: hinVal,
       engine_hours: document.getElementById("t-hours").value,
       service_type: services || "General Service",
       service_date: document.getElementById("t-date").value,
@@ -1297,7 +1800,11 @@ document.addEventListener("DOMContentLoaded", function() {
       document.getElementById("t-ok").scrollIntoView({ behavior: "smooth", block: "center" });
       loadDashboard();
     } catch (e) {
-      document.getElementById("t-err").style.display = "block";
+      var terr = document.getElementById("t-err");
+      if (terr) {
+        terr.textContent = "Something went wrong. Please try again.";
+        terr.style.display = "block";
+      }
     }
     btn.disabled = false; btn.textContent = "Submit Service Ticket";
   });
@@ -1305,12 +1812,45 @@ document.addEventListener("DOMContentLoaded", function() {
   // ENROLL
   document.getElementById("enroll-btn").addEventListener("click", async function() {
     var fname = document.getElementById("e-fname").value;
+    var lname = document.getElementById("e-lname").value;
     var email = document.getElementById("e-email").value;
-    if (!fname || !email) { document.getElementById("e-err").style.display = "block"; return; }
-    if (!currentDealer || !currentDealer.id) { document.getElementById("e-err").style.display = "block"; return; }
+    var hinErrEl = document.getElementById("e-hin-err");
+    var hinVal = normalizeHin(document.getElementById("e-hin").value);
+    if (hinErrEl) {
+      hinErrEl.style.display = "none";
+      hinErrEl.textContent = "";
+    }
+    document.getElementById("e-err").textContent = "Please fill in the customer's name and email before generating a link.";
+    if (!fname || !email) {
+      document.getElementById("e-err").style.display = "block";
+      return;
+    }
+    if (!hinVal) {
+      if (hinErrEl) {
+        hinErrEl.textContent = "Hull ID (HIN) is required. No HIN, no enrollment.";
+        hinErrEl.style.display = "block";
+      }
+      return;
+    }
+    if (!currentDealer || !currentDealer.id) {
+      document.getElementById("e-err").style.display = "block";
+      return;
+    }
     document.getElementById("e-err").style.display = "none";
     var btn = document.getElementById("enroll-btn");
-    btn.disabled = true; btn.textContent = "Saving…";
+    btn.disabled = true;
+    btn.textContent = "Verifying…";
+    var hv = await verifyHIN(hinVal, fname, lname, currentDealer.name);
+    if (!hv.allowed) {
+      if (hinErrEl) {
+        hinErrEl.textContent = hv.message || "Enrollment not allowed.";
+        hinErrEl.style.display = "block";
+      }
+      btn.disabled = false;
+      btn.textContent = "Generate Payment Link";
+      return;
+    }
+    btn.textContent = "Saving…";
     var end = new Date();
     end.setFullYear(end.getFullYear() + 1);
     var endStr = end.toISOString().split("T")[0];
@@ -1328,7 +1868,7 @@ document.addEventListener("DOMContentLoaded", function() {
           boat_make: document.getElementById("e-make").value,
           boat_model: document.getElementById("e-model").value,
           boat_year: document.getElementById("e-year").value,
-          hin: document.getElementById("e-hin").value,
+          hin: hinVal,
           contract_type: "1yr",
           retail_price: 3699,
           start_date: new Date().toISOString().split("T")[0],
@@ -1343,7 +1883,8 @@ document.addEventListener("DOMContentLoaded", function() {
       document.getElementById("e-err").textContent = "Could not save enrollment. Please try again.";
       document.getElementById("e-err").style.display = "block";
     }
-    btn.disabled = false; btn.textContent = "Generate Payment Link";
+    btn.disabled = false;
+    btn.textContent = "Generate Payment Link";
   });
 
   // PAST TICKETS
@@ -1697,18 +2238,23 @@ document.addEventListener("DOMContentLoaded", function() {
     if (loading) loading.style.display = "block";
     if (content) content.style.display = "none";
     try {
+      var mst = document.getElementById("admin-master-search-loading");
+      if (mst) mst.style.display = "block";
       var results = await Promise.all([
         adminFetchAllTickets(),
         adminFetchContractsSummary(),
         adminFetchReimbursementsPaidTotal(),
         adminFetchRenewalsContracts(),
-        fetchDealersSupabase()
+        fetchDealersSupabase(),
+        adminFetchAllContracts()
       ]);
+      if (mst) mst.style.display = "none";
       adminNetworkTickets = results[0] || [];
       adminDashboardMetrics = results[1];
       adminReimburseMetrics = results[2];
       adminRenewalContracts = results[3] || [];
       dealerRowsCache = results[4] || [];
+      adminContractsCache = results[5] || [];
       var commEl = document.getElementById("pricing-slider-commission");
       if (commEl) {
         var v = parseFloat(commEl.value);
@@ -1723,9 +2269,14 @@ document.addEventListener("DOMContentLoaded", function() {
       adminRenderRenewalsNetwork();
       adminRenderFinancialHealth();
       renderDealerTable();
+      renderAdminMasterTable();
+      loadAdminHinConflicts();
     } catch (e) {
+      var mst2 = document.getElementById("admin-master-search-loading");
+      if (mst2) mst2.style.display = "none";
       adminNetworkTickets = [];
       dealerRowsCache = [];
+      adminContractsCache = [];
       adminDashboardMetrics = { count: 0, revenue: 0 };
       adminReimburseMetrics = { paidTotal: 0 };
       adminRenewalContracts = [];
@@ -1738,6 +2289,8 @@ document.addEventListener("DOMContentLoaded", function() {
       adminRenderRenewalsNetwork();
       adminRenderFinancialHealth();
       renderDealerTable();
+      renderAdminMasterTable();
+      loadAdminHinConflicts();
     }
   }
 

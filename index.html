@@ -34,6 +34,7 @@
 
   <div class="portal-tabs" id="portal-tabs">
     <div class="tab active" data-tab="dashboard">Dashboard</div>
+    <div class="tab" data-tab="customers">Customers</div>
     <div class="tab" data-tab="ticket">Service Ticket</div>
     <div class="tab" data-tab="history">Past Tickets</div>
     <div class="tab" data-tab="enroll">Enroll a Customer</div>
@@ -84,7 +85,7 @@
         <div class="stat-card gold-accent" id="stat-earnings-card">
           <div class="stat-card-label">Est. reimbursements</div>
           <div class="stat-card-value stat-earnings-value"><span id="stat-earnings">$0</span><span class="earn-arrow" aria-hidden="true">↑</span></div>
-          <div class="stat-card-hint" id="stat-earnings-hint">$150 avg. per ticket</div>
+          <div class="stat-card-hint" id="stat-earnings-hint">~$150 avg per ticket (approved + pending)</div>
           <div class="sparkline" id="earnings-sparkline" aria-hidden="true"></div>
         </div>
       </div>
@@ -99,6 +100,21 @@
         <div class="card-sub" style="margin-bottom:1rem;">Annual contracts ending soon. Showing renewals in the next 90 days (by contract end date).</div>
         <div id="renewals-container">
           <div class="renewals-loading">Loading renewal dates…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CUSTOMERS (all dealers) -->
+    <div class="tab-panel" id="panel-customers">
+      <div class="card">
+        <div class="card-title">Your customers</div>
+        <div class="card-sub">Enrolled contracts for your dealership. Search by name, boat, or HIN.</div>
+        <div class="fg customer-search-wrap">
+          <label for="customer-search">Search</label>
+          <input type="text" id="customer-search" placeholder="Search by name, boat make, or HIN..." autocomplete="off">
+        </div>
+        <div id="customers-container" class="customers-container">
+          <div class="customers-loading">Loading customers…</div>
         </div>
       </div>
     </div>
@@ -146,8 +162,9 @@
         </div>
         <div class="fr">
           <div class="fg"><label>Year</label><input type="text" id="t-year" placeholder="e.g. 2023"></div>
-          <div class="fg"><label>Hull ID (HIN)</label><input type="text" id="t-hin" placeholder="Hull identification number"></div>
+          <div class="fg"><label>Hull ID (HIN) <span class="req-star">*</span></label><input type="text" id="t-hin" placeholder="Hull identification number" autocomplete="off"></div>
         </div>
+        <div id="t-contract-status" class="contract-verify-status" role="status" aria-live="polite"></div>
         <div class="fr">
           <div class="fg"><label>Engine Hours</label><input type="text" id="t-hours" placeholder="e.g. 312"></div>
           <div class="fg"><label>Service Date</label><input type="date" id="t-date"></div>
@@ -189,8 +206,9 @@
         </div>
         <div class="fr">
           <div class="fg"><label>Boat Year</label><input type="text" id="e-year" placeholder="e.g. 2023"></div>
-          <div class="fg"><label>Hull ID (HIN)</label><input type="text" id="e-hin" placeholder="Hull identification number"></div>
+          <div class="fg"><label>Hull ID (HIN) <span class="req-star">*</span></label><input type="text" id="e-hin" placeholder="Hull identification number" autocomplete="off"></div>
         </div>
+        <div id="e-hin-err" class="field-err" style="display:none;"></div>
         <div class="stripe-note"><span class="stripe-badge">Stripe</span> Payment of $4,000 is processed securely through Stripe.</div>
         <button class="sub-btn" id="enroll-btn">Generate Payment Link</button>
         <div id="enroll-link-box" class="enroll-link-box">
@@ -386,6 +404,39 @@
         <div id="admin-dashboard-loading" class="admin-dashboard-loading">Loading network data…</div>
 
         <div id="admin-dashboard-content" style="display:none;">
+          <div class="card admin-master-search-card">
+            <div class="card-title">Master Customer Search</div>
+            <div class="card-sub">All contracts across every dealership.</div>
+            <div class="fg">
+              <label for="admin-customer-search">Search</label>
+              <input type="text" id="admin-customer-search" placeholder="Search all customers by name, HIN, dealership, or boat..." autocomplete="off">
+            </div>
+            <div id="admin-master-search-loading" class="admin-inline-loading" style="display:none;">Loading contracts…</div>
+            <div class="table-scroll admin-master-table-wrap">
+              <table class="dealer-table admin-master-table" id="admin-master-table">
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Dealership</th>
+                    <th>Boat</th>
+                    <th>HIN</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Enrolled</th>
+                    <th>Expires</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-master-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card admin-hin-conflicts-card">
+            <div class="card-title">HIN conflicts</div>
+            <div class="card-sub">Blocked enrollment attempts that need attention.</div>
+            <div id="admin-hin-conflicts-body" class="admin-hin-conflicts-body">Loading…</div>
+          </div>
+
           <div class="admin-stat-grid">
             <div class="stat-card admin-stat-card">
               <div class="admin-stat-label">Total contracts enrolled</div>

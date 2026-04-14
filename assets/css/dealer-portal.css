@@ -290,5 +290,39 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .claims-history-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:0.5rem;padding:0.6rem 0;border-bottom:1px solid var(--border);font-size:12px;}
 .claims-history-row:last-child{border-bottom:none;}
 
+.req-star{color:#c62828;font-weight:700;}
+.field-err{font-size:12px;color:var(--red-text);margin:-0.25rem 0 0.75rem;padding:0.35rem 0;}
+.contract-verify-status{min-height:1.25rem;margin:-0.25rem 0 0.5rem;font-size:12px;line-height:1.45;}
+.contract-verify-loading{color:var(--light);}
+.contract-verify-ok{color:#1b5e20;}
+.contract-verify-warn{color:#f57c00;}
+.contract-verify-err{color:var(--red-text);}
+
+.customers-container{margin-top:1rem;}
+.customer-search-wrap{margin-bottom:1rem;}
+.customer-card{border:1px solid var(--border);border-radius:10px;padding:1.1rem 1.25rem;margin-bottom:0.75rem;background:var(--white);}
+.customer-card-name{font-family:"Cormorant Garamond",serif;font-size:1.35rem;color:var(--navy);margin-bottom:0.5rem;}
+.customer-card-meta{font-size:13px;color:var(--mid);line-height:1.55;}
+.customer-card-row{margin-top:0.35rem;}
+.badge-contract-active{background:#e8f5e9;color:#1b5e20;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;}
+.badge-contract-soon{background:#fff8e1;color:#e65100;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;}
+.badge-contract-expired{background:#ffebee;color:#b71c1c;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;}
+.btn-reenroll-sm{margin-left:0.75rem;font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--navy);background:var(--navy);color:var(--gold);cursor:pointer;font-weight:600;}
+
+.admin-master-search-card{margin:0 1.5rem 1rem;}
+.admin-inline-loading{font-size:13px;color:rgba(200,220,235,0.7);padding:0.5rem 0;}
+.admin-master-table-wrap{margin-top:0.75rem;max-height:420px;overflow:auto;}
+.admin-master-table{font-size:12px;}
+.admin-master-table tbody tr.admin-mc-summary{cursor:pointer;}
+.admin-master-table tbody tr.admin-mc-summary:hover{background:rgba(184,150,62,0.08);}
+.admin-mc-detail td{background:var(--silver-bg);font-size:12px;padding:0.85rem 1rem !important;border-top:1px solid var(--border);}
+.admin-mc-detail-inner{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0.65rem;}
+.admin-mc-detail-inner div span{color:var(--light);font-size:10px;text-transform:uppercase;letter-spacing:0.06em;display:block;}
+
+.admin-hin-conflicts-card{margin:0 1.5rem 1rem;border-left:4px solid #fbc02d;background:#fffef7;}
+.admin-hin-conflicts-body{font-size:13px;}
+.admin-hin-conflict-row{border:1px solid rgba(251,192,45,0.45);border-radius:8px;padding:0.85rem 1rem;margin-bottom:0.6rem;background:#fff;}
+.btn-hin-resolve{background:var(--navy);color:var(--gold);border:none;padding:0.4rem 0.75rem;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;margin-top:0.5rem;}
+
 @media(max-width:768px){.stats-grid{grid-template-columns:1fr;}.stat-card{min-height:auto;}}
 @media(max-width:600px){.fr,.add-dealer-row{grid-template-columns:1fr;}.portal-content{padding:1.5rem;}.portal-tabs{padding:0 1rem;}.tab{padding:0.75rem 0.75rem;font-size:12px;}.portal-nav{padding:0 1.25rem;}.ticket-grid{grid-template-columns:1fr 1fr;}.admin-stat-grid{grid-template-columns:1fr;}}
