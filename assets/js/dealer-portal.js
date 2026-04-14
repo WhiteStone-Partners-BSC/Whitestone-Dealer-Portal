@@ -154,7 +154,7 @@ async function verifyHINForEnrollment(hin, firstName, lastName, dealerName) {
     }
     if (!sameCustomer && active.length > 0) {
       await logHINConflict(hin, dealerName, firstName + " " + lastName, existing[0].customer_first_name + " " + existing[0].customer_last_name, "active", "HIN has active contract under different customer");
-      return { allowed: false, message: "This HIN is registered to another customer with an active contract. Contracts do not transfer with ownership. Please contact Whitestone Partners at sales@whitestone-partners.com to resolve." };
+      return { allowed: false, message: "This HIN is registered to another customer with an active contract. Contracts do not transfer with ownership. Please contact Whitestone Partners at support@whitestone-partners.com to resolve." };
     }
     return { allowed: true, isRenewal: sameCustomer, isNewOwner: !sameCustomer };
   } catch (e) {
@@ -1625,7 +1625,7 @@ function generateDealerContractPDF() {
 "    <div class=\"highlight-box\"><strong>Documentation:</strong> Service records must be logged in the Whitestone Partners system for reimbursement eligibility.</div>\n" +
 "  </div>\n" +
 "  <div class=\"footer\">\n" +
-"    <div class=\"footer-left\">Whitestone Partners LLC &nbsp;|&nbsp; St. George, Utah &nbsp;|&nbsp; sales@whitestone-partners.com</div>\n" +
+"    <div class=\"footer-left\">Whitestone Partners LLC &nbsp;|&nbsp; St. George, Utah &nbsp;|&nbsp; support@whitestone-partners.com</div>\n" +
 "    <div class=\"footer-right\">Dealer copy</div>\n" +
 "  </div>\n" +
 "</div>\n" +
@@ -1732,7 +1732,7 @@ function downloadCustomerContract() {
 "  </div>\n" +
 "  <div class=\"section\">\n" +
 "    <div class=\"section-title\"><span class=\"section-number\">5.</span>Cancellation Policy</div>\n" +
-"    <p>Cancellation requests submitted within 30 days of contract activation will receive a full refund minus the value of any services already performed. After 30 days from activation, no refund is available. All cancellation requests must be submitted in writing to sales@whitestone-partners.com.</p>\n" +
+"    <p>Cancellation requests submitted within 30 days of contract activation will receive a full refund minus the value of any services already performed. After 30 days from activation, no refund is available. All cancellation requests must be submitted in writing to support@whitestone-partners.com.</p>\n" +
 "  </div>\n" +
 "  <div class=\"section\">\n" +
 "    <div class=\"section-title\"><span class=\"section-number\">6.</span>Limitation of Liability</div>\n" +
@@ -1744,11 +1744,11 @@ function downloadCustomerContract() {
 "  </div>\n" +
 "  <div class=\"section\">\n" +
 "    <div class=\"section-title\"><span class=\"section-number\">8.</span>Contact</div>\n" +
-"    <p><strong>Whitestone Partners LLC</strong><br>St. George, Utah<br>sales@whitestone-partners.com<br>whitestone-partners.com</p>\n" +
+"    <p><strong>Whitestone Partners LLC</strong><br>St. George, Utah<br>support@whitestone-partners.com<br>whitestone-partners.com</p>\n" +
 "  </div>\n" +
 "  <div class=\"tagline\">\"The contract that brings your customers back. Every season.\"</div>\n" +
 "  <div class=\"footer\">\n" +
-"    <div class=\"footer-left\">Whitestone Partners LLC &nbsp;|&nbsp; St. George, Utah &nbsp;|&nbsp; sales@whitestone-partners.com</div>\n" +
+"    <div class=\"footer-left\">Whitestone Partners LLC &nbsp;|&nbsp; St. George, Utah &nbsp;|&nbsp; support@whitestone-partners.com</div>\n" +
 "    <div class=\"footer-right\">Boat Owner Copy</div>\n" +
 "  </div>\n" +
 "</div>\n" +
