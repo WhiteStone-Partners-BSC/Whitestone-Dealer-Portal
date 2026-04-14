@@ -24,28 +24,35 @@
 
 <!-- PORTAL -->
 <div id="portal-screen">
-  <div class="portal-nav">
+  <div class="portal-nav" id="portal-nav-dealer">
     <img src="assets/images/logo.png" alt="Whitestone Partners">
     <div class="dealer-info">
       <span class="dealer-name" id="dealer-display"></span>
-      <button class="logout-btn" id="logout-btn">Sign Out</button>
+      <button class="logout-btn" id="logout-btn" type="button">Sign Out</button>
     </div>
   </div>
 
-  <div class="portal-tabs" id="portal-tabs">
-    <div class="tab active" data-tab="dashboard">Dashboard</div>
-    <div class="tab admin-applications-tab" data-tab="applications" style="display:none;">Applications<span id="applications-tab-badge" class="applications-tab-badge" style="display:none;"></span></div>
-    <div class="tab" data-tab="customers">Customers</div>
-    <div class="tab" data-tab="ticket">Service Ticket</div>
-    <div class="tab" data-tab="history">Past Tickets</div>
-    <div class="tab" data-tab="enroll">Enroll a Customer</div>
-    <div class="tab" data-tab="faq">FAQ</div>
-    <div class="tab" data-tab="resources">Resources</div>
-    <div class="tab" data-tab="contact">Contact Whitestone</div>
-    <div class="tab admin-pricing-tab" data-tab="pricing" style="display:none;">Pricing Model</div>
-  </div>
-
-  <div class="portal-content">
+  <div class="dealer-layout" id="dealer-layout">
+    <div class="dealer-sidebar" id="dealer-sidebar">
+      <div class="dealer-sidebar-logo">
+        <div class="dealer-name" id="sidebar-dealer-name">—</div>
+        <div class="dealer-tier" id="sidebar-dealer-tier">—</div>
+      </div>
+      <div class="sidebar-section-label">Main</div>
+      <button type="button" class="sidebar-nav-item active" data-panel="dashboard">Dashboard</button>
+      <button type="button" class="sidebar-nav-item" data-panel="customers">Customers</button>
+      <div class="sidebar-section-label">Service</div>
+      <button type="button" class="sidebar-nav-item" data-panel="ticket">Submit Ticket</button>
+      <button type="button" class="sidebar-nav-item" data-panel="history">Ticket History</button>
+      <button type="button" class="sidebar-nav-item" data-panel="enroll">Enroll Customer</button>
+      <div class="sidebar-section-label">Info</div>
+      <button type="button" class="sidebar-nav-item" data-panel="resources">Resources</button>
+      <button type="button" class="sidebar-nav-item" data-panel="faq">FAQ &amp; Contact</button>
+      <div class="dealer-sidebar-footer">
+        <button type="button" class="sidebar-logout-btn" id="sidebar-logout">Sign out</button>
+      </div>
+    </div>
+    <div class="dealer-main-content" id="dealer-main-content">
 
     <!-- DASHBOARD -->
     <div class="tab-panel active" id="panel-dashboard">
@@ -102,37 +109,6 @@
         <div class="card-sub" style="margin-bottom:1rem;">Annual contracts ending soon. Showing renewals in the next 90 days (by contract end date).</div>
         <div id="renewals-container">
           <div class="renewals-loading">Loading renewal dates…</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- APPLICATIONS (admin only) -->
-    <div class="tab-panel" id="panel-applications">
-      <div class="applications-shell">
-        <div id="applications-toast" class="applications-toast" style="display:none;"></div>
-        <div id="applications-loading" class="applications-loading">Loading applications…</div>
-        <div id="applications-grid" class="applications-grid" style="display:none;">
-          <div class="applications-col">
-            <div class="applications-col-header">
-              <h3 class="applications-col-title">Pending Review</h3>
-              <span id="applications-count-pending" class="applications-badge applications-badge-amber">0</span>
-            </div>
-            <div id="applications-pending-body" class="applications-col-body"></div>
-          </div>
-          <div class="applications-col">
-            <div class="applications-col-header">
-              <h3 class="applications-col-title">Active Dealers</h3>
-              <span id="applications-count-active" class="applications-badge applications-badge-green">0</span>
-            </div>
-            <div id="applications-active-body" class="applications-col-body"></div>
-          </div>
-          <div class="applications-col">
-            <div class="applications-col-header">
-              <h3 class="applications-col-title">Declined &amp; Inactive</h3>
-              <span id="applications-count-third" class="applications-badge applications-badge-gray">0</span>
-            </div>
-            <div id="applications-third-body" class="applications-col-body"></div>
-          </div>
         </div>
       </div>
     </div>
@@ -270,7 +246,7 @@
         <p class="faq-cat">Submitting Tickets</p>
         <div class="faq-item"><div class="faq-q" data-dfaq="4">When should I submit a service ticket?<span class="faq-arrow" id="darr4">&#8964;</span></div><div class="faq-a" id="dfaq4">Submit a ticket within 7 days of completing a covered service. Make sure to include accurate engine hours at the time of service — this is used to verify service interval eligibility.</div></div>
         <div class="faq-item"><div class="faq-q" data-dfaq="5">Can I submit multiple services on one ticket?<span class="faq-arrow" id="darr5">&#8964;</span></div><div class="faq-a" id="dfaq5">Yes — select all services performed in a single visit using the multi-select buttons on the ticket form. All selected services will be recorded together with one ticket number.</div></div>
-        <div class="faq-item"><div class="faq-q" data-dfaq="6">What if I made an error on a submitted ticket?<span class="faq-arrow" id="darr6">&#8964;</span></div><div class="faq-a" id="dfaq6">Contact Whitestone Partners directly via the Contact tab with your ticket number and the correction needed. We can update the record on our end.</div></div>
+        <div class="faq-item"><div class="faq-q" data-dfaq="6">What if I made an error on a submitted ticket?<span class="faq-arrow" id="darr6">&#8964;</span></div><div class="faq-a" id="dfaq6">Contact Whitestone Partners directly using the contact form below with your ticket number and the correction needed. We can update the record on our end.</div></div>
         <div class="faq-item"><div class="faq-q" data-dfaq="7">How do I know if a service is eligible for a customer's boat?<span class="faq-arrow" id="darr7">&#8964;</span></div><div class="faq-a" id="dfaq7">Eligibility is based on engine hours and service intervals as defined in your rate sheet. If a customer's boat hasn't reached the required hours for a particular service, that service is not yet claimable. When in doubt contact Whitestone Partners before performing the service.</div></div>
 
         <p class="faq-cat">Payments & Reimbursement</p>
@@ -281,6 +257,31 @@
         <p class="faq-cat">Customer Enrollment</p>
         <div class="faq-item"><div class="faq-q" data-dfaq="11">How do I enroll a new customer?<span class="faq-arrow" id="darr11">&#8964;</span></div><div class="faq-a" id="dfaq11">Use the Enroll a Customer tab. Enter the customer's information and generate a payment link. Send that link to the customer — once they complete the $4,000 payment their contract is active and you'll be assigned as their dealer.</div></div>
         <div class="faq-item"><div class="faq-q" data-dfaq="12">Do I get a commission for enrolling customers?<span class="faq-arrow" id="darr12">&#8964;</span></div><div class="faq-a" id="dfaq12">Dealer commission structures are outlined in your dealer agreement. Contact Whitestone Partners for details on your specific commission terms.</div></div>
+      </div>
+
+      <div class="card" style="margin-top:1.5rem;">
+        <div class="card-title">Contact Whitestone Partners</div>
+        <div class="card-sub">Have a question or need support? Send us a message and we'll get back to you within 1-2 business days.</div>
+        <div class="fr">
+          <div class="fg"><label>Your Name</label><input type="text" id="dc-name" placeholder="Your name"></div>
+          <div class="fg"><label>Your Email</label><input type="email" id="dc-email" placeholder="your@email.com"></div>
+        </div>
+        <div class="fg"><label>Subject</label>
+          <select id="dc-subject">
+            <option value="">Select a topic</option>
+            <option>Ticket Correction</option>
+            <option>Reimbursement Question</option>
+            <option>Customer Enrollment Help</option>
+            <option>Rate Sheet Question</option>
+            <option>Technical Issue</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="fg"><label>Message</label><textarea id="dc-message" placeholder="Describe your question or issue. Include ticket numbers if relevant."></textarea></div>
+        <button class="sub-btn sub-btn-full" id="dc-btn">Send Message</button>
+        <div id="dc-ok" class="ok"><h3>Message sent</h3><p>We'll be in touch within 1-2 business days.</p></div>
+        <div id="dc-err" class="err">Something went wrong. Please email support@whitestone-partners.com directly.</div>
+        <p style="font-size:12px;color:var(--light);margin-top:1rem;text-align:center;">Or email us directly: <a href="mailto:support@whitestone-partners.com" style="color:var(--blue);">support@whitestone-partners.com</a></p>
       </div>
     </div>
 
@@ -314,36 +315,227 @@
       </div>
     </div>
 
-    <!-- CONTACT -->
-    <div class="tab-panel" id="panel-contact">
-      <div class="card">
-        <div class="card-title">Contact Whitestone Partners</div>
-        <div class="card-sub">Have a question or need support? Send us a message and we'll get back to you within 1-2 business days.</div>
-        <div class="fr">
-          <div class="fg"><label>Your Name</label><input type="text" id="dc-name" placeholder="Your name"></div>
-          <div class="fg"><label>Your Email</label><input type="email" id="dc-email" placeholder="your@email.com"></div>
+    </div>
+  </div>
+
+  <div class="admin-layout" id="admin-layout" style="display:none;">
+  <nav class="admin-topnav">
+    <div class="admin-topnav-brand">Whitestone Partners</div>
+    <div class="admin-nav-items">
+      <button type="button" class="admin-nav-item active" data-admin-panel="dashboard">Dashboard</button>
+      <span class="admin-nav-dealers-wrap">
+        <button type="button" class="admin-nav-item" data-admin-panel="dealers">Dealers</button>
+        <span id="applications-tab-badge" class="applications-tab-badge" style="display:none;"></span>
+      </span>
+      <button type="button" class="admin-nav-item" data-admin-panel="customers">Customers</button>
+      <button type="button" class="admin-nav-item" data-admin-panel="claims">Claims</button>
+      <button type="button" class="admin-nav-item" data-admin-panel="pricing">Pricing</button>
+      <button type="button" class="admin-nav-item" data-admin-panel="settings">Settings</button>
+    </div>
+    <div class="admin-topnav-right">
+      <span class="admin-badge">Admin</span>
+      <button type="button" class="admin-logout-btn" id="admin-logout-btn">Sign out</button>
+    </div>
+  </nav>
+
+  <div class="admin-content" id="admin-content">
+
+    <div id="admin-panel-dashboard" class="admin-panel" style="display:block;">
+      <div class="admin-panel-shell">
+        <div class="admin-cc-banner">
+          <span class="admin-cc-lock" aria-hidden="true">🔐</span>
+          <span class="admin-cc-title">WHITESTONE PARTNERS — NETWORK COMMAND CENTER</span>
         </div>
-        <div class="fg"><label>Subject</label>
-          <select id="dc-subject">
-            <option value="">Select a topic</option>
-            <option>Ticket Correction</option>
-            <option>Reimbursement Question</option>
-            <option>Customer Enrollment Help</option>
-            <option>Rate Sheet Question</option>
-            <option>Technical Issue</option>
-            <option>Other</option>
-          </select>
+        <div id="admin-dashboard-loading" class="admin-dashboard-loading">Loading network data…</div>
+        <div id="admin-dashboard-content" style="display:none;">
+          <div class="admin-stat-grid">
+            <div class="stat-card admin-stat-card">
+              <div class="admin-stat-label">Total contracts enrolled</div>
+              <div class="admin-stat-value" id="admin-stat-contracts">—</div>
+              <div class="admin-stat-note">Active contracts (Supabase)</div>
+            </div>
+            <div class="stat-card admin-stat-card">
+              <div class="admin-stat-label">Network revenue generated</div>
+              <div class="admin-stat-value" id="admin-stat-revenue">—</div>
+              <div class="admin-stat-note">Sum of retail_price on active contracts</div>
+            </div>
+            <div class="stat-card admin-stat-card">
+              <div class="admin-stat-label">Total reimbursements paid</div>
+              <div class="admin-stat-value" id="admin-stat-reimb">—</div>
+              <div class="admin-stat-note">Sum of paid reimbursement rows</div>
+            </div>
+            <div class="stat-card admin-stat-card">
+              <div class="admin-stat-label">WP net margin (est.)</div>
+              <div class="admin-stat-value" id="admin-stat-margin">—</div>
+              <div class="admin-stat-note">Revenue − reimbursements − commissions</div>
+            </div>
+          </div>
+          <div class="card admin-chart-card">
+            <div class="card-title">Network Activity — Tickets This Year</div>
+            <div class="admin-chart-wrap"><canvas id="admin-network-chart" height="120"></canvas></div>
+          </div>
+          <div class="card" style="margin-bottom:1.5rem;">
+            <div class="card-title">Live Activity Feed</div>
+            <div class="card-sub">Last 25 actions across the entire network.</div>
+            <div id="activity-feed-admin"></div>
+          </div>
+          <div class="card" style="margin-bottom:1.5rem;">
+            <div class="card-title">Recent Pricing Changes</div>
+            <div class="card-sub">Last 20 pricing-related changes across dealerships.</div>
+            <div id="admin-pricing-feed"></div>
+          </div>
+          <div class="card admin-leaderboard-card">
+            <div class="card-title">Dealer leaderboard</div>
+            <div class="card-sub">Ranked by tickets submitted (network-wide).</div>
+            <div class="table-scroll">
+              <table class="dealer-table admin-leaderboard-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Dealership</th>
+                    <th>Tickets</th>
+                    <th>Est. contracts</th>
+                    <th>Est. reimbursements</th>
+                    <th>Last activity</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-leaderboard-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="admin-flags-row">
+            <div class="card admin-flag-card admin-flag-needs">
+              <div class="card-title">Needs follow up</div>
+              <p class="card-sub">No tickets in the last 30 days.</p>
+              <div id="admin-followup-list" class="admin-pill-list"></div>
+            </div>
+            <div class="card admin-flag-card admin-flag-good">
+              <div class="card-title">Performing well</div>
+              <p class="card-sub">3+ tickets this calendar month.</p>
+              <div id="admin-performing-list" class="admin-pill-list"></div>
+            </div>
+          </div>
+          <div class="card admin-renewals-network-card">
+            <div class="card-title">Renewals due across network</div>
+            <div class="card-sub">Contracts with end_date in the next 90 days.</div>
+            <div id="admin-renewals-body" class="admin-renewals-network-body"></div>
+          </div>
+          <div class="card admin-financial-card">
+            <div class="card-title">Financial health indicator</div>
+            <div class="admin-financial-inner">
+              <div class="admin-financial-row">
+                <span class="admin-financial-label">Estimated claims rate</span>
+                <strong id="admin-health-claims">—</strong>
+              </div>
+              <div class="admin-health-bar-track">
+                <div class="admin-health-bar-fill" id="admin-health-bar"></div>
+              </div>
+              <p class="admin-financial-hint">Services completed ÷ (contracts × 10 possible services per contract).</p>
+              <div id="admin-health-warning" class="admin-breakeven-banner" style="display:none;">Claims rate approaching breakeven — monitor closely</div>
+              <div class="admin-financial-row admin-projected-row">
+                <span class="admin-financial-label">Projected monthly reimbursements (pace)</span>
+                <strong id="admin-health-projected">—</strong>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="fg"><label>Message</label><textarea id="dc-message" placeholder="Describe your question or issue. Include ticket numbers if relevant."></textarea></div>
-        <button class="sub-btn sub-btn-full" id="dc-btn">Send Message</button>
-        <div id="dc-ok" class="ok"><h3>Message sent</h3><p>We'll be in touch within 1-2 business days.</p></div>
-        <div id="dc-err" class="err">Something went wrong. Please email support@whitestone-partners.com directly.</div>
-        <p style="font-size:12px;color:var(--light);margin-top:1rem;text-align:center;">Or email us directly: <a href="mailto:support@whitestone-partners.com" style="color:var(--blue);">support@whitestone-partners.com</a></p>
       </div>
     </div>
 
-    <!-- CLAIMS (admin only — tab injected on login) -->
-    <div class="tab-panel" id="panel-claims">
+    <div id="admin-panel-dealers" class="admin-panel" style="display:none;">
+      <div class="admin-panel-shell">
+        <div class="applications-shell">
+          <div id="applications-toast" class="applications-toast" style="display:none;"></div>
+          <div id="applications-loading" class="applications-loading">Loading applications…</div>
+          <div id="applications-grid" class="applications-grid" style="display:none;">
+            <div class="applications-col">
+              <div class="applications-col-header">
+                <h3 class="applications-col-title">Pending Review</h3>
+                <span id="applications-count-pending" class="applications-badge applications-badge-amber">0</span>
+              </div>
+              <div id="applications-pending-body" class="applications-col-body"></div>
+            </div>
+            <div class="applications-col">
+              <div class="applications-col-header">
+                <h3 class="applications-col-title">Active Dealers</h3>
+                <span id="applications-count-active" class="applications-badge applications-badge-green">0</span>
+              </div>
+              <div id="applications-active-body" class="applications-col-body"></div>
+            </div>
+            <div class="applications-col">
+              <div class="applications-col-header">
+                <h3 class="applications-col-title">Declined &amp; Inactive</h3>
+                <span id="applications-count-third" class="applications-badge applications-badge-gray">0</span>
+              </div>
+              <div id="applications-third-body" class="applications-col-body"></div>
+            </div>
+          </div>
+        </div>
+        <div class="admin-section-divider">
+          <span>Dealer account management</span>
+        </div>
+        <div class="card admin-dealer-mgmt-card">
+          <div class="card-title">Dealer Accounts</div>
+          <div class="card-sub">Add, remove, or manage dealer login credentials.</div>
+          <table class="dealer-table" id="dealer-table">
+            <thead><tr><th>Username</th><th>Dealership Name</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="dealer-tbody"></tbody>
+          </table>
+          <div class="add-dealer-form">
+            <h4>Add New Dealer</h4>
+            <div class="add-dealer-row">
+              <div class="fg"><label>Username</label><input type="text" id="new-username" placeholder="e.g. dealer3"></div>
+              <div class="fg"><label>Password</label><input type="text" id="new-password" placeholder="e.g. marina2026"></div>
+              <div class="fg"><label>Dealership Name</label><input type="text" id="new-name" placeholder="e.g. Harbor Marine"></div>
+              <button class="btn-add" id="add-dealer-btn">Add Dealer</button>
+            </div>
+            <div id="add-ok" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--green-text);">✓ Dealer added successfully.</div>
+            <div id="add-err" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--red-text);">Please fill in all fields.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-panel-customers" class="admin-panel" style="display:none;">
+      <div class="admin-panel-shell">
+        <div class="card admin-master-search-card">
+          <div class="card-title">Master Customer Search</div>
+          <div class="card-sub">All contracts across every dealership.</div>
+          <div class="fg">
+            <label for="admin-customer-search">Search</label>
+            <input type="text" id="admin-customer-search" placeholder="Search all customers by name, HIN, dealership, or boat..." autocomplete="off">
+          </div>
+          <div id="admin-master-search-loading" class="admin-inline-loading" style="display:none;">Loading contracts…</div>
+          <div class="table-scroll admin-master-table-wrap">
+            <table class="dealer-table admin-master-table" id="admin-master-table">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Dealership</th>
+                  <th>Boat</th>
+                  <th>HIN</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Enrolled</th>
+                  <th>Expires</th>
+                </tr>
+              </thead>
+              <tbody id="admin-master-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card admin-hin-conflicts-card">
+          <div class="card-title">HIN conflicts</div>
+          <div class="card-sub">Blocked enrollment attempts that need attention.</div>
+          <div id="admin-hin-conflicts-body" class="admin-hin-conflicts-body">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CLAIMS (admin) -->
+    <div id="admin-panel-claims" class="admin-panel" style="display:none;">
+    <div id="panel-claims">
       <div class="admin-panel-shell claims-shell">
         <div class="card claims-section-card">
           <div class="card-title">Pending claims queue</div>
@@ -363,9 +555,11 @@
         </div>
       </div>
     </div>
+    </div>
 
     <!-- PRICING MODEL (admin only) -->
-    <div class="tab-panel" id="panel-pricing">
+    <div id="admin-panel-pricing" class="admin-panel" style="display:none;">
+    <div id="panel-pricing">
       <div class="pricing-panel-shell">
         <div class="card" style="margin-bottom:1.5rem;">
           <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
@@ -504,6 +698,12 @@
         </div>
       </div>
     </div>
+    </div>
+
+    <div id="admin-panel-settings" class="admin-panel" style="display:none;"></div>
+
+  </div>
+  </div>
 
     <!-- Confirm Modal -->
     <div id="pricing-confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;">
@@ -544,177 +744,72 @@
       </div>
     </div>
 
-    <!-- ADMIN — NETWORK COMMAND CENTER -->
-    <div class="tab-panel" id="panel-admin">
-      <div class="admin-panel-shell">
-        <div class="admin-cc-banner">
-          <span class="admin-cc-lock" aria-hidden="true">🔐</span>
-          <span class="admin-cc-title">WHITESTONE PARTNERS — NETWORK COMMAND CENTER</span>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:flex-start;justify-content:flex-end;">
+      <div style="background:var(--white);width:420px;height:100vh;overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,0.15);">
+        <div style="background:var(--navy2);padding:1.25rem 1.5rem;display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:14px;font-weight:600;color:var(--white);letter-spacing:0.04em;">Settings</div>
+          <button type="button" id="settings-modal-close" style="background:none;border:none;color:rgba(200,220,235,0.6);font-size:18px;cursor:pointer;">✕</button>
         </div>
-
-        <div id="admin-dashboard-loading" class="admin-dashboard-loading">Loading network data…</div>
-
-        <div id="admin-dashboard-content" style="display:none;">
-          <div class="card admin-master-search-card">
-            <div class="card-title">Master Customer Search</div>
-            <div class="card-sub">All contracts across every dealership.</div>
-            <div class="fg">
-              <label for="admin-customer-search">Search</label>
-              <input type="text" id="admin-customer-search" placeholder="Search all customers by name, HIN, dealership, or boat..." autocomplete="off">
-            </div>
-            <div id="admin-master-search-loading" class="admin-inline-loading" style="display:none;">Loading contracts…</div>
-            <div class="table-scroll admin-master-table-wrap">
-              <table class="dealer-table admin-master-table" id="admin-master-table">
-                <thead>
-                  <tr>
-                    <th>Customer</th>
-                    <th>Dealership</th>
-                    <th>Boat</th>
-                    <th>HIN</th>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th>Enrolled</th>
-                    <th>Expires</th>
-                  </tr>
-                </thead>
-                <tbody id="admin-master-tbody"></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="card admin-hin-conflicts-card">
-            <div class="card-title">HIN conflicts</div>
-            <div class="card-sub">Blocked enrollment attempts that need attention.</div>
-            <div id="admin-hin-conflicts-body" class="admin-hin-conflicts-body">Loading…</div>
-          </div>
-
-          <div class="admin-stat-grid">
-            <div class="stat-card admin-stat-card">
-              <div class="admin-stat-label">Total contracts enrolled</div>
-              <div class="admin-stat-value" id="admin-stat-contracts">—</div>
-              <div class="admin-stat-note">Active contracts (Supabase)</div>
-            </div>
-            <div class="stat-card admin-stat-card">
-              <div class="admin-stat-label">Network revenue generated</div>
-              <div class="admin-stat-value" id="admin-stat-revenue">—</div>
-              <div class="admin-stat-note">Sum of retail_price on active contracts</div>
-            </div>
-            <div class="stat-card admin-stat-card">
-              <div class="admin-stat-label">Total reimbursements paid</div>
-              <div class="admin-stat-value" id="admin-stat-reimb">—</div>
-              <div class="admin-stat-note">Sum of paid reimbursement rows</div>
-            </div>
-            <div class="stat-card admin-stat-card">
-              <div class="admin-stat-label">WP net margin (est.)</div>
-              <div class="admin-stat-value" id="admin-stat-margin">—</div>
-              <div class="admin-stat-note">Revenue − reimbursements − commissions</div>
-            </div>
-          </div>
-
-          <div class="card admin-chart-card">
-            <div class="card-title">Network Activity — Tickets This Year</div>
-            <div class="admin-chart-wrap"><canvas id="admin-network-chart" height="120"></canvas></div>
-          </div>
-
-          <div class="card" style="margin-bottom:1.5rem;">
-            <div class="card-title">Live Activity Feed</div>
-            <div class="card-sub">Last 25 actions across the entire network.</div>
-            <div id="activity-feed-admin"></div>
-          </div>
-
-          <div class="card" style="margin-bottom:1.5rem;">
-            <div class="card-title">Recent Pricing Changes</div>
-            <div class="card-sub">Last 20 pricing-related changes across dealerships.</div>
-            <div id="admin-pricing-feed"></div>
-          </div>
-
-          <div class="card admin-leaderboard-card">
-            <div class="card-title">Dealer leaderboard</div>
-            <div class="card-sub">Ranked by tickets submitted (network-wide).</div>
-            <div class="table-scroll">
-              <table class="dealer-table admin-leaderboard-table">
-                <thead>
-                  <tr>
-                    <th>Rank</th>
-                    <th>Dealership</th>
-                    <th>Tickets</th>
-                    <th>Est. contracts</th>
-                    <th>Est. reimbursements</th>
-                    <th>Last activity</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody id="admin-leaderboard-body"></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="admin-flags-row">
-            <div class="card admin-flag-card admin-flag-needs">
-              <div class="card-title">Needs follow up</div>
-              <p class="card-sub">No tickets in the last 30 days.</p>
-              <div id="admin-followup-list" class="admin-pill-list"></div>
-            </div>
-            <div class="card admin-flag-card admin-flag-good">
-              <div class="card-title">Performing well</div>
-              <p class="card-sub">3+ tickets this calendar month.</p>
-              <div id="admin-performing-list" class="admin-pill-list"></div>
-            </div>
-          </div>
-
-          <div class="card admin-renewals-network-card">
-            <div class="card-title">Renewals due across network</div>
-            <div class="card-sub">Contracts with end_date in the next 90 days.</div>
-            <div id="admin-renewals-body" class="admin-renewals-network-body"></div>
-          </div>
-
-          <div class="card admin-financial-card">
-            <div class="card-title">Financial health indicator</div>
-            <div class="admin-financial-inner">
-              <div class="admin-financial-row">
-                <span class="admin-financial-label">Estimated claims rate</span>
-                <strong id="admin-health-claims">—</strong>
+        <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);margin-bottom:0.85rem;">Documents</div>
+          <div style="display:flex;flex-direction:column;gap:0.6rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--silver-bg);border-radius:6px;border:1px solid var(--border);">
+              <div>
+                <div style="font-size:13.5px;font-weight:500;color:var(--navy);">Customer Service Contract</div>
+                <div style="font-size:11px;color:var(--light);">Standard contract for boat owners</div>
               </div>
-              <div class="admin-health-bar-track">
-                <div class="admin-health-bar-fill" id="admin-health-bar"></div>
+              <button type="button" onclick="downloadCustomerContract()" style="background:var(--navy);color:white;border:none;padding:6px 14px;border-radius:4px;font-size:11.5px;font-weight:500;cursor:pointer;">Download</button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--silver-bg);border-radius:6px;border:1px solid var(--border);">
+              <div>
+                <div style="font-size:13.5px;font-weight:500;color:var(--navy);">Brand Guidelines</div>
+                <div style="font-size:11px;color:var(--light);">Logo usage and brand standards</div>
               </div>
-              <p class="admin-financial-hint">Services completed ÷ (contracts × 10 possible services per contract).</p>
-              <div id="admin-health-warning" class="admin-breakeven-banner" style="display:none;">Claims rate approaching breakeven — monitor closely</div>
-              <div class="admin-financial-row admin-projected-row">
-                <span class="admin-financial-label">Projected monthly reimbursements (pace)</span>
-                <strong id="admin-health-projected">—</strong>
-              </div>
+              <span style="font-size:11px;color:var(--light);background:var(--border);padding:3px 10px;border-radius:20px;">Coming soon</span>
             </div>
           </div>
         </div>
-
-        <div class="admin-section-divider">
-          <span>Dealer account management</span>
+        <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);margin-bottom:0.85rem;">FAQ</div>
+          <div id="settings-faq-list" style="display:flex;flex-direction:column;gap:0.5rem;font-size:12.5px;color:var(--mid);line-height:1.6;">
+            <p>Dealer FAQ content matches the FAQ &amp; Contact section in the dealer portal (same program answers).</p>
+          </div>
         </div>
-
-        <div class="card admin-dealer-mgmt-card">
-          <div class="card-title">Dealer Accounts</div>
-          <div class="card-sub">Add, remove, or manage dealer login credentials.</div>
-          <table class="dealer-table" id="dealer-table">
-            <thead><tr><th>Username</th><th>Dealership Name</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody id="dealer-tbody"></tbody>
-          </table>
-          <div class="add-dealer-form">
-            <h4>Add New Dealer</h4>
-            <div class="add-dealer-row">
-              <div class="fg"><label>Username</label><input type="text" id="new-username" placeholder="e.g. dealer3"></div>
-              <div class="fg"><label>Password</label><input type="text" id="new-password" placeholder="e.g. marina2026"></div>
-              <div class="fg"><label>Dealership Name</label><input type="text" id="new-name" placeholder="e.g. Harbor Marine"></div>
-              <button class="btn-add" id="add-dealer-btn">Add Dealer</button>
+        <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);margin-bottom:0.85rem;">Legal</div>
+          <div style="display:flex;flex-direction:column;gap:0.6rem;">
+            <div style="padding:0.75rem 1rem;background:var(--silver-bg);border-radius:6px;border:1px solid var(--border);">
+              <div style="font-size:13.5px;font-weight:500;color:var(--navy);margin-bottom:4px;">Terms &amp; Conditions</div>
+              <div style="font-size:12px;color:var(--mid);">Whitestone Partners service contract terms governing all customer contracts.</div>
             </div>
-            <div id="add-ok" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--green-text);">✓ Dealer added successfully.</div>
-            <div id="add-err" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--red-text);">Please fill in all fields.</div>
+            <div style="padding:0.75rem 1rem;background:var(--silver-bg);border-radius:6px;border:1px solid var(--border);">
+              <div style="font-size:13.5px;font-weight:500;color:var(--navy);margin-bottom:4px;">Dealer Agreement</div>
+              <div style="font-size:12px;color:var(--mid);">Generate dealer-specific agreements from the Pricing section.</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:1.25rem 1.5rem;">
+          <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);margin-bottom:0.85rem;">Platform</div>
+          <div style="display:flex;flex-direction:column;gap:0.5rem;font-size:12.5px;color:var(--mid);">
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+              <span>Supabase Project</span>
+              <span style="color:var(--navy);font-weight:500;">WhiteStone-Partners-BSC</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+              <span>Portal Version</span>
+              <span style="color:var(--navy);font-weight:500;">2.0</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;">
+              <span>Contact</span>
+              <span style="color:var(--navy);font-weight:500;">support@whitestone-partners.com</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>

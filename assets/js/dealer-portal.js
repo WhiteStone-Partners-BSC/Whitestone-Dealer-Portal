@@ -1035,24 +1035,10 @@ function pricingInitOnTab() {
 }
 
 function applyAdminTabVisibility() {
-  document.querySelectorAll('[data-tab="ticket"], [data-tab="history"], [data-tab="contact"]').forEach(function(el) {
-    el.style.display = "none";
-  });
-  var pr = document.querySelector('[data-tab="pricing"]');
-  if (pr) pr.style.display = "block";
-  var ap = document.querySelector('[data-tab="applications"]');
-  if (ap) ap.style.display = "block";
   applicationsRefreshTabBadgeOnly();
 }
 
 function resetAdminTabVisibility() {
-  document.querySelectorAll('[data-tab="ticket"], [data-tab="history"], [data-tab="contact"]').forEach(function(el) {
-    el.style.display = "";
-  });
-  var pr = document.querySelector('[data-tab="pricing"]');
-  if (pr) pr.style.display = "none";
-  var ap = document.querySelector('[data-tab="applications"]');
-  if (ap) ap.style.display = "none";
   applicationsUpdateTabBadge(0);
 }
 
@@ -1867,6 +1853,141 @@ document.addEventListener("DOMContentLoaded", function() {
   document.getElementById("username").addEventListener("keydown", function(e) { if (e.key === "Enter") doLogin(); });
   document.getElementById("password").addEventListener("keydown", function(e) { if (e.key === "Enter") doLogin(); });
 
+  async function adminRefreshNetworkCaches() {
+    if (!currentDealer || !currentDealer.isAdmin) return false;
+    var loading = document.getElementById("admin-dashboard-loading");
+    var content = document.getElementById("admin-dashboard-content");
+    if (loading) loading.style.display = "block";
+    if (content) content.style.display = "none";
+    try {
+      var mst = document.getElementById("admin-master-search-loading");
+      if (mst) mst.style.display = "block";
+      var results = await Promise.all([
+        adminFetchAllTickets(),
+        adminFetchContractsSummary(),
+        adminFetchReimbursementsPaidTotal(),
+        adminFetchRenewalsContracts(),
+        fetchDealersSupabase(),
+        adminFetchAllContracts()
+      ]);
+      if (mst) mst.style.display = "none";
+      adminNetworkTickets = results[0] || [];
+      adminDashboardMetrics = results[1];
+      adminReimburseMetrics = results[2];
+      adminRenewalContracts = results[3] || [];
+      dealerRowsCache = results[4] || [];
+      adminContractsCache = results[5] || [];
+      var commEl = document.getElementById("pricing-slider-commission");
+      if (commEl) {
+        var v = parseFloat(commEl.value);
+        if (!isNaN(v)) ADMIN_COMMISSION_RATE = v / 100;
+      }
+      if (loading) loading.style.display = "none";
+      if (content) content.style.display = "block";
+      return true;
+    } catch (e) {
+      var mst2 = document.getElementById("admin-master-search-loading");
+      if (mst2) mst2.style.display = "none";
+      adminNetworkTickets = [];
+      dealerRowsCache = [];
+      adminContractsCache = [];
+      adminDashboardMetrics = { count: 0, revenue: 0 };
+      adminReimburseMetrics = { paidTotal: 0 };
+      adminRenewalContracts = [];
+      if (loading) loading.style.display = "none";
+      if (content) content.style.display = "block";
+      return false;
+    }
+  }
+
+  function adminRenderDashboardOnly() {
+    adminRenderStats();
+    adminRenderChart();
+    adminRenderLeaderboard();
+    adminRenderFlags();
+    adminRenderRenewalsNetwork();
+    adminRenderFinancialHealth();
+    adminLoadActivityFeed();
+    adminLoadRecentPricingChanges();
+  }
+
+  function adminRenderDealersOnly() {
+    renderDealerTable();
+    applicationsLoadPanel();
+  }
+
+  function adminRenderCustomersOnly() {
+    renderAdminMasterTable();
+    loadAdminHinConflicts();
+  }
+
+  async function adminLoadDashboardPanel() {
+    if (!currentDealer || !currentDealer.isAdmin) return;
+    await adminRefreshNetworkCaches();
+    adminRenderDashboardOnly();
+  }
+
+  async function adminLoadDealersPanel() {
+    if (!currentDealer || !currentDealer.isAdmin) return;
+    await adminRefreshNetworkCaches();
+    adminRenderDealersOnly();
+  }
+
+  async function adminLoadCustomersPanel() {
+    if (!currentDealer || !currentDealer.isAdmin) return;
+    await adminRefreshNetworkCaches();
+    adminRenderCustomersOnly();
+  }
+
+  async function adminLoadNetworkDashboard() {
+    await adminRefreshNetworkCaches();
+    adminRenderDashboardOnly();
+    adminRenderCustomersOnly();
+    adminRenderDealersOnly();
+  }
+
+  function adminShowSettingsModal() {
+    var modal = document.getElementById("settings-modal");
+    if (!modal) return;
+    modal.style.display = "flex";
+    document.querySelectorAll('.admin-nav-item[data-admin-panel="settings"]').forEach(function(b) {
+      b.classList.remove("active");
+    });
+  }
+
+  function adminShowPanel(panel) {
+    if (!currentDealer || !currentDealer.isAdmin) return;
+    if (panel === "settings") {
+      adminShowSettingsModal();
+      return;
+    }
+    document.querySelectorAll("#admin-content .admin-panel").forEach(function(p) {
+      if (p.id === "admin-panel-settings") return;
+      p.style.display = "none";
+    });
+    var el = document.getElementById("admin-panel-" + panel);
+    if (el) el.style.display = "block";
+    switch (panel) {
+      case "dashboard":
+        adminLoadDashboardPanel();
+        break;
+      case "dealers":
+        adminLoadDealersPanel();
+        break;
+      case "customers":
+        adminLoadCustomersPanel();
+        break;
+      case "claims":
+        claimsLoadTab();
+        break;
+      case "pricing":
+        pricingInitOnTab();
+        break;
+      default:
+        break;
+    }
+  }
+
   async function doLogin() {
     var user = document.getElementById("username").value.trim().toLowerCase();
     var pass = document.getElementById("password").value;
@@ -1889,22 +2010,27 @@ document.addEventListener("DOMContentLoaded", function() {
         document.getElementById("login-screen").style.display = "none";
         document.getElementById("portal-screen").style.display = "block";
         err.style.display = "none";
-        loadDashboard();
         if (currentDealer.isAdmin) {
-          applyAdminTabVisibility();
-          var tabs = document.getElementById("portal-tabs");
-          var claimsTab = document.createElement("div");
-          claimsTab.className = "tab admin-tab";
-          claimsTab.setAttribute("data-tab", "claims");
-          claimsTab.textContent = "Claims";
-          tabs.appendChild(claimsTab);
-          claimsTab.addEventListener("click", function() { switchTab("claims"); });
-          var adminTab = document.createElement("div");
-          adminTab.className = "tab admin-tab";
-          adminTab.setAttribute("data-tab", "admin");
-          adminTab.textContent = "Admin";
-          tabs.appendChild(adminTab);
-          adminTab.addEventListener("click", function() { switchTab("admin"); });
+          document.getElementById("portal-screen").className = "mode-admin";
+          document.getElementById("dealer-layout").style.display = "none";
+          document.getElementById("admin-layout").style.display = "block";
+          document.querySelectorAll(".admin-nav-item").forEach(function(b) {
+            b.classList.remove("active");
+          });
+          var dashNav = document.querySelector('.admin-nav-item[data-admin-panel="dashboard"]');
+          if (dashNav) dashNav.classList.add("active");
+          adminShowPanel("dashboard");
+          applicationsRefreshTabBadgeOnly();
+        } else {
+          document.getElementById("portal-screen").className = "mode-dealer";
+          document.getElementById("dealer-layout").style.display = "flex";
+          document.getElementById("admin-layout").style.display = "none";
+          document.querySelectorAll(".sidebar-nav-item").forEach(function(b) {
+            b.classList.remove("active");
+          });
+          var sbd = document.querySelector('.sidebar-nav-item[data-panel="dashboard"]');
+          if (sbd) sbd.classList.add("active");
+          switchTab("dashboard");
         }
       } else {
         err.style.display = "block";
@@ -1915,19 +2041,20 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 
   function switchTab(name) {
-    document.querySelectorAll(".tab").forEach(function(t) { t.classList.remove("active"); });
-    document.querySelectorAll(".tab-panel").forEach(function(p) { p.classList.remove("active"); });
-    var activeTab = document.querySelector("[data-tab='" + name + "']");
-    if (activeTab) activeTab.classList.add("active");
+    if (currentDealer && currentDealer.isAdmin) return;
+    document.querySelectorAll("#dealer-main-content .tab-panel").forEach(function(p) {
+      p.classList.remove("active");
+    });
+    document.querySelectorAll(".sidebar-nav-item").forEach(function(b) {
+      b.classList.remove("active");
+    });
+    var sb = document.querySelector('.sidebar-nav-item[data-panel="' + name + '"]');
+    if (sb) sb.classList.add("active");
     var panel = document.getElementById("panel-" + name);
     if (panel) panel.classList.add("active");
     if (name === "dashboard") loadDashboard();
     if (name === "history") loadTickets();
     if (name === "customers") loadCustomersTab();
-    if (name === "pricing") pricingInitOnTab();
-    if (name === "claims") claimsLoadTab();
-    if (name === "admin") adminLoadNetworkDashboard();
-    if (name === "applications") applicationsLoadPanel();
   }
 
   function animateEarningsTo(targetDollars, el) {
@@ -2119,6 +2246,7 @@ document.addEventListener("DOMContentLoaded", function() {
       renderTierUI();
       updateDashboardStats();
       renderRenewalsUI();
+      if (currentDealer && !currentDealer.isAdmin) updateSidebarInfo();
     } catch (e) {
       allTickets = [];
       dealerContractCount = 0;
@@ -2126,17 +2254,32 @@ document.addEventListener("DOMContentLoaded", function() {
       renderTierUI();
       updateDashboardStats();
       renewalsEl.innerHTML = "<div class='renewals-empty'>Could not load data. Please try again.</div>";
+      if (currentDealer && !currentDealer.isAdmin) updateSidebarInfo();
     }
   }
 
-  document.getElementById("logout-btn").addEventListener("click", function() {
+  function updateSidebarInfo() {
+    var nameEl = document.getElementById("sidebar-dealer-name");
+    var tierEl = document.getElementById("sidebar-dealer-tier");
+    if (nameEl && currentDealer) nameEl.textContent = currentDealer.name;
+    if (tierEl && currentDealer) {
+      var contracts = dealerContractCount > 0 ? dealerContractCount : countUniqueCustomers(allTickets || []);
+      tierEl.textContent = getTierMeta(contracts).title;
+    }
+  }
+
+  function doLogout() {
     currentDealer = null;
     window.currentDealer = null;
     document.getElementById("login-screen").style.display = "flex";
     document.getElementById("portal-screen").style.display = "none";
+    document.getElementById("portal-screen").className = "";
     document.getElementById("username").value = "";
     document.getElementById("password").value = "";
-    document.querySelectorAll(".admin-tab").forEach(function(t) { t.remove(); });
+    document.getElementById("dealer-layout").style.display = "none";
+    document.getElementById("admin-layout").style.display = "none";
+    var sm = document.getElementById("settings-modal");
+    if (sm) sm.style.display = "none";
     resetAdminTabVisibility();
     pricingTabInitialized = false;
     pricingSupabaseLoadPromise = null;
@@ -2150,11 +2293,53 @@ document.addEventListener("DOMContentLoaded", function() {
       pricingId: null
     };
     pricingDestroyProfitChart();
+  }
+
+  document.getElementById("logout-btn").addEventListener("click", function() {
+    doLogout();
+  });
+  document.getElementById("sidebar-logout").addEventListener("click", function() {
+    doLogout();
+  });
+  document.getElementById("admin-logout-btn").addEventListener("click", function() {
+    doLogout();
   });
 
-  document.querySelectorAll(".tab:not(.admin-tab)").forEach(function(tab) {
-    tab.addEventListener("click", function() { switchTab(tab.getAttribute("data-tab")); });
+  document.querySelectorAll(".sidebar-nav-item").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      var panel = this.getAttribute("data-panel");
+      document.querySelectorAll(".sidebar-nav-item").forEach(function(b) {
+        b.classList.remove("active");
+      });
+      this.classList.add("active");
+      switchTab(panel);
+    });
   });
+
+  document.querySelectorAll(".admin-nav-item").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      var panel = this.getAttribute("data-admin-panel");
+      if (panel === "settings") {
+        adminShowSettingsModal();
+        return;
+      }
+      document.querySelectorAll(".admin-nav-item").forEach(function(b) {
+        b.classList.remove("active");
+      });
+      this.classList.add("active");
+      adminShowPanel(panel);
+    });
+  });
+
+  var settingsModalEl = document.getElementById("settings-modal");
+  if (settingsModalEl) {
+    document.getElementById("settings-modal-close").addEventListener("click", function() {
+      settingsModalEl.style.display = "none";
+    });
+    settingsModalEl.addEventListener("click", function(e) {
+      if (e.target === settingsModalEl) settingsModalEl.style.display = "none";
+    });
+  }
 
   document.querySelectorAll("#dashboard-period-toggle .period-btn").forEach(function(btn) {
     btn.addEventListener("click", function() {
@@ -3453,73 +3638,6 @@ document.addEventListener("DOMContentLoaded", function() {
       });
     } catch (e) {
       tbody.innerHTML = "<tr><td colspan='4'>Could not load dealers.</td></tr>";
-    }
-  }
-
-  async function adminLoadNetworkDashboard() {
-    if (!currentDealer || !currentDealer.isAdmin) return;
-    var loading = document.getElementById("admin-dashboard-loading");
-    var content = document.getElementById("admin-dashboard-content");
-    if (loading) loading.style.display = "block";
-    if (content) content.style.display = "none";
-    try {
-      var mst = document.getElementById("admin-master-search-loading");
-      if (mst) mst.style.display = "block";
-      var results = await Promise.all([
-        adminFetchAllTickets(),
-        adminFetchContractsSummary(),
-        adminFetchReimbursementsPaidTotal(),
-        adminFetchRenewalsContracts(),
-        fetchDealersSupabase(),
-        adminFetchAllContracts()
-      ]);
-      if (mst) mst.style.display = "none";
-      adminNetworkTickets = results[0] || [];
-      adminDashboardMetrics = results[1];
-      adminReimburseMetrics = results[2];
-      adminRenewalContracts = results[3] || [];
-      dealerRowsCache = results[4] || [];
-      adminContractsCache = results[5] || [];
-      var commEl = document.getElementById("pricing-slider-commission");
-      if (commEl) {
-        var v = parseFloat(commEl.value);
-        if (!isNaN(v)) ADMIN_COMMISSION_RATE = v / 100;
-      }
-      if (loading) loading.style.display = "none";
-      if (content) content.style.display = "block";
-      adminRenderStats();
-      adminRenderChart();
-      adminRenderLeaderboard();
-      adminRenderFlags();
-      adminRenderRenewalsNetwork();
-      adminRenderFinancialHealth();
-      renderDealerTable();
-      renderAdminMasterTable();
-      loadAdminHinConflicts();
-      adminLoadActivityFeed();
-      adminLoadRecentPricingChanges();
-    } catch (e) {
-      var mst2 = document.getElementById("admin-master-search-loading");
-      if (mst2) mst2.style.display = "none";
-      adminNetworkTickets = [];
-      dealerRowsCache = [];
-      adminContractsCache = [];
-      adminDashboardMetrics = { count: 0, revenue: 0 };
-      adminReimburseMetrics = { paidTotal: 0 };
-      adminRenewalContracts = [];
-      if (loading) loading.style.display = "none";
-      if (content) content.style.display = "block";
-      adminRenderStats();
-      adminRenderChart();
-      adminRenderLeaderboard();
-      adminRenderFlags();
-      adminRenderRenewalsNetwork();
-      adminRenderFinancialHealth();
-      renderDealerTable();
-      renderAdminMasterTable();
-      loadAdminHinConflicts();
-      adminLoadActivityFeed();
-      adminLoadRecentPricingChanges();
     }
   }
 
