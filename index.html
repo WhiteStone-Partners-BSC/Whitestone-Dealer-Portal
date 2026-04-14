@@ -34,6 +34,7 @@
 
   <div class="portal-tabs" id="portal-tabs">
     <div class="tab active" data-tab="dashboard">Dashboard</div>
+    <div class="tab admin-applications-tab" data-tab="applications" style="display:none;">Applications<span id="applications-tab-badge" class="applications-tab-badge" style="display:none;"></span></div>
     <div class="tab" data-tab="customers">Customers</div>
     <div class="tab" data-tab="ticket">Service Ticket</div>
     <div class="tab" data-tab="history">Past Tickets</div>
@@ -101,6 +102,37 @@
         <div class="card-sub" style="margin-bottom:1rem;">Annual contracts ending soon. Showing renewals in the next 90 days (by contract end date).</div>
         <div id="renewals-container">
           <div class="renewals-loading">Loading renewal dates…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- APPLICATIONS (admin only) -->
+    <div class="tab-panel" id="panel-applications">
+      <div class="applications-shell">
+        <div id="applications-toast" class="applications-toast" style="display:none;"></div>
+        <div id="applications-loading" class="applications-loading">Loading applications…</div>
+        <div id="applications-grid" class="applications-grid" style="display:none;">
+          <div class="applications-col">
+            <div class="applications-col-header">
+              <h3 class="applications-col-title">Pending Review</h3>
+              <span id="applications-count-pending" class="applications-badge applications-badge-amber">0</span>
+            </div>
+            <div id="applications-pending-body" class="applications-col-body"></div>
+          </div>
+          <div class="applications-col">
+            <div class="applications-col-header">
+              <h3 class="applications-col-title">Active Dealers</h3>
+              <span id="applications-count-active" class="applications-badge applications-badge-green">0</span>
+            </div>
+            <div id="applications-active-body" class="applications-col-body"></div>
+          </div>
+          <div class="applications-col">
+            <div class="applications-col-header">
+              <h3 class="applications-col-title">Declined &amp; Inactive</h3>
+              <span id="applications-count-third" class="applications-badge applications-badge-gray">0</span>
+            </div>
+            <div id="applications-third-body" class="applications-col-body"></div>
+          </div>
         </div>
       </div>
     </div>

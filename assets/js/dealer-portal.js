@@ -124,6 +124,79 @@ function escHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+function generateUsername(dealershipName) {
+  var s = String(dealershipName || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .substring(0, 20);
+  return s || "dealer" + Math.floor(1000 + Math.random() * 8999);
+}
+
+function generateTempPassword() {
+  var chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  var result = "WSP-";
+  for (var i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+var applicationsLastData = { pending: [], active: [], declined: [], inactive: [] };
+
+function formatApplicationDate(iso) {
+  if (!iso) return "—";
+  try {
+    var d = new Date(iso);
+    return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  } catch (e) {
+    return "—";
+  }
+}
+
+function applicationsUpdateTabBadge(count) {
+  var badge = document.getElementById("applications-tab-badge");
+  if (!badge) return;
+  var n = Math.max(0, parseInt(count, 10) || 0);
+  if (n > 0) {
+    badge.textContent = "(" + n + ")";
+    badge.style.display = "inline-block";
+    badge.title = n + " pending application" + (n === 1 ? "" : "s");
+  } else {
+    badge.textContent = "";
+    badge.style.display = "none";
+  }
+}
+
+async function applicationsEnsureUniqueUsername(base) {
+  var u = base;
+  var tryNum = 0;
+  while (tryNum < 40) {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/dealers?username=eq." + encodeURIComponent(u) + "&select=id",
+      { headers: supabaseHeaders() }
+    );
+    var rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) return u;
+    tryNum++;
+    u = base.substring(0, 14) + tryNum + Math.floor(Math.random() * 99);
+  }
+  return base + Math.floor(Math.random() * 90000 + 10000);
+}
+
+async function applicationsRefreshTabBadgeOnly() {
+  if (!currentDealer || !currentDealer.isAdmin) return;
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/dealer_applications?status=eq.pending&select=id",
+      { headers: supabaseHeaders() }
+    );
+    var rows = await res.json();
+    applicationsUpdateTabBadge(Array.isArray(rows) ? rows.length : 0);
+  } catch (e) {
+    applicationsUpdateTabBadge(0);
+  }
+}
+
 function normalizeHin(s) {
   return String(s || "").trim().toUpperCase();
 }
@@ -967,6 +1040,9 @@ function applyAdminTabVisibility() {
   });
   var pr = document.querySelector('[data-tab="pricing"]');
   if (pr) pr.style.display = "block";
+  var ap = document.querySelector('[data-tab="applications"]');
+  if (ap) ap.style.display = "block";
+  applicationsRefreshTabBadgeOnly();
 }
 
 function resetAdminTabVisibility() {
@@ -975,6 +1051,9 @@ function resetAdminTabVisibility() {
   });
   var pr = document.querySelector('[data-tab="pricing"]');
   if (pr) pr.style.display = "none";
+  var ap = document.querySelector('[data-tab="applications"]');
+  if (ap) ap.style.display = "none";
+  applicationsUpdateTabBadge(0);
 }
 
 function adminNormalizeName(s) {
@@ -1848,6 +1927,7 @@ document.addEventListener("DOMContentLoaded", function() {
     if (name === "pricing") pricingInitOnTab();
     if (name === "claims") claimsLoadTab();
     if (name === "admin") adminLoadNetworkDashboard();
+    if (name === "applications") applicationsLoadPanel();
   }
 
   function animateEarningsTo(targetDollars, el) {
@@ -2869,6 +2949,428 @@ document.addEventListener("DOMContentLoaded", function() {
   async function claimsLoadTab() {
     if (!currentDealer || !currentDealer.isAdmin) return;
     await Promise.all([claimsLoadPending(), claimsLoadUnpaid(), claimsLoadHistory()]);
+  }
+
+  var applicationsGridBound = false;
+
+  async function applicationsDoApprove(appId) {
+    if (!currentDealer || !currentDealer.isAdmin) return;
+    var app = applicationsLastData.pending.find(function(p) { return String(p.id) === String(appId); });
+    if (!app) {
+      alert("Application not found. Refresh and try again.");
+      return;
+    }
+    var reviewedBy = currentDealer.username || "admin";
+    var username = await applicationsEnsureUniqueUsername(generateUsername(app.dealership_name));
+    var tempPassword = generateTempPassword();
+    var patchUrl = SUPABASE_URL + "/rest/v1/dealer_applications?id=eq." + encodeURIComponent(String(appId));
+    var patchApproved = {
+      status: "approved",
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: reviewedBy
+    };
+    var patchRes = await fetch(patchUrl, {
+      method: "PATCH",
+      headers: supabaseHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify(patchApproved)
+    });
+    if (!patchRes.ok) {
+      alert("Could not update application status.");
+      return;
+    }
+    var dealerBody = {
+      username: username,
+      password: tempPassword,
+      dealership_name: app.dealership_name || "",
+      location: app.location || "",
+      phone: app.phone || "",
+      email: app.email || "",
+      active: true,
+      is_admin: false
+    };
+    var postRes = await fetch(SUPABASE_URL + "/rest/v1/dealers", {
+      method: "POST",
+      headers: supabaseHeaders({ Prefer: "return=representation" }),
+      body: JSON.stringify(dealerBody)
+    });
+    if (!postRes.ok) {
+      await fetch(patchUrl, {
+        method: "PATCH",
+        headers: supabaseHeaders({ Prefer: "return=minimal" }),
+        body: JSON.stringify({ status: "pending", reviewed_at: null, reviewed_by: null })
+      });
+      alert("Could not create dealer account. The application was left as pending.");
+      return;
+    }
+    var welcomeMsg =
+      "Welcome to the Whitestone Partners certified dealer network!\n\n" +
+      "Your dealer portal access has been set up. Here are your login credentials:\n\n" +
+      "Dealer Portal: https://whitestone-dealer-portal.vercel.app\n" +
+      "Username: " + username + "\n" +
+      "Temporary Password: " + tempPassword + "\n\n" +
+      "Please log in and contact us at support@whitestone-partners.com if you have any questions.\n\n" +
+      "Welcome to the network.\n" +
+      "— Whitestone Partners Team";
+    try {
+      await fetch(FORMSPREE_CONTACT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          email: app.email,
+          subject: "Welcome to Whitestone Partners",
+          message: welcomeMsg
+        })
+      });
+    } catch (e2) {
+      /* non-fatal */
+    }
+    var toast = document.getElementById("applications-toast");
+    if (toast) {
+      toast.textContent = "Dealer account created. Welcome email sent to " + (app.email || "") + ".";
+      toast.style.display = "block";
+      setTimeout(function() { toast.style.display = "none"; }, 9000);
+    }
+    await applicationsLoadPanel();
+    if (currentDealer && currentDealer.isAdmin) {
+      adminLoadNetworkDashboard();
+    }
+  }
+
+  async function applicationsDoDecline(appId, reason) {
+    if (!currentDealer || !currentDealer.isAdmin) return;
+    var app = applicationsLastData.pending.find(function(p) { return String(p.id) === String(appId); });
+    if (!app) return;
+    var reviewedBy = currentDealer.username || "admin";
+    var newNotes = app.notes || "";
+    if (reason && String(reason).trim()) {
+      newNotes = newNotes + (newNotes ? "\n" : "") + "[Declined by admin] " + String(reason).trim();
+    }
+    var patchUrl = SUPABASE_URL + "/rest/v1/dealer_applications?id=eq." + encodeURIComponent(String(appId));
+    var patchRes = await fetch(patchUrl, {
+      method: "PATCH",
+      headers: supabaseHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({
+        status: "declined",
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: reviewedBy,
+        notes: newNotes
+      })
+    });
+    if (!patchRes.ok) {
+      alert("Could not decline application.");
+      return;
+    }
+    await applicationsLoadPanel();
+  }
+
+  async function applicationsLoadPanel() {
+    if (!currentDealer || !currentDealer.isAdmin) return;
+    var loading = document.getElementById("applications-loading");
+    var grid = document.getElementById("applications-grid");
+    if (loading) loading.style.display = "block";
+    if (grid) grid.style.display = "none";
+    try {
+      var resP = await fetch(
+        SUPABASE_URL + "/rest/v1/dealer_applications?status=eq.pending&select=*&order=created_at.desc",
+        { headers: supabaseHeaders() }
+      );
+      var pending = await resP.json();
+      if (!resP.ok) throw new Error();
+      pending = Array.isArray(pending) ? pending : [];
+
+      var resA = await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?active=eq.true&is_admin=eq.false&select=*&order=dealership_name.asc",
+        { headers: supabaseHeaders() }
+      );
+      var active = await resA.json();
+      if (!resA.ok) throw new Error();
+      active = Array.isArray(active) ? active : [];
+
+      var resD = await fetch(
+        SUPABASE_URL + "/rest/v1/dealer_applications?status=eq.declined&select=*&order=created_at.desc",
+        { headers: supabaseHeaders() }
+      );
+      var declined = await resD.json();
+      if (!resD.ok) throw new Error();
+      declined = Array.isArray(declined) ? declined : [];
+
+      var resI = await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?active=eq.false&is_admin=eq.false&select=*&order=dealership_name.asc",
+        { headers: supabaseHeaders() }
+      );
+      var inactive = await resI.json();
+      if (!resI.ok) throw new Error();
+      inactive = Array.isArray(inactive) ? inactive : [];
+
+      applicationsLastData = { pending: pending, active: active, declined: declined, inactive: inactive };
+      applicationsUpdateTabBadge(pending.length);
+
+      var elPend = document.getElementById("applications-count-pending");
+      var elAct = document.getElementById("applications-count-active");
+      var elThird = document.getElementById("applications-count-third");
+      if (elPend) elPend.textContent = String(pending.length);
+      if (elAct) elAct.textContent = String(active.length);
+      if (elThird) elThird.textContent = String(declined.length + inactive.length);
+
+      var pb = document.getElementById("applications-pending-body");
+      if (pb) {
+        if (!pending.length) {
+          pb.innerHTML = "<div class='applications-muted'>No pending applications — you're all caught up.</div>";
+        } else {
+          pb.innerHTML = pending
+            .map(function(app) {
+              var aid = String(app.id);
+              var safeId = escHtml(aid);
+              return (
+                "<div class='card application-card' data-application-id='" +
+                safeId +
+                "'>" +
+                "<div class='application-card-title'>" +
+                escHtml(app.dealership_name || "—") +
+                "</div>" +
+                "<div class='application-card-meta'><strong>Contact:</strong> " +
+                escHtml(app.contact_name || "—") +
+                "</div>" +
+                "<div class='application-card-meta'><strong>Location:</strong> " +
+                escHtml(app.location || "—") +
+                "</div>" +
+                "<div class='application-card-meta'><strong>Email:</strong> <a href=\"mailto:" +
+                escHtml(app.email || "") +
+                "\">" +
+                escHtml(app.email || "—") +
+                "</a></div>" +
+                "<div class='application-card-meta'><strong>Phone:</strong> " +
+                escHtml(app.phone || "—") +
+                "</div>" +
+                "<div class='application-card-meta'><strong>Notes:</strong> " +
+                escHtml(app.notes || "—") +
+                "</div>" +
+                "<div class='application-card-meta'><strong>Applied:</strong> " +
+                escHtml(formatApplicationDate(app.created_at)) +
+                "</div>" +
+                "<div class='application-card-actions'>" +
+                "<button type=\"button\" class=\"applications-btn-approve app-act-approve\" data-app-id=\"" +
+                safeId +
+                "\">Approve</button>" +
+                "<button type=\"button\" class=\"btn-sm btn-remove app-act-decline-toggle\" data-app-id=\"" +
+                safeId +
+                "\">Decline</button>" +
+                "</div>" +
+                "<div class=\"applications-decline-box\" id=\"app-decline-" +
+                safeId +
+                "\" style=\"display:none\">" +
+                "<input type=\"text\" class=\"app-decline-reason\" placeholder=\"Reason for declining (optional)\" data-app-id=\"" +
+                safeId +
+                "\" />" +
+                "<button type=\"button\" class=\"btn-sm btn-remove app-act-decline-go\" data-app-id=\"" +
+                safeId +
+                "\">Confirm decline</button>" +
+                "</div></div>"
+              );
+            })
+            .join("");
+        }
+      }
+
+      var ab = document.getElementById("applications-active-body");
+      if (ab) {
+        if (!active.length) {
+          ab.innerHTML = "<div class='applications-muted'>No active dealers in this list.</div>";
+        } else {
+          ab.innerHTML = active
+            .map(function(d) {
+              var did = escHtml(String(d.id));
+              return (
+                "<div class='card application-card application-card-active'>" +
+                "<div class='application-card-title'>" +
+                escHtml(d.dealership_name || "—") +
+                "</div>" +
+                "<div class='application-card-meta'><strong>Location:</strong> " +
+                escHtml(d.location || "—") +
+                "</div>" +
+                "<div class='application-card-meta'><strong>Email:</strong> " +
+                escHtml(d.email || "—") +
+                "</div>" +
+                "<div class='application-card-meta'><strong>Username:</strong> " +
+                escHtml(d.username || "—") +
+                "</div>" +
+                "<div class='application-card-meta'><strong>Joined:</strong> " +
+                escHtml(formatApplicationDate(d.created_at)) +
+                "</div>" +
+                "<div class='application-card-actions'>" +
+                "<button type=\"button\" class=\"btn-sm btn-remove app-act-deactivate\" data-dealer-id=\"" +
+                did +
+                "\" data-username=\"" +
+                escHtml(d.username || "") +
+                "\">Deactivate</button>" +
+                "</div></div>"
+              );
+            })
+            .join("");
+        }
+      }
+
+      var tb = document.getElementById("applications-third-body");
+      if (tb) {
+        var thirdItems = [];
+        declined.forEach(function(a) {
+          thirdItems.push({
+            kind: "declined_app",
+            sort: new Date(a.reviewed_at || a.created_at).getTime(),
+            row: a
+          });
+        });
+        inactive.forEach(function(d) {
+          thirdItems.push({
+            kind: "inactive_dealer",
+            sort: new Date(d.created_at).getTime(),
+            row: d
+          });
+        });
+        thirdItems.sort(function(x, y) { return y.sort - x.sort; });
+        if (!thirdItems.length) {
+          tb.innerHTML = "<div class='applications-muted'>No declined applications or inactive dealers.</div>";
+        } else {
+          tb.innerHTML = thirdItems
+            .map(function(item) {
+              if (item.kind === "declined_app") {
+                var a = item.row;
+                var aid = escHtml(String(a.id));
+                return (
+                  "<div class='card application-card application-card-third application-card-declined-app'>" +
+                  "<div class='application-card-title'>" +
+                  escHtml(a.dealership_name || "—") +
+                  "</div>" +
+                  "<div class='application-card-meta'><span class='applications-muted'>Declined application</span></div>" +
+                  "<div class='application-card-meta'><strong>Email:</strong> " +
+                  escHtml(a.email || "—") +
+                  "</div>" +
+                  "<div class='application-card-meta'><strong>Date:</strong> " +
+                  escHtml(formatApplicationDate(a.reviewed_at || a.created_at)) +
+                  "</div>" +
+                  "<div class='application-card-actions'>" +
+                  "<button type=\"button\" class=\"btn-add app-act-reconsider\" style=\"padding:8px 14px;font-size:12px;\" data-app-id=\"" +
+                  aid +
+                  "\">Reconsider</button>" +
+                  "</div></div>"
+                );
+              }
+              var d = item.row;
+              var did = escHtml(String(d.id));
+              var u = d.username || "";
+              var dis =
+                u === "admin"
+                  ? " disabled style='opacity:0.45;cursor:not-allowed;'"
+                  : "";
+              return (
+                "<div class='card application-card application-card-third application-card-inactive'>" +
+                "<div class='application-card-title'>" +
+                escHtml(d.dealership_name || "—") +
+                "</div>" +
+                "<div class='application-card-meta'><span class='applications-muted'>Inactive dealer</span></div>" +
+                "<div class='application-card-meta'><strong>Email:</strong> " +
+                escHtml(d.email || "—") +
+                "</div>" +
+                "<div class='application-card-meta'><strong>Username:</strong> " +
+                escHtml(u || "—") +
+                "</div>" +
+                "<div class='application-card-meta'><strong>Date:</strong> " +
+                escHtml(formatApplicationDate(d.created_at)) +
+                "</div>" +
+                "<div class='application-card-actions'>" +
+                "<button type=\"button\" class=\"btn-sm btn-remove app-act-reactivate\" data-dealer-id=\"" +
+                did +
+                "\" data-username=\"" +
+                escHtml(u) +
+                "\"" +
+                dis +
+                ">Reactivate</button>" +
+                "</div></div>"
+              );
+            })
+            .join("");
+        }
+      }
+
+      if (loading) loading.style.display = "none";
+      if (grid) grid.style.display = "grid";
+    } catch (e) {
+      if (loading) loading.style.display = "none";
+      if (grid) grid.style.display = "none";
+      var pb2 = document.getElementById("applications-pending-body");
+      if (pb2) pb2.innerHTML = "<div class='applications-muted'>Could not load applications. Check the dealer_applications table and try again.</div>";
+    }
+
+    if (!applicationsGridBound && document.getElementById("applications-grid")) {
+      applicationsGridBound = true;
+      document.getElementById("applications-grid").addEventListener("click", function(ev) {
+        var t = ev.target;
+        if (!t || !t.getAttribute) return;
+        if (t.classList.contains("app-act-approve")) {
+          var aid = t.getAttribute("data-app-id");
+          if (aid && confirm("Create dealer account and send welcome email?")) applicationsDoApprove(aid);
+          return;
+        }
+        if (t.classList.contains("app-act-decline-toggle")) {
+          var did = t.getAttribute("data-app-id");
+          var box = document.getElementById("app-decline-" + did);
+          if (box) box.style.display = box.style.display === "none" ? "block" : "none";
+          return;
+        }
+        if (t.classList.contains("app-act-decline-go")) {
+          var aid2 = t.getAttribute("data-app-id");
+          var reason = "";
+          var inpDecl = null;
+          document.querySelectorAll(".app-decline-reason").forEach(function(el) {
+            if (el.getAttribute("data-app-id") === aid2) inpDecl = el;
+          });
+          if (inpDecl) reason = inpDecl.value;
+          applicationsDoDecline(aid2, reason);
+          return;
+        }
+        if (t.classList.contains("app-act-deactivate")) {
+          var idDealer = t.getAttribute("data-dealer-id");
+          var uname = t.getAttribute("data-username");
+          if (uname === "admin") return;
+          if (!confirm("Deactivate this dealer? They will not be able to sign in.")) return;
+          fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(idDealer), {
+            method: "PATCH",
+            headers: supabaseHeaders({ Prefer: "return=minimal" }),
+            body: JSON.stringify({ active: false })
+          }).then(function(r) {
+            if (r.ok) applicationsLoadPanel();
+            else alert("Could not deactivate.");
+          });
+          return;
+        }
+        if (t.classList.contains("app-act-reactivate")) {
+          if (t.disabled) return;
+          var idR = t.getAttribute("data-dealer-id");
+          fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(idR), {
+            method: "PATCH",
+            headers: supabaseHeaders({ Prefer: "return=minimal" }),
+            body: JSON.stringify({ active: true })
+          }).then(function(r) {
+            if (r.ok) {
+              applicationsLoadPanel();
+              if (currentDealer && currentDealer.isAdmin) adminLoadNetworkDashboard();
+            } else alert("Could not reactivate.");
+          });
+          return;
+        }
+        if (t.classList.contains("app-act-reconsider")) {
+          var appRec = t.getAttribute("data-app-id");
+          fetch(SUPABASE_URL + "/rest/v1/dealer_applications?id=eq." + encodeURIComponent(appRec), {
+            method: "PATCH",
+            headers: supabaseHeaders({ Prefer: "return=minimal" }),
+            body: JSON.stringify({ status: "pending", reviewed_at: null, reviewed_by: null })
+          }).then(function(r) {
+            if (r.ok) applicationsLoadPanel();
+            else alert("Could not update application.");
+          });
+        }
+      });
+    }
   }
 
   // CONTACT
