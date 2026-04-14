@@ -247,6 +247,16 @@ var pricingModelServices = [];
 var pricingProfitChartInstance = null;
 var pricingControlsBound = false;
 var pricingTabInitialized = false;
+var pricingSupabaseLoadPromise = null;
+var pricingState = {
+  dealerId: null,
+  dealerName: null,
+  originalRates: {},
+  currentRates: {},
+  confirmed: false,
+  locked: false,
+  pricingId: null
+};
 
 var PRICING_RETAIL_1YR = 3699;
 var PRICING_RETAIL_2YR = 6798;
@@ -265,6 +275,34 @@ function pricingDefaultServices() {
     { name: "V-Drive Service", retail: 215, marketAvg: 372, hours: 200, yearly: true },
     { name: "Ballast Cartridge", retail: 800, marketAvg: 800, hours: 100, yearly: false }
   ];
+}
+
+function pricingDedupeModelServices(services) {
+  if (!Array.isArray(services)) return services;
+  var seen = {};
+  return services.filter(function(s) {
+    var key = (s.name || s.id || "").toString().toLowerCase().trim();
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
+function pricingDefaultRates() {
+  return {
+    reimbursement_rate: 150,
+    commission_pct: 20,
+    contract_retail_1yr: PRICING_RETAIL_1YR,
+    contract_retail_2yr: PRICING_RETAIL_2YR,
+    contract_retail_3yr: PRICING_RETAIL_3YR
+  };
+}
+
+function pricingCurrentRetail(years) {
+  var key = "contract_retail_" + years + "yr";
+  var fallback = years === 1 ? PRICING_RETAIL_1YR : years === 2 ? PRICING_RETAIL_2YR : PRICING_RETAIL_3YR;
+  var source = pricingState && pricingState.currentRates ? pricingState.currentRates : null;
+  return source && source[key] ? Number(source[key]) : fallback;
 }
 
 function pricingFormatCycle(s) {
@@ -303,35 +341,188 @@ function pricingSaveSliderPrefs() {
 }
 
 async function pricingLoadFromSupabase() {
-  try {
-    var res = await fetch(SUPABASE_URL + "/rest/v1/services?active=eq.true&select=*&order=sort_order.asc", {
-      headers: supabaseHeaders()
-    });
-    var rows = await res.json();
-    if (!res.ok) throw new Error();
-    if (Array.isArray(rows) && rows.length) {
-      pricingModelServices = rows.map(function(r) {
-        return {
-          _dbId: r.id,
-          name: r.name || "",
-          retail: parseFloat(r.retail_price) || 0,
-          marketAvg: parseFloat(r.market_avg) || 0,
-          hours: r.hours_interval != null && r.hours_interval !== "" ? Number(r.hours_interval) : null,
-          yearly: r.is_yearly === true
-        };
+  if (pricingSupabaseLoadPromise) return pricingSupabaseLoadPromise;
+  pricingSupabaseLoadPromise = (async function() {
+    try {
+      var res = await fetch(SUPABASE_URL + "/rest/v1/services?active=eq.true&select=*&order=sort_order.asc", {
+        headers: supabaseHeaders()
       });
-    } else {
-      pricingModelServices = pricingDefaultServices();
+      var rows = await res.json();
+      if (!res.ok) throw new Error();
+      if (Array.isArray(rows) && rows.length) {
+        pricingModelServices = rows.map(function(r) {
+          return {
+            _dbId: r.id,
+            name: r.name || "",
+            retail: parseFloat(r.retail_price) || 0,
+            marketAvg: parseFloat(r.market_avg) || 0,
+            hours: r.hours_interval != null && r.hours_interval !== "" ? Number(r.hours_interval) : null,
+            yearly: r.is_yearly === true
+          };
+        });
+      } else {
+        pricingModelServices = pricingDefaultServices();
+      }
+      pricingModelServices = pricingDedupeModelServices(pricingModelServices);
+    } catch (e) {
+      pricingModelServices = pricingDedupeModelServices(pricingDefaultServices());
+    }
+    var c = document.getElementById("pricing-slider-commission");
+    var cl = document.getElementById("pricing-slider-claims");
+    var cv = localStorage.getItem("wsp_pricing_commission");
+    var clv = localStorage.getItem("wsp_pricing_claims");
+    if (c && cv !== null && cv !== "") c.value = cv;
+    if (cl && clv !== null && clv !== "") cl.value = clv;
+  })();
+  return pricingSupabaseLoadPromise;
+}
+
+async function pricingLoadDealers() {
+  var sel = document.getElementById("pricing-dealer-select");
+  if (!sel) return;
+  sel.innerHTML = "<option value=''>— Select a dealer —</option>";
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/dealers?is_admin=eq.false&active=eq.true&select=id,username,dealership_name&order=dealership_name.asc",
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+    );
+    var dealers = await res.json() || [];
+    dealers.forEach(function(d) {
+      var opt = document.createElement("option");
+      opt.value = d.id;
+      opt.textContent = d.dealership_name;
+      opt.dataset.name = d.dealership_name;
+      sel.appendChild(opt);
+    });
+  } catch (e) {}
+}
+
+function pricingSetEditingLocked(isLocked) {
+  ["pricing-slider-commission", "contract-price-1yr", "contract-price-2yr", "contract-price-3yr"].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.disabled = !!isLocked;
+  });
+  var addBtn = document.getElementById("pricing-add-service");
+  if (addBtn) addBtn.disabled = !!isLocked;
+}
+
+function pricingUpdateUIFromState() {
+  var commSlider = document.getElementById("pricing-slider-commission");
+  if (commSlider) commSlider.value = pricingState.currentRates.commission_pct || 20;
+  var commLabel = document.getElementById("pricing-label-commission");
+  if (commLabel) commLabel.textContent = String(pricingState.currentRates.commission_pct || 20);
+  ["1yr", "2yr", "3yr"].forEach(function(yr) {
+    var key = "contract_retail_" + yr;
+    var inp = document.getElementById("contract-price-" + yr);
+    if (inp) inp.value = pricingState.currentRates[key] || pricingDefaultRates()[key];
+  });
+  pricingSetEditingLocked(pricingState.locked);
+  pricingCheckUnsavedChanges();
+  pricingUpdateAll();
+}
+
+function pricingUpdateLockStatus() {
+  var lockEl = document.getElementById("pricing-lock-status");
+  if (!lockEl) return;
+  lockEl.style.display = "block";
+  if (pricingState.locked) {
+    lockEl.style.background = "#fff0f0";
+    lockEl.style.color = "#c0392b";
+    lockEl.style.border = "1px solid #fcc";
+    lockEl.textContent = "🔒 Pricing locked — confirmed";
+  } else if (pricingState.confirmed) {
+    lockEl.style.background = "#f0f9f4";
+    lockEl.style.color = "#0F6E56";
+    lockEl.style.border = "1px solid #a8d5b5";
+    lockEl.textContent = "✓ Pricing confirmed";
+  } else {
+    lockEl.style.background = "#fff5f0";
+    lockEl.style.color = "#BA7517";
+    lockEl.style.border = "1px solid #f0d060";
+    lockEl.textContent = "● Draft pricing — not confirmed";
+  }
+  var unlockBtn = document.getElementById("pricing-unlock-btn");
+  var genBtn = document.getElementById("pricing-generate-btn");
+  if (unlockBtn) unlockBtn.style.display = pricingState.confirmed ? "inline-block" : "none";
+  if (genBtn) genBtn.style.display = pricingState.confirmed ? "inline-block" : "none";
+}
+
+function pricingBuildChanges() {
+  var labels = {
+    reimbursement_rate: "Base Reimbursement Rate",
+    commission_pct: "Commission %",
+    contract_retail_1yr: "1-Year Contract Price",
+    contract_retail_2yr: "2-Year Contract Price",
+    contract_retail_3yr: "3-Year Contract Price"
+  };
+  var changes = [];
+  Object.keys(pricingState.currentRates || {}).forEach(function(key) {
+    if (pricingState.currentRates[key] !== pricingState.originalRates[key]) {
+      changes.push({ key: key, label: labels[key] || key, old: pricingState.originalRates[key], next: pricingState.currentRates[key] });
+    }
+  });
+  return changes;
+}
+
+function pricingCheckUnsavedChanges() {
+  var hasChanges = JSON.stringify(pricingState.currentRates || {}) !== JSON.stringify(pricingState.originalRates || {});
+  var confirmBtn = document.getElementById("pricing-confirm-btn");
+  if (confirmBtn) {
+    confirmBtn.style.opacity = hasChanges ? "1" : "0.5";
+    confirmBtn.textContent = hasChanges ? "Review & Confirm Changes" : "No Changes to Confirm";
+  }
+}
+
+async function pricingLoadDealerRates(dealerId, dealerName) {
+  if (!dealerId) return;
+  pricingState.dealerId = dealerId;
+  pricingState.dealerName = dealerName;
+  var record = null;
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/dealer_pricing?dealer_id=eq." + dealerId + "&select=*&limit=1",
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+    );
+    var records = await res.json();
+    record = records && records.length > 0 ? records[0] : null;
+    if (!record) {
+      var createRes = await fetch(SUPABASE_URL + "/rest/v1/dealer_pricing", {
+        method: "POST",
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json", Prefer: "return=representation" },
+        body: JSON.stringify({
+          dealer_id: dealerId,
+          dealership_name: dealerName,
+          service_name: "Default Rate Card",
+          reimbursement_rate: 150,
+          commission_pct: 20,
+          contract_retail_1yr: 3699,
+          contract_retail_2yr: 6798,
+          contract_retail_3yr: 9297,
+          confirmed: false,
+          locked: false
+        })
+      });
+      var created = await createRes.json();
+      record = Array.isArray(created) ? created[0] : created;
     }
   } catch (e) {
-    pricingModelServices = pricingDefaultServices();
+    record = null;
   }
-  var c = document.getElementById("pricing-slider-commission");
-  var cl = document.getElementById("pricing-slider-claims");
-  var cv = localStorage.getItem("wsp_pricing_commission");
-  var clv = localStorage.getItem("wsp_pricing_claims");
-  if (c && cv !== null && cv !== "") c.value = cv;
-  if (cl && clv !== null && clv !== "") cl.value = clv;
+  var defaults = pricingDefaultRates();
+  pricingState.pricingId = record ? record.id : null;
+  pricingState.confirmed = !!(record && record.confirmed);
+  pricingState.locked = !!(record && record.locked);
+  pricingState.originalRates = {
+    reimbursement_rate: record && record.reimbursement_rate != null ? Number(record.reimbursement_rate) : defaults.reimbursement_rate,
+    commission_pct: record && record.commission_pct != null ? Number(record.commission_pct) : defaults.commission_pct,
+    contract_retail_1yr: record && record.contract_retail_1yr != null ? Number(record.contract_retail_1yr) : defaults.contract_retail_1yr,
+    contract_retail_2yr: record && record.contract_retail_2yr != null ? Number(record.contract_retail_2yr) : defaults.contract_retail_2yr,
+    contract_retail_3yr: record && record.contract_retail_3yr != null ? Number(record.contract_retail_3yr) : defaults.contract_retail_3yr
+  };
+  pricingState.currentRates = Object.assign({}, pricingState.originalRates);
+  pricingUpdateUIFromState();
+  pricingUpdateLockStatus();
+  pricingLoadHistory(dealerId);
 }
 
 var pricingSyncTimer = null;
@@ -378,6 +569,7 @@ async function pricingPersistAllServicesToSupabase() {
 function pricingRenderServicesTable() {
   var tbody = document.getElementById("pricing-services-tbody");
   if (!tbody) return;
+  pricingModelServices = pricingDedupeModelServices(pricingModelServices);
   var html = "";
   pricingModelServices.forEach(function(s, i) {
     var cap = pricingWpCap(s.marketAvg);
@@ -494,9 +686,12 @@ function pricingBindControlsOnce() {
   var addBtn = document.getElementById("pricing-add-service");
   if (c) {
     c.addEventListener("input", function() {
+      if (pricingState.locked) return;
       document.getElementById("pricing-label-commission").textContent = c.value;
+      pricingState.currentRates.commission_pct = parseFloat(c.value) || 0;
       pricingSaveSliderPrefs();
       pricingUpdateAll();
+      pricingCheckUnsavedChanges();
     });
   }
   if (cl) {
@@ -508,6 +703,64 @@ function pricingBindControlsOnce() {
   }
   if (addBtn) addBtn.addEventListener("click", pricingAddService);
   pricingBindTableDelegation();
+}
+
+function pricingBindStage2Controls() {
+  var sel = document.getElementById("pricing-dealer-select");
+  if (sel && sel.dataset.bound !== "1") {
+    sel.dataset.bound = "1";
+    sel.addEventListener("change", function() {
+      var dealerId = this.value;
+      var dealerName = this.options[this.selectedIndex] ? this.options[this.selectedIndex].dataset.name : "";
+      if (!dealerId) return;
+      pricingLoadDealerRates(dealerId, dealerName);
+    });
+  }
+  ["1yr", "2yr", "3yr"].forEach(function(yr) {
+    var inp = document.getElementById("contract-price-" + yr);
+    if (!inp || inp.dataset.bound === "1") return;
+    inp.dataset.bound = "1";
+    inp.addEventListener("input", function() {
+      if (pricingState.locked) return;
+      var key = "contract_retail_" + yr;
+      pricingState.currentRates[key] = parseFloat(this.value) || 0;
+      var changed = pricingState.currentRates[key] !== pricingState.originalRates[key];
+      this.style.borderColor = changed ? "#BA7517" : "";
+      this.style.background = changed ? "#fffbf0" : "";
+      pricingUpdateAll();
+      pricingCheckUnsavedChanges();
+    });
+  });
+  var toggle = document.getElementById("pricing-history-toggle");
+  if (toggle && toggle.dataset.bound !== "1") {
+    toggle.dataset.bound = "1";
+    toggle.addEventListener("click", function() {
+      var panel = document.getElementById("pricing-history-panel");
+      var arrow = document.getElementById("history-arrow");
+      if (!panel || !arrow) return;
+      if (panel.style.display === "none" || !panel.style.display) {
+        panel.style.display = "block";
+        arrow.textContent = "▼";
+        pricingLoadHistory(pricingState.dealerId);
+      } else {
+        panel.style.display = "none";
+        arrow.textContent = "▶";
+      }
+    });
+  }
+  var c1 = document.getElementById("confirm-check-1");
+  var c2 = document.getElementById("confirm-check-2");
+  var saveBtn = document.getElementById("pricing-modal-save");
+  [c1, c2].forEach(function(el) {
+    if (!el || el.dataset.bound === "1") return;
+    el.dataset.bound = "1";
+    el.addEventListener("change", function() {
+      if (!saveBtn) return;
+      var both = !!(c1 && c1.checked && c2 && c2.checked);
+      saveBtn.disabled = !both;
+      saveBtn.style.opacity = both ? "1" : "0.4";
+    });
+  });
 }
 
 function pricingDestroyProfitChart() {
@@ -524,7 +777,8 @@ function pricingRenderProfitChart() {
   var cEl = document.getElementById("pricing-slider-commission");
   var comm = cEl ? parseFloat(cEl.value) : 20;
   if (isNaN(comm)) comm = 20;
-  var net1 = PRICING_RETAIL_1YR - PRICING_RETAIL_1YR * (comm / 100);
+  var retail1 = pricingCurrentRetail(1);
+  var net1 = retail1 - retail1 * (comm / 100);
   var labels = [];
   var data = [];
   var colors = [];
@@ -578,7 +832,8 @@ function pricingRenderProfitChart() {
 function pricingUpdateBreakevenNote(baseline, commPct) {
   var el = document.getElementById("pricing-breakeven-note");
   if (!el) return;
-  var net1 = PRICING_RETAIL_1YR - PRICING_RETAIL_1YR * (commPct / 100);
+  var retail1 = pricingCurrentRetail(1);
+  var net1 = retail1 - retail1 * (commPct / 100);
   var profits = [];
   for (var r = 40; r <= 100; r += 5) {
     profits.push(Math.round(net1 - baseline * (r / 100)));
@@ -645,8 +900,11 @@ function pricingUpdateAll() {
   if (document.getElementById("pricing-label-commission")) document.getElementById("pricing-label-commission").textContent = String(comm);
   if (document.getElementById("pricing-label-claims")) document.getElementById("pricing-label-claims").textContent = String(claims);
   var annualCost = baseline * (claims / 100);
-  var oneTimeComm = PRICING_RETAIL_1YR * (comm / 100);
-  var wpMargin1 = PRICING_RETAIL_1YR - oneTimeComm - annualCost;
+  var RETAIL1 = pricingCurrentRetail(1);
+  var RETAIL2 = pricingCurrentRetail(2);
+  var RETAIL3 = pricingCurrentRetail(3);
+  var oneTimeComm = RETAIL1 * (comm / 100);
+  var wpMargin1 = RETAIL1 - oneTimeComm - annualCost;
   var sb = document.getElementById("pricing-stat-baseline");
   var sa = document.getElementById("pricing-stat-annual");
   var sc = document.getElementById("pricing-stat-commission");
@@ -657,9 +915,15 @@ function pricingUpdateAll() {
   if (sc) sc.textContent = "$" + Math.round(oneTimeComm).toLocaleString();
   if (sw) sw.textContent = "$" + Math.round(wpMargin1).toLocaleString();
   if (wrap) wrap.className = "stat-card pricing-stat " + (wpMargin1 >= 0 ? "positive" : "negative");
-  pricingFillContractLines("pricing-c1-lines", PRICING_RETAIL_1YR, 12, 1);
-  pricingFillContractLines("pricing-c2-lines", PRICING_RETAIL_2YR, 24, 2);
-  pricingFillContractLines("pricing-c3-lines", PRICING_RETAIL_3YR, 36, 3);
+  var c1 = document.getElementById("pricing-c1-retail");
+  var c2 = document.getElementById("pricing-c2-retail");
+  var c3 = document.getElementById("pricing-c3-retail");
+  if (c1) c1.textContent = "$" + Math.round(RETAIL1).toLocaleString();
+  if (c2) c2.textContent = "$" + Math.round(RETAIL2).toLocaleString();
+  if (c3) c3.textContent = "$" + Math.round(RETAIL3).toLocaleString();
+  pricingFillContractLines("pricing-c1-lines", RETAIL1, 12, 1);
+  pricingFillContractLines("pricing-c2-lines", RETAIL2, 24, 2);
+  pricingFillContractLines("pricing-c3-lines", RETAIL3, 36, 3);
   pricingUpdateBreakevenNote(baseline, comm);
   pricingDestroyProfitChart();
   pricingRenderProfitChart();
@@ -669,6 +933,8 @@ function pricingInitOnTab() {
   if (!pricingTabInitialized) {
     pricingTabInitialized = true;
     pricingBindControlsOnce();
+    pricingBindStage2Controls();
+    pricingLoadDealers();
     var tbody = document.getElementById("pricing-services-tbody");
     if (tbody) tbody.innerHTML = "<tr><td colspan='9'>Loading services…</td></tr>";
     pricingLoadFromSupabase()
@@ -685,6 +951,8 @@ function pricingInitOnTab() {
         pricingUpdateAll();
       });
   } else {
+    pricingBindStage2Controls();
+    pricingLoadDealers();
     var c2 = document.getElementById("pricing-slider-commission");
     var cl2 = document.getElementById("pricing-slider-claims");
     if (c2 && document.getElementById("pricing-label-commission")) document.getElementById("pricing-label-commission").textContent = c2.value;
@@ -1220,6 +1488,109 @@ async function adminLoadActivityFeed() {
   }
 }
 
+async function adminLoadRecentPricingChanges() {
+  var el = document.getElementById("admin-pricing-feed");
+  if (!el) return;
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/audit_log?entity_type=eq.pricing&select=*&order=created_at.desc&limit=20",
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+    );
+    var logs = await res.json() || [];
+    if (!logs.length) {
+      el.innerHTML = "<div style='color:var(--light);font-size:13px;padding:0.5rem 0;'>No pricing changes yet.</div>";
+      return;
+    }
+    el.innerHTML = logs.map(function(l) {
+      var label = String(l.action || "pricing update").replace(/_/g, " ");
+      return "<div style='padding:8px 0;border-bottom:1px solid var(--border);'>" +
+        "<div style='font-size:13px;color:var(--navy);font-weight:500;'>" + escHtml(label) + "</div>" +
+        "<div style='font-size:12px;color:var(--light);'>" + escHtml(l.dealer_name || "—") + " · " + escHtml(new Date(l.created_at).toLocaleString()) + "</div>" +
+        "</div>";
+    }).join("");
+  } catch (e) {
+    el.innerHTML = "<div style='color:var(--light);font-size:13px;padding:0.5rem 0;'>Could not load pricing changes.</div>";
+  }
+}
+
+async function pricingLoadHistory() {
+  if (!pricingState.dealerName) return;
+  var el = document.getElementById("pricing-history-panel");
+  if (!el) return;
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/audit_log?entity_type=eq.pricing&dealer_name=eq." + encodeURIComponent(pricingState.dealerName) + "&select=*&order=created_at.desc&limit=30",
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+    );
+    var logs = await res.json() || [];
+    if (!logs || logs.length === 0) {
+      el.innerHTML = "<div style='font-size:13px;color:var(--light);padding:0.5rem 0;'>No pricing history yet.</div>";
+      return;
+    }
+    el.innerHTML = "<div style='border-left:2px solid var(--border);padding-left:1rem;'>" +
+      logs.map(function(l) {
+        var actionColors = { pricing_confirmed: "#0F6E56", pricing_unlocked: "#c0392b", pricing_rate_changed: "#BA7517", contract_price_changed: "#BA7517", contract_generated: "#1a5276" };
+        var color = actionColors[l.action] || "#6b8599";
+        var label = String(l.action || "pricing change").replace(/_/g, " ");
+        return "<div style='margin-bottom:0.75rem;position:relative;'>" +
+          "<div style='position:absolute;left:-1.3rem;top:4px;width:10px;height:10px;border-radius:50%;background:" + color + ";'></div>" +
+          "<div style='font-size:12px;font-weight:600;color:" + color + ";'>" + escHtml(label) + "</div>" +
+          "<div style='font-size:11px;color:var(--light);'>" + escHtml(new Date(l.created_at).toLocaleString()) + (l.performed_by ? " · " + escHtml(l.performed_by) : "") + "</div>" +
+          "</div>";
+      }).join("") +
+      "</div>";
+  } catch (e) {
+    el.innerHTML = "<div style='font-size:13px;color:var(--light);padding:0.5rem 0;'>Could not load pricing history.</div>";
+  }
+}
+
+function generateDealerContractPDF() {
+  var dealer = pricingState.dealerName;
+  var rates = pricingState.currentRates || pricingDefaultRates();
+  if (!dealer) return;
+  var now = new Date();
+  var dateStr = now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  var version = "v" + now.getFullYear() + ("0" + (now.getMonth() + 1)).slice(-2) + ("0" + now.getDate()).slice(-2);
+  var content = "WHITESTONE PARTNERS LLC\nDEALER SERVICES AGREEMENT\n\n" +
+    "CONFIDENTIAL — FOR AUTHORIZED USE ONLY\nGenerated: " + dateStr + " | Version: " + version + "\n" +
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+    "DEALER: " + dealer + "\nAGREEMENT DATE: " + dateStr + "\n\n" +
+    "2.1 DEALER COMMISSION\n" +
+    "Dealer earns a one-time commission of " + rates.commission_pct + "%.\n\n" +
+    "Contract Retail Prices:\n" +
+    "  • 1-Year Contract:  $" + Math.round(rates.contract_retail_1yr || 0).toLocaleString() + "\n" +
+    "  • 2-Year Contract:  $" + Math.round(rates.contract_retail_2yr || 0).toLocaleString() + "\n" +
+    "  • 3-Year Contract:  $" + Math.round(rates.contract_retail_3yr || 0).toLocaleString() + "\n\n" +
+    "2.2 SERVICE REIMBURSEMENTS\n" +
+    "Dealer is reimbursed at a rate of $" + Math.round(rates.reimbursement_rate || 0) + " per approved service ticket.\n\n" +
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nCONFIDENTIAL — Whitestone Partners LLC";
+  var blob = new Blob([content], { type: "text/plain" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "Whitestone_Partners_Dealer_Agreement_" + dealer.replace(/\s+/g, "_") + "_" + version + ".txt";
+  a.click();
+  URL.revokeObjectURL(url);
+  writeAuditLog("pricing", pricingState.pricingId, "contract_generated", null, { dealer: dealer, version: version, date: dateStr }, dealer, null, "Dealer contract PDF generated");
+}
+
+function downloadCustomerContract() {
+  var content = "WHITESTONE PARTNERS LLC\nANNUAL BOAT SERVICE CONTRACT\n\n" +
+    "SECTION 1 — WHAT'S COVERED\n\n" +
+    "01. Summer Prep\n02. Impeller Service\n03. Engine Oil Service\n04. Fuel Filter Service\n05. Transmission Oil Service\n" +
+    "06. Outdrive Service\n07. Shaft Alignment\n08. Winterization\n09. V-Drive Service\n10. Ballast Cartridge Service\n\n" +
+    "Whitestone Partners LLC\nSt. George, Utah\nsales@whitestone-partners.com";
+  var blob = new Blob([content], { type: "text/plain" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "Whitestone_Partners_Customer_Service_Contract.txt";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+window.downloadCustomerContract = downloadCustomerContract;
+
 function startOfDay(d) {
   var x = new Date(d.getTime());
   x.setHours(0, 0, 0, 0);
@@ -1514,6 +1885,16 @@ document.addEventListener("DOMContentLoaded", function() {
     document.querySelectorAll(".admin-tab").forEach(function(t) { t.remove(); });
     resetAdminTabVisibility();
     pricingTabInitialized = false;
+    pricingSupabaseLoadPromise = null;
+    pricingState = {
+      dealerId: null,
+      dealerName: null,
+      originalRates: {},
+      currentRates: {},
+      confirmed: false,
+      locked: false,
+      pricingId: null
+    };
     pricingDestroyProfitChart();
   });
 
@@ -1686,6 +2067,141 @@ document.addEventListener("DOMContentLoaded", function() {
     link.download = "Whitestone_Partners_Dealer_Rate_Sheet.pdf";
     link.click();
   });
+  var resourcesRateBtn = document.getElementById("resources-rate-dl-btn");
+  if (resourcesRateBtn) {
+    resourcesRateBtn.addEventListener("click", function() {
+      var link = document.createElement("a");
+      link.href = "assets/documents/whitestone-partners-dealer-rate-sheet.pdf";
+      link.download = "Whitestone_Partners_Dealer_Rate_Sheet.pdf";
+      link.click();
+    });
+  }
+
+  var pricingConfirmBtn = document.getElementById("pricing-confirm-btn");
+  if (pricingConfirmBtn) {
+    pricingConfirmBtn.addEventListener("click", function() {
+      if (!pricingState.dealerName) { alert("Please select a dealer first."); return; }
+      if (pricingState.locked) { alert("Pricing is locked. Unlock it before making changes."); return; }
+      var changes = pricingBuildChanges();
+      if (changes.length === 0) { alert("No changes to confirm."); return; }
+      document.getElementById("pricing-modal-dealer-name").textContent = "Dealer: " + pricingState.dealerName;
+      document.getElementById("confirm-check-2-label").textContent = "I confirm these rates are correct for " + pricingState.dealerName;
+      var tableHtml = "<table style='width:100%;border-collapse:collapse;'>" +
+        "<thead><tr style='background:#f0f4f8;'><th style='padding:8px;text-align:left;font-size:12px;color:var(--mid);'>Field</th><th style='padding:8px;text-align:right;font-size:12px;color:var(--mid);'>Before</th><th style='padding:8px;text-align:right;font-size:12px;color:var(--mid);'>After</th></tr></thead><tbody>";
+      changes.forEach(function(c) {
+        tableHtml += "<tr style='border-bottom:1px solid var(--border);'><td style='padding:8px;font-size:13px;'>" + escHtml(c.label) +
+          "</td><td style='padding:8px;text-align:right;font-size:13px;color:#c0392b;'>$" + escHtml(String(c.old)) +
+          "</td><td style='padding:8px;text-align:right;font-size:13px;color:#0F6E56;font-weight:600;'>$" + escHtml(String(c.next)) + "</td></tr>";
+      });
+      tableHtml += "</tbody></table>";
+      document.getElementById("pricing-changes-table").innerHTML = tableHtml;
+      document.getElementById("confirm-check-1").checked = false;
+      document.getElementById("confirm-check-2").checked = false;
+      var saveBtn = document.getElementById("pricing-modal-save");
+      saveBtn.disabled = true;
+      saveBtn.style.opacity = "0.4";
+      document.getElementById("pricing-confirm-modal").style.display = "flex";
+    });
+  }
+
+  var modalCancel = document.getElementById("pricing-modal-cancel");
+  if (modalCancel) {
+    modalCancel.addEventListener("click", function() {
+      document.getElementById("pricing-confirm-modal").style.display = "none";
+    });
+  }
+
+  var modalSave = document.getElementById("pricing-modal-save");
+  if (modalSave) {
+    modalSave.addEventListener("click", async function() {
+      if (this.disabled || !pricingState.pricingId) return;
+      this.textContent = "Saving...";
+      this.disabled = true;
+      var updates = Object.assign({}, pricingState.currentRates, {
+        confirmed: true,
+        locked: true,
+        confirmed_at: new Date().toISOString(),
+        confirmed_by: "admin"
+      });
+      try {
+        await fetch(SUPABASE_URL + "/rest/v1/dealer_pricing?id=eq." + pricingState.pricingId, {
+          method: "PATCH",
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify(updates)
+        });
+        var changes = pricingBuildChanges();
+        for (var i = 0; i < changes.length; i++) {
+          var action = changes[i].key.indexOf("contract_retail_") === 0 ? "contract_price_changed" : "pricing_rate_changed";
+          await writeAuditLog("pricing", pricingState.pricingId, action, { value: changes[i].old }, { value: changes[i].next }, pricingState.dealerName, null, changes[i].label);
+        }
+        pricingState.originalRates = Object.assign({}, pricingState.currentRates);
+        pricingState.confirmed = true;
+        pricingState.locked = true;
+        ["1yr", "2yr", "3yr"].forEach(function(yr) {
+          var inp = document.getElementById("contract-price-" + yr);
+          if (inp) { inp.style.borderColor = ""; inp.style.background = ""; }
+        });
+        document.getElementById("pricing-confirm-modal").style.display = "none";
+        pricingUpdateLockStatus();
+        pricingCheckUnsavedChanges();
+        await writeAuditLog("pricing", pricingState.pricingId, "pricing_confirmed", null, { dealer: pricingState.dealerName, rates: pricingState.currentRates }, pricingState.dealerName, null, "Pricing confirmed and locked by admin");
+        alert("Pricing confirmed and locked for " + pricingState.dealerName + ". You can now generate their contract.");
+      } catch (e) {
+        alert("Could not save pricing changes. Please try again.");
+      }
+      this.textContent = "Confirm & Save";
+    });
+  }
+
+  var unlockBtn = document.getElementById("pricing-unlock-btn");
+  if (unlockBtn) {
+    unlockBtn.addEventListener("click", function() {
+      document.getElementById("unlock-dealer-name-input").value = "";
+      document.getElementById("pricing-unlock-modal").style.display = "flex";
+    });
+  }
+  var unlockCancel = document.getElementById("unlock-cancel-btn");
+  if (unlockCancel) {
+    unlockCancel.addEventListener("click", function() {
+      document.getElementById("pricing-unlock-modal").style.display = "none";
+    });
+  }
+  var unlockConfirm = document.getElementById("unlock-confirm-btn");
+  if (unlockConfirm) {
+    unlockConfirm.addEventListener("click", async function() {
+      var typed = document.getElementById("unlock-dealer-name-input").value.trim().toLowerCase();
+      var expected = (pricingState.dealerName || "").toLowerCase();
+      if (typed !== expected) {
+        alert("Dealer name does not match. Please type exactly: " + pricingState.dealerName);
+        return;
+      }
+      if (!pricingState.pricingId) return;
+      try {
+        await fetch(SUPABASE_URL + "/rest/v1/dealer_pricing?id=eq." + pricingState.pricingId, {
+          method: "PATCH",
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({ locked: false, confirmed: false })
+        });
+        pricingState.locked = false;
+        pricingState.confirmed = false;
+        document.getElementById("pricing-unlock-modal").style.display = "none";
+        pricingUpdateLockStatus();
+        await writeAuditLog("pricing", pricingState.pricingId, "pricing_unlocked", null, null, pricingState.dealerName, null, "Pricing unlocked for editing");
+        alert("Pricing unlocked. You can now make changes.");
+      } catch (e) {
+        alert("Could not unlock pricing. Please try again.");
+      }
+    });
+  }
+
+  var generateBtn = document.getElementById("pricing-generate-btn");
+  if (generateBtn) {
+    generateBtn.addEventListener("click", function() {
+      if (!pricingState.dealerName) { alert("Please select a dealer first."); return; }
+      if (!pricingState.confirmed) { alert("Please confirm pricing before generating a contract."); return; }
+      generateDealerContractPDF();
+    });
+  }
 
   function ticketStatusHtml(t) {
     var st = String(t.status || "pending").toLowerCase();
@@ -2305,6 +2821,7 @@ document.addEventListener("DOMContentLoaded", function() {
       renderAdminMasterTable();
       loadAdminHinConflicts();
       adminLoadActivityFeed();
+      adminLoadRecentPricingChanges();
     } catch (e) {
       var mst2 = document.getElementById("admin-master-search-loading");
       if (mst2) mst2.style.display = "none";
@@ -2326,6 +2843,7 @@ document.addEventListener("DOMContentLoaded", function() {
       renderAdminMasterTable();
       loadAdminHinConflicts();
       adminLoadActivityFeed();
+      adminLoadRecentPricingChanges();
     }
   }
 

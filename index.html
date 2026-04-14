@@ -39,6 +39,7 @@
     <div class="tab" data-tab="history">Past Tickets</div>
     <div class="tab" data-tab="enroll">Enroll a Customer</div>
     <div class="tab" data-tab="faq">FAQ</div>
+    <div class="tab" data-tab="resources">Resources</div>
     <div class="tab" data-tab="contact">Contact Whitestone</div>
     <div class="tab admin-pricing-tab" data-tab="pricing" style="display:none;">Pricing Model</div>
   </div>
@@ -251,6 +252,43 @@
       </div>
     </div>
 
+    <!-- RESOURCES -->
+    <div class="tab-panel" id="panel-resources">
+      <div class="card" style="margin-bottom:1.5rem;">
+        <div class="card-title">Documents</div>
+        <div class="card-sub">Official Whitestone Partners documents for your dealership.</div>
+        <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:1rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1rem;border:1px solid var(--border);border-radius:6px;background:var(--silver-bg);gap:1rem;">
+            <div>
+              <div style="font-size:14px;font-weight:500;color:var(--navy);">Dealer Services Agreement</div>
+              <div style="font-size:12px;color:var(--light);">Your personalized dealer contract — generate from the Pricing Model tab</div>
+            </div>
+            <span style="font-size:11px;color:var(--light);background:var(--border);padding:3px 10px;border-radius:20px;white-space:nowrap;">Admin generates</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1rem;border:1px solid var(--border);border-radius:6px;background:var(--silver-bg);gap:1rem;">
+            <div>
+              <div style="font-size:14px;font-weight:500;color:var(--navy);">Customer Service Contract</div>
+              <div style="font-size:12px;color:var(--light);">Give to customers at point of sale — standard Whitestone contract</div>
+            </div>
+            <button onclick="downloadCustomerContract()" style="background:var(--navy);color:white;border:none;padding:7px 16px;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;">Download PDF</button>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1rem;border:1px solid var(--border);border-radius:6px;background:var(--silver-bg);gap:1rem;">
+            <div>
+              <div style="font-size:14px;font-weight:500;color:var(--navy);">Whitestone Brand Guidelines</div>
+              <div style="font-size:12px;color:var(--light);">Logo usage, colors, and brand standards</div>
+            </div>
+            <span style="font-size:11px;color:var(--light);background:var(--border);padding:3px 10px;border-radius:20px;white-space:nowrap;">Coming soon</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Dealer Rate Card</div>
+        <div class="card-sub">Current covered services and reimbursement framework.</div>
+        <button class="dl-btn" id="resources-rate-dl-btn" style="margin-top:1rem;">Download Dealer Rate Sheet</button>
+      </div>
+    </div>
+
     <!-- CONTACT -->
     <div class="tab-panel" id="panel-contact">
       <div class="card">
@@ -304,6 +342,18 @@
     <!-- PRICING MODEL (admin only) -->
     <div class="tab-panel" id="panel-pricing">
       <div class="pricing-panel-shell">
+        <div class="card" style="margin-bottom:1.5rem;">
+          <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+            <div style="flex:1;min-width:200px;">
+              <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--mid);display:block;margin-bottom:6px;">Select Dealer</label>
+              <select id="pricing-dealer-select" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;background:var(--white);">
+                <option value="">— Select a dealer —</option>
+              </select>
+            </div>
+            <div id="pricing-lock-status" style="font-size:13px;font-weight:500;padding:8px 16px;border-radius:6px;display:none;"></div>
+          </div>
+        </div>
+
         <div class="card pricing-card-main">
           <div class="card-title">Service pricing model</div>
           <div class="card-sub">Edit covered services, set commission and claims assumptions, and review contract economics.</div>
@@ -341,6 +391,28 @@
             <label for="pricing-slider-claims">Est. claims rate: <span id="pricing-label-claims">70</span>%</label>
             <input type="range" id="pricing-slider-claims" class="pricing-slider" min="40" max="100" step="5" value="70" />
             <p class="pricing-slider-note">% of covered services a customer actually uses per year</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:1rem;" id="contract-price-card">
+          <div class="card-title">Contract Retail Prices</div>
+          <div class="card-sub">Edit prices for this dealer. Changes highlighted in amber until confirmed.</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1rem;">
+            <div>
+              <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--mid);display:block;margin-bottom:6px;">1-Year Contract</label>
+              <div style="position:relative;"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--mid);">$</span>
+              <input type="number" id="contract-price-1yr" value="3699" min="100" style="width:100%;padding:10px 14px 10px 28px;border:1px solid var(--border);border-radius:6px;font-size:15px;font-weight:600;font-family:inherit;transition:border-color 0.2s,background 0.2s;"></div>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--mid);display:block;margin-bottom:6px;">2-Year Contract</label>
+              <div style="position:relative;"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--mid);">$</span>
+              <input type="number" id="contract-price-2yr" value="6798" min="100" style="width:100%;padding:10px 14px 10px 28px;border:1px solid var(--border);border-radius:6px;font-size:15px;font-weight:600;font-family:inherit;transition:border-color 0.2s,background 0.2s;"></div>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--mid);display:block;margin-bottom:6px;">3-Year Contract</label>
+              <div style="position:relative;"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--mid);">$</span>
+              <input type="number" id="contract-price-3yr" value="9297" min="100" style="width:100%;padding:10px 14px 10px 28px;border:1px solid var(--border);border-radius:6px;font-size:15px;font-weight:600;font-family:inherit;transition:border-color 0.2s,background 0.2s;"></div>
+            </div>
           </div>
         </div>
 
@@ -391,6 +463,58 @@
           <div class="card-title">WP profit vs claims rate (1-year contract)</div>
           <div class="pricing-chart-wrap"><canvas id="pricing-profit-chart" height="200"></canvas></div>
           <p class="pricing-breakeven-note" id="pricing-breakeven-note"></p>
+        </div>
+
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:1rem;align-items:center;">
+          <button id="pricing-confirm-btn" style="background:var(--navy);color:white;border:none;padding:11px 24px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:0.04em;">Review & Confirm Changes</button>
+          <button id="pricing-unlock-btn" style="background:transparent;color:var(--mid);border:1px solid var(--border);padding:11px 20px;border-radius:6px;font-size:13px;cursor:pointer;display:none;">🔓 Unlock Pricing</button>
+          <button id="pricing-generate-btn" style="background:var(--gold);color:var(--navy);border:none;padding:11px 24px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;display:none;">Generate Contract PDF</button>
+        </div>
+
+        <div style="margin-top:1.5rem;">
+          <button id="pricing-history-toggle" style="background:none;border:none;font-size:13px;color:var(--mid);cursor:pointer;padding:0;display:flex;align-items:center;gap:6px;">
+            <span id="history-arrow">▶</span> View Pricing History for this Dealer
+          </button>
+          <div id="pricing-history-panel" style="display:none;margin-top:1rem;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="pricing-confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;">
+      <div style="background:white;border-radius:12px;padding:2rem;max-width:560px;width:90%;max-height:80vh;overflow-y:auto;">
+        <h3 style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:300;color:var(--navy);margin-bottom:0.5rem;">Confirm Pricing Changes</h3>
+        <p style="font-size:13px;color:var(--mid);margin-bottom:1.5rem;" id="pricing-modal-dealer-name"></p>
+        <div id="pricing-changes-table" style="margin-bottom:1.5rem;"></div>
+        <div style="background:#fff5f0;border:1px solid #f0d060;border-radius:6px;padding:1rem;margin-bottom:1.25rem;font-size:13px;color:#7a4f00;">
+          ⚠ These changes will update this dealer's rate card. Once confirmed, pricing is locked and can only be changed by unlocking it again.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.75rem;margin-bottom:1.5rem;">
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+            <input type="checkbox" id="confirm-check-1" style="margin-top:2px;accent-color:var(--navy);">
+            <span style="font-size:13px;color:var(--text);">I have reviewed all pricing changes listed above</span>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+            <input type="checkbox" id="confirm-check-2" style="margin-top:2px;accent-color:var(--navy);">
+            <span style="font-size:13px;color:var(--text);" id="confirm-check-2-label">I confirm these rates are correct for this dealer</span>
+          </label>
+        </div>
+        <div style="display:flex;gap:1rem;">
+          <button id="pricing-modal-cancel" style="flex:1;padding:11px;border:1px solid var(--border);background:white;border-radius:6px;font-size:13px;cursor:pointer;">Cancel</button>
+          <button id="pricing-modal-save" disabled style="flex:2;padding:11px;background:var(--navy);color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;opacity:0.4;">Confirm & Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Unlock Modal -->
+    <div id="pricing-unlock-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;">
+      <div style="background:white;border-radius:12px;padding:2rem;max-width:420px;width:90%;">
+        <h3 style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:300;color:var(--navy);margin-bottom:0.5rem;">Unlock Pricing</h3>
+        <p style="font-size:13px;color:var(--mid);margin-bottom:1.25rem;">Type the dealer's name to confirm you want to unlock pricing for editing.</p>
+        <input type="text" id="unlock-dealer-name-input" placeholder="Type dealer name here..." style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;margin-bottom:1rem;">
+        <div style="display:flex;gap:1rem;">
+          <button id="unlock-cancel-btn" style="flex:1;padding:10px;border:1px solid var(--border);background:white;border-radius:6px;font-size:13px;cursor:pointer;">Cancel</button>
+          <button id="unlock-confirm-btn" style="flex:2;padding:10px;background:#c0392b;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Unlock Pricing</button>
         </div>
       </div>
     </div>
@@ -471,6 +595,12 @@
             <div class="card-title">Live Activity Feed</div>
             <div class="card-sub">Last 25 actions across the entire network.</div>
             <div id="activity-feed-admin"></div>
+          </div>
+
+          <div class="card" style="margin-bottom:1.5rem;">
+            <div class="card-title">Recent Pricing Changes</div>
+            <div class="card-sub">Last 20 pricing-related changes across dealerships.</div>
+            <div id="admin-pricing-feed"></div>
           </div>
 
           <div class="card admin-leaderboard-card">
