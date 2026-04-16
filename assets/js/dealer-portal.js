@@ -1,7 +1,10 @@
 var SUPABASE_URL = "https://ypuohmiynnmbnlqfctlg.supabase.co";
 var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwdW9obWl5bm5tYm5scWZjdGxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwODU4NzEsImV4cCI6MjA5MTY2MTg3MX0.HzrF_OCr2T9rKV9am90B2OvIQKjq28pObheMRps82AI";
 var FORMSPREE_CONTACT = "https://formspree.io/f/mvzvzkqa";
+var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 var currentDealer = null;
+window.authToken = null;
+window.currentDealer = null;
 var allTickets = [];
 var adminNetworkTickets = [];
 var adminDashboardMetrics = { count: 0, revenue: 0 };
@@ -20,16 +23,55 @@ var ADMIN_CONTRACT_AVG = 3699;
 var ADMIN_AVG_REIMB = 150;
 var ADMIN_COMMISSION_RATE = 0.2;
 
-function supabaseHeaders(extra) {
-  var h = {
+function authHeaders(extraHeaders) {
+  var token = window.authToken ? window.authToken : SUPABASE_ANON_KEY;
+  var headers = {
     apikey: SUPABASE_ANON_KEY,
-    Authorization: "Bearer " + SUPABASE_ANON_KEY,
+    Authorization: "Bearer " + token,
     "Content-Type": "application/json"
   };
-  if (extra) {
-    Object.keys(extra).forEach(function(k) { h[k] = extra[k]; });
+  if (extraHeaders) Object.assign(headers, extraHeaders);
+  return headers;
+}
+
+function supabaseHeaders(extra) {
+  return authHeaders(extra);
+}
+
+function buildDealerSession(dealer, session) {
+  return {
+    id: dealer.id,
+    authId: session && session.user ? session.user.id : dealer.auth_id || null,
+    username: dealer.username,
+    name: dealer.dealership_name,
+    email: dealer.email || (session && session.user ? session.user.email : ""),
+    isAdmin: dealer.is_admin === true,
+    token: session ? session.access_token : window.authToken || null
+  };
+}
+
+async function fetchDealerByAuthId(authId, accessToken) {
+  var res = await fetch(
+    SUPABASE_URL + "/rest/v1/dealers?auth_id=eq." + encodeURIComponent(authId) + "&active=eq.true&select=*",
+    {
+      headers: authHeaders({ Authorization: "Bearer " + accessToken })
+    }
+  );
+  if (!res.ok) {
+    throw new Error("Failed to load dealer account.");
   }
-  return h;
+  var dealers = await res.json();
+  return Array.isArray(dealers) && dealers.length ? dealers[0] : null;
+}
+
+function createDetachedSupabaseClient() {
+  return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  });
 }
 
 function mapTicketFromRow(row) {
@@ -145,7 +187,7 @@ async function adminLoadMessages() {
   try {
     var res = await fetch(
       SUPABASE_URL + "/rest/v1/dealer_messages?select=*&order=created_at.desc",
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+      { headers: authHeaders() }
     );
     allMessages = (await res.json()) || [];
   } catch (e) {
@@ -239,11 +281,7 @@ function messagesRender() {
 async function messagesUpdateStatus(id, status) {
   await fetch(SUPABASE_URL + "/rest/v1/dealer_messages?id=eq." + encodeURIComponent(id), {
     method: "PATCH",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: "Bearer " + SUPABASE_ANON_KEY,
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(),
     body: JSON.stringify({ status: status })
   });
   await adminLoadMessages();
@@ -254,11 +292,7 @@ async function messagesSaveNote(id) {
   if (!note) return;
   await fetch(SUPABASE_URL + "/rest/v1/dealer_messages?id=eq." + encodeURIComponent(id), {
     method: "PATCH",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: "Bearer " + SUPABASE_ANON_KEY,
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(),
     body: JSON.stringify({ admin_notes: note.value })
   });
   note.style.borderColor = "var(--green-text)";
@@ -355,7 +389,7 @@ async function verifyHINForEnrollment(hin, firstName, lastName, dealerName) {
   try {
     var res = await fetch(
       SUPABASE_URL + "/rest/v1/contracts?hin=eq." + encodeURIComponent(hin) + "&select=*",
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+      { headers: authHeaders() }
     );
     var existing = await res.json();
     if (!existing || existing.length === 0) return { allowed: true };
@@ -384,7 +418,7 @@ async function verifyHINForTicket(hin) {
   try {
     var res = await fetch(
       SUPABASE_URL + "/rest/v1/contracts?hin=eq." + encodeURIComponent(hin) + "&select=*",
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+      { headers: authHeaders() }
     );
     var contracts = await res.json();
     if (!contracts || contracts.length === 0) {
@@ -422,7 +456,7 @@ async function writeAuditLog(entityType, entityId, action, oldValue, newValue, d
   try {
     await fetch(SUPABASE_URL + "/rest/v1/audit_log", {
       method: "POST",
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json", Prefer: "return=minimal" },
+      headers: authHeaders({ Prefer: "return=minimal" }),
       body: JSON.stringify({
         entity_type: entityType,
         entity_id: entityId || null,
@@ -598,7 +632,7 @@ async function pricingLoadDealers() {
   try {
     var res = await fetch(
       SUPABASE_URL + "/rest/v1/dealers?is_admin=eq.false&active=eq.true&select=id,username,dealership_name&order=dealership_name.asc",
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+      { headers: authHeaders() }
     );
     var dealers = await res.json() || [];
     dealers.forEach(function(d) {
@@ -695,14 +729,14 @@ async function pricingLoadDealerRates(dealerId, dealerName) {
   try {
     var res = await fetch(
       SUPABASE_URL + "/rest/v1/dealer_pricing?dealer_id=eq." + dealerId + "&select=*&limit=1",
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+      { headers: authHeaders() }
     );
     var records = await res.json();
     record = records && records.length > 0 ? records[0] : null;
     if (!record) {
       var createRes = await fetch(SUPABASE_URL + "/rest/v1/dealer_pricing", {
         method: "POST",
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json", Prefer: "return=representation" },
+        headers: authHeaders({ Prefer: "return=representation" }),
         body: JSON.stringify({
           dealer_id: dealerId,
           dealership_name: dealerName,
@@ -1659,7 +1693,7 @@ async function adminLoadActivityFeed() {
   try {
     var res = await fetch(
       SUPABASE_URL + "/rest/v1/audit_log?select=*&order=created_at.desc&limit=25",
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+      { headers: authHeaders() }
     );
     var logs = await res.json() || [];
     if (!logs || logs.length === 0) {
@@ -1700,7 +1734,7 @@ async function adminLoadRecentPricingChanges() {
   try {
     var res = await fetch(
       SUPABASE_URL + "/rest/v1/audit_log?entity_type=eq.pricing&select=*&order=created_at.desc&limit=20",
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+      { headers: authHeaders() }
     );
     var logs = await res.json() || [];
     if (!logs.length) {
@@ -1726,7 +1760,7 @@ async function pricingLoadHistory() {
   try {
     var res = await fetch(
       SUPABASE_URL + "/rest/v1/audit_log?entity_type=eq.pricing&dealer_name=eq." + encodeURIComponent(pricingState.dealerName) + "&select=*&order=created_at.desc&limit=30",
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+      { headers: authHeaders() }
     );
     var logs = await res.json() || [];
     if (!logs || logs.length === 0) {
@@ -1989,10 +2023,167 @@ function daysUntilNextAnniversary(enrollDate) {
 
 document.addEventListener("DOMContentLoaded", function() {
 
-  // LOGIN
-  document.getElementById("login-btn").addEventListener("click", function() { doLogin(); });
-  document.getElementById("username").addEventListener("keydown", function(e) { if (e.key === "Enter") doLogin(); });
-  document.getElementById("password").addEventListener("keydown", function(e) { if (e.key === "Enter") doLogin(); });
+  function resetLoginPanels() {
+    document.getElementById("forgot-form-wrap").style.display = "none";
+    document.getElementById("login-form-wrap").style.display = "block";
+    document.getElementById("reset-ok").style.display = "none";
+    document.getElementById("reset-err").style.display = "none";
+  }
+
+  function resetPortalState() {
+    allTickets = [];
+    adminNetworkTickets = [];
+    adminDashboardMetrics = { count: 0, revenue: 0 };
+    adminReimburseMetrics = { paidTotal: 0 };
+    adminRenewalContracts = [];
+    dealerRowsCache = [];
+    adminContractsCache = [];
+    dealerContractCount = 0;
+    renewalContractsDealer = [];
+    resetAdminTabVisibility();
+    pricingTabInitialized = false;
+    pricingSupabaseLoadPromise = null;
+    pricingState = {
+      dealerId: null,
+      dealerName: null,
+      originalRates: {},
+      currentRates: {},
+      confirmed: false,
+      locked: false,
+      pricingId: null
+    };
+    pricingDestroyProfitChart();
+  }
+
+  function onLoginSuccess() {
+    window.currentDealer = currentDealer;
+    if (currentDealer) window.authToken = currentDealer.token || window.authToken || null;
+    document.getElementById("dealer-display").textContent = currentDealer ? currentDealer.name : "";
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("portal-screen").style.display = "block";
+    document.getElementById("login-err").style.display = "none";
+    resetLoginPanels();
+
+    if (currentDealer && currentDealer.isAdmin) {
+      document.getElementById("portal-screen").className = "mode-admin";
+      document.getElementById("dealer-layout").style.display = "none";
+      document.getElementById("admin-layout").style.display = "block";
+      document.querySelectorAll(".admin-nav-item").forEach(function(b) {
+        b.classList.remove("active");
+      });
+      var dashNav = document.querySelector('.admin-nav-item[data-admin-panel="dashboard"]');
+      if (dashNav) dashNav.classList.add("active");
+      adminShowPanel("dashboard");
+      applicationsRefreshTabBadgeOnly();
+      adminLoadMessages();
+    } else {
+      document.getElementById("portal-screen").className = "mode-dealer";
+      document.getElementById("dealer-layout").style.display = "flex";
+      document.getElementById("admin-layout").style.display = "none";
+      document.querySelectorAll(".sidebar-nav-item").forEach(function(b) {
+        b.classList.remove("active");
+      });
+      var sbd = document.querySelector('.sidebar-nav-item[data-panel="dashboard"]');
+      if (sbd) sbd.classList.add("active");
+      switchTab("dashboard");
+    }
+  }
+
+  supabase.auth.onAuthStateChange(async function(event, session) {
+    if (session && session.access_token) {
+      window.authToken = session.access_token;
+      if (currentDealer) currentDealer.token = session.access_token;
+    }
+
+    if (event === "SIGNED_OUT") {
+      window.authToken = null;
+      if (currentDealer) currentDealer.token = null;
+      return;
+    }
+
+    if (event === "PASSWORD_RECOVERY") {
+      var newPassword = prompt("Enter your new password (minimum 8 characters):");
+      if (newPassword && newPassword.length >= 8) {
+        var updateResult = await supabase.auth.updateUser({ password: newPassword });
+        if (updateResult.error) {
+          console.error("Password update failed", updateResult.error);
+          alert("Error updating password: " + updateResult.error.message);
+        } else {
+          alert("Password updated successfully! Please sign in with your new password.");
+          await supabase.auth.signOut();
+          location.reload();
+        }
+      }
+    }
+  });
+
+  supabase.auth.getSession().then(async function(result) {
+    var session = result && result.data ? result.data.session : null;
+    if (!session) return;
+    try {
+      window.authToken = session.access_token;
+      var dealer = await fetchDealerByAuthId(session.user.id, session.access_token);
+      if (!dealer) {
+        console.error("No active dealer record found for session", session.user.id);
+        await supabase.auth.signOut();
+        return;
+      }
+      currentDealer = buildDealerSession(dealer, session);
+      onLoginSuccess();
+    } catch (err) {
+      console.error("Failed to restore session", err);
+    }
+  });
+
+  document.getElementById("login-btn").addEventListener("click", doLogin);
+  document.getElementById("login-password").addEventListener("keydown", function(e) { if (e.key === "Enter") doLogin(); });
+  document.getElementById("login-email").addEventListener("keydown", function(e) { if (e.key === "Enter") doLogin(); });
+
+  document.getElementById("forgot-password-btn").addEventListener("click", function() {
+    document.getElementById("login-form-wrap").style.display = "none";
+    document.getElementById("forgot-form-wrap").style.display = "block";
+  });
+
+  document.getElementById("back-to-login-btn").addEventListener("click", function() {
+    resetLoginPanels();
+  });
+
+  document.getElementById("reset-btn").addEventListener("click", async function() {
+    var email = document.getElementById("reset-email").value.trim();
+    var btn = document.getElementById("reset-btn");
+
+    if (!email) {
+      document.getElementById("reset-err").textContent = "Please enter your email address.";
+      document.getElementById("reset-err").style.display = "block";
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Sending...";
+    document.getElementById("reset-ok").style.display = "none";
+    document.getElementById("reset-err").style.display = "none";
+
+    try {
+      var resetResult = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: "https://whitestone-dealer-portal.vercel.app"
+      });
+
+      if (resetResult.error) {
+        document.getElementById("reset-err").textContent = resetResult.error.message;
+        document.getElementById("reset-err").style.display = "block";
+        console.error("Password reset email failed", resetResult.error);
+      } else {
+        document.getElementById("reset-ok").style.display = "block";
+      }
+    } catch (err) {
+      console.error("Unexpected password reset error", err);
+      document.getElementById("reset-err").textContent = "Unable to send reset email right now. Please try again.";
+      document.getElementById("reset-err").style.display = "block";
+    }
+
+    btn.disabled = false;
+    btn.textContent = "Send Reset Link";
+  });
 
   async function adminRefreshNetworkCaches() {
     if (!currentDealer || !currentDealer.isAdmin) return false;
@@ -2133,55 +2324,61 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 
   async function doLogin() {
-    var user = document.getElementById("username").value.trim().toLowerCase();
-    var pass = document.getElementById("password").value;
-    var err = document.getElementById("login-err");
+    var email = document.getElementById("login-email").value.trim();
+    var password = document.getElementById("login-password").value;
+    var errEl = document.getElementById("login-err");
+    var btn = document.getElementById("login-btn");
+
+    if (!email || !password) {
+      errEl.textContent = "Please enter your email and password.";
+      errEl.style.display = "block";
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Signing in...";
+    errEl.style.display = "none";
+
     try {
-      var url = SUPABASE_URL + "/rest/v1/dealers?username=eq." + encodeURIComponent(user) + "&password=eq." + encodeURIComponent(pass) + "&active=eq.true&select=*";
-      var response = await fetch(url, { headers: supabaseHeaders() });
-      var dealers = await response.json();
-      if (!response.ok) throw new Error();
-      if (dealers && dealers.length > 0) {
-        var dealer = dealers[0];
-        currentDealer = {
-          id: dealer.id,
-          username: dealer.username,
-          name: dealer.dealership_name,
-          isAdmin: dealer.is_admin === true
-        };
-        window.currentDealer = currentDealer;
-        document.getElementById("dealer-display").textContent = dealer.dealership_name;
-        document.getElementById("login-screen").style.display = "none";
-        document.getElementById("portal-screen").style.display = "block";
-        err.style.display = "none";
-        if (currentDealer.isAdmin) {
-          document.getElementById("portal-screen").className = "mode-admin";
-          document.getElementById("dealer-layout").style.display = "none";
-          document.getElementById("admin-layout").style.display = "block";
-          document.querySelectorAll(".admin-nav-item").forEach(function(b) {
-            b.classList.remove("active");
-          });
-          var dashNav = document.querySelector('.admin-nav-item[data-admin-panel="dashboard"]');
-          if (dashNav) dashNav.classList.add("active");
-          adminShowPanel("dashboard");
-          applicationsRefreshTabBadgeOnly();
-          adminLoadMessages();
-        } else {
-          document.getElementById("portal-screen").className = "mode-dealer";
-          document.getElementById("dealer-layout").style.display = "flex";
-          document.getElementById("admin-layout").style.display = "none";
-          document.querySelectorAll(".sidebar-nav-item").forEach(function(b) {
-            b.classList.remove("active");
-          });
-          var sbd = document.querySelector('.sidebar-nav-item[data-panel="dashboard"]');
-          if (sbd) sbd.classList.add("active");
-          switchTab("dashboard");
-        }
-      } else {
-        err.style.display = "block";
+      var signInResult = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
+
+      if (signInResult.error) {
+        errEl.textContent = signInResult.error.message === "Invalid login credentials"
+          ? "Incorrect email or password. Please try again."
+          : signInResult.error.message;
+        errEl.style.display = "block";
+        btn.disabled = false;
+        btn.textContent = "Sign In";
+        return;
       }
+
+      var session = signInResult.data.session;
+      var user = signInResult.data.user;
+      window.authToken = session.access_token;
+
+      var dealer = await fetchDealerByAuthId(user.id, session.access_token);
+      if (!dealer) {
+        errEl.textContent = "Account not found. Please contact support@whitestone-partners.com.";
+        errEl.style.display = "block";
+        await supabase.auth.signOut();
+        btn.disabled = false;
+        btn.textContent = "Sign In";
+        return;
+      }
+
+      currentDealer = buildDealerSession(dealer, session);
+      onLoginSuccess();
+      btn.disabled = false;
+      btn.textContent = "Sign In";
     } catch (e) {
-      err.style.display = "block";
+      console.error("Login failed", e);
+      errEl.textContent = "Something went wrong. Please try again.";
+      errEl.style.display = "block";
+      btn.disabled = false;
+      btn.textContent = "Sign In";
     }
   }
 
@@ -2413,42 +2610,32 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   }
 
-  function doLogout() {
+  async function doLogout() {
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Logout failed", err);
+    }
     currentDealer = null;
     window.currentDealer = null;
+    window.authToken = null;
+    resetPortalState();
     document.getElementById("login-screen").style.display = "flex";
     document.getElementById("portal-screen").style.display = "none";
     document.getElementById("portal-screen").className = "";
-    document.getElementById("username").value = "";
-    document.getElementById("password").value = "";
     document.getElementById("dealer-layout").style.display = "none";
     document.getElementById("admin-layout").style.display = "none";
+    document.getElementById("login-email").value = "";
+    document.getElementById("login-password").value = "";
+    document.getElementById("login-err").style.display = "none";
     var sm = document.getElementById("settings-modal");
     if (sm) sm.style.display = "none";
-    resetAdminTabVisibility();
-    pricingTabInitialized = false;
-    pricingSupabaseLoadPromise = null;
-    pricingState = {
-      dealerId: null,
-      dealerName: null,
-      originalRates: {},
-      currentRates: {},
-      confirmed: false,
-      locked: false,
-      pricingId: null
-    };
-    pricingDestroyProfitChart();
+    resetLoginPanels();
   }
 
-  document.getElementById("logout-btn").addEventListener("click", function() {
-    doLogout();
-  });
-  document.getElementById("sidebar-logout").addEventListener("click", function() {
-    doLogout();
-  });
-  document.getElementById("admin-logout-btn").addEventListener("click", function() {
-    doLogout();
-  });
+  document.getElementById("logout-btn").addEventListener("click", doLogout);
+  document.getElementById("sidebar-logout").addEventListener("click", doLogout);
+  document.getElementById("admin-logout-btn").addEventListener("click", doLogout);
 
   document.querySelectorAll(".sidebar-nav-item").forEach(function(btn) {
     btn.addEventListener("click", function() {
@@ -2710,7 +2897,7 @@ document.addEventListener("DOMContentLoaded", function() {
       try {
         await fetch(SUPABASE_URL + "/rest/v1/dealer_pricing?id=eq." + pricingState.pricingId, {
           method: "PATCH",
-          headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+          headers: authHeaders(),
           body: JSON.stringify(updates)
         });
         var changes = pricingBuildChanges();
@@ -2763,7 +2950,7 @@ document.addEventListener("DOMContentLoaded", function() {
       try {
         await fetch(SUPABASE_URL + "/rest/v1/dealer_pricing?id=eq." + pricingState.pricingId, {
           method: "PATCH",
-          headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+          headers: authHeaders(),
           body: JSON.stringify({ locked: false, confirmed: false })
         });
         pricingState.locked = false;
@@ -3290,79 +3477,114 @@ document.addEventListener("DOMContentLoaded", function() {
       alert("Application not found. Refresh and try again.");
       return;
     }
-    var reviewedBy = currentDealer.username || "admin";
-    var username = await applicationsEnsureUniqueUsername(generateUsername(app.dealership_name));
-    var tempPassword = generateTempPassword();
-    var patchUrl = SUPABASE_URL + "/rest/v1/dealer_applications?id=eq." + encodeURIComponent(String(appId));
-    var patchApproved = {
-      status: "approved",
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: reviewedBy
-    };
-    var patchRes = await fetch(patchUrl, {
-      method: "PATCH",
-      headers: supabaseHeaders({ Prefer: "return=minimal" }),
-      body: JSON.stringify(patchApproved)
-    });
-    if (!patchRes.ok) {
-      alert("Could not update application status.");
-      return;
-    }
-    var dealerBody = {
-      username: username,
-      password: tempPassword,
-      dealership_name: app.dealership_name || "",
-      location: app.location || "",
-      phone: app.phone || "",
-      email: app.email || "",
-      active: true,
-      is_admin: false
-    };
-    var postRes = await fetch(SUPABASE_URL + "/rest/v1/dealers", {
-      method: "POST",
-      headers: supabaseHeaders({ Prefer: "return=representation" }),
-      body: JSON.stringify(dealerBody)
-    });
-    if (!postRes.ok) {
-      await fetch(patchUrl, {
-        method: "PATCH",
-        headers: supabaseHeaders({ Prefer: "return=minimal" }),
-        body: JSON.stringify({ status: "pending", reviewed_at: null, reviewed_by: null })
-      });
-      alert("Could not create dealer account. The application was left as pending.");
-      return;
-    }
-    var welcomeMsg =
-      "Welcome to the Whitestone Partners certified dealer network!\n\n" +
-      "Your dealer portal access has been set up. Here are your login credentials:\n\n" +
-      "Dealer Portal: https://whitestone-dealer-portal.vercel.app\n" +
-      "Username: " + username + "\n" +
-      "Temporary Password: " + tempPassword + "\n\n" +
-      "Please log in and contact us at support@whitestone-partners.com if you have any questions.\n\n" +
-      "Welcome to the network.\n" +
-      "— Whitestone Partners Team";
+
     try {
-      await fetch(FORMSPREE_CONTACT, {
+      var reviewedBy = currentDealer.username || "admin";
+      var username = await applicationsEnsureUniqueUsername(generateUsername(app.dealership_name));
+      var tempPassword = generateTempPassword();
+      var detachedClient = createDetachedSupabaseClient();
+      var signUpResult = await detachedClient.auth.signUp({
+        email: app.email,
+        password: tempPassword,
+        options: {
+          emailRedirectTo: "https://whitestone-dealer-portal.vercel.app"
+        }
+      });
+
+      if (signUpResult.error) {
+        console.error("Supabase auth signup failed", signUpResult.error);
+        alert("Could not create the dealer's login account. Please try again.");
+        return;
+      }
+
+      var authId = signUpResult.data && signUpResult.data.user ? signUpResult.data.user.id : null;
+      var dealerBody = {
+        username: username,
+        password: tempPassword,
+        dealership_name: app.dealership_name || "",
+        location: app.location || "",
+        phone: app.phone || "",
+        email: app.email || "",
+        auth_id: authId,
+        active: true,
+        is_admin: false
+      };
+
+      var postRes = await fetch(SUPABASE_URL + "/rest/v1/dealers", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: authHeaders({ Prefer: "return=representation" }),
+        body: JSON.stringify(dealerBody)
+      });
+      if (!postRes.ok) {
+        console.error("Dealer record creation failed", await postRes.text());
+        alert("Could not create the dealer record after creating auth access. Please check Supabase and try again.");
+        return;
+      }
+
+      var patchUrl = SUPABASE_URL + "/rest/v1/dealer_applications?id=eq." + encodeURIComponent(String(appId));
+      var patchRes = await fetch(patchUrl, {
+        method: "PATCH",
+        headers: authHeaders({ Prefer: "return=minimal" }),
         body: JSON.stringify({
-          email: app.email,
-          subject: "Welcome to Whitestone Partners",
-          message: welcomeMsg
+          status: "approved",
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: reviewedBy
         })
       });
-    } catch (e2) {
-      /* non-fatal */
-    }
-    var toast = document.getElementById("applications-toast");
-    if (toast) {
-      toast.textContent = "Dealer account created. Welcome email sent to " + (app.email || "") + ".";
-      toast.style.display = "block";
-      setTimeout(function() { toast.style.display = "none"; }, 9000);
-    }
-    await applicationsLoadPanel();
-    if (currentDealer && currentDealer.isAdmin) {
-      adminLoadNetworkDashboard();
+      if (!patchRes.ok) {
+        console.error("Application approval update failed", await patchRes.text());
+        alert("Dealer account created, but the application status could not be updated. Please refresh and review it.");
+        return;
+      }
+
+      await writeAuditLog(
+        "application",
+        appId,
+        "application_approved",
+        null,
+        { dealer: app.dealership_name, email: app.email },
+        app.dealership_name,
+        null,
+        "Dealer approved and Supabase Auth account created"
+      );
+
+      var welcomeMsg =
+        "Welcome to the Whitestone Partners certified dealer network!\n\n" +
+        "Your dealer portal access has been set up. Here are your login credentials:\n\n" +
+        "Dealer Portal: https://whitestone-dealer-portal.vercel.app\n" +
+        "Email: " + (app.email || "") + "\n" +
+        "Temporary Password: " + tempPassword + "\n\n" +
+        "Please sign in and reset your password if needed, or contact support@whitestone-partners.com if you have any questions.\n\n" +
+        "Welcome to the network.\n" +
+        "— Whitestone Partners Team";
+      try {
+        await fetch(FORMSPREE_CONTACT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            email: app.email,
+            subject: "Welcome to Whitestone Partners",
+            message: welcomeMsg
+          })
+        });
+      } catch (e2) {
+        console.error("Welcome email send failed", e2);
+      }
+
+      var toast = document.getElementById("applications-toast");
+      if (toast) {
+        toast.textContent = "Dealer approved. A welcome email with login instructions has been sent to " + (app.email || "") + ".";
+        toast.style.display = "block";
+        setTimeout(function() { toast.style.display = "none"; }, 9000);
+      }
+
+      await applicationsLoadPanel();
+      if (currentDealer && currentDealer.isAdmin) {
+        adminLoadNetworkDashboard();
+      }
+    } catch (err) {
+      console.error("Dealer approval failed", err);
+      alert("Something went wrong while approving this dealer. Please try again.");
     }
   }
 
@@ -3720,12 +3942,7 @@ document.addEventListener("DOMContentLoaded", function() {
       try {
         var res = await fetch(SUPABASE_URL + "/rest/v1/dealer_messages", {
           method: "POST",
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: "Bearer " + SUPABASE_ANON_KEY,
-            "Content-Type": "application/json",
-            Prefer: "return=minimal"
-          },
+          headers: authHeaders({ Prefer: "return=minimal" }),
           body: JSON.stringify({
             dealer_id: currentDealer && currentDealer.id ? currentDealer.id : null,
             dealership_name: currentDealer ? currentDealer.name : "",
@@ -3837,13 +4054,31 @@ document.addEventListener("DOMContentLoaded", function() {
 
   // ADMIN — ADD DEALER
   document.getElementById("add-dealer-btn").addEventListener("click", async function() {
-    var username = document.getElementById("new-username").value.trim().toLowerCase();
+    var email = document.getElementById("new-username").value.trim().toLowerCase();
     var password = document.getElementById("new-password").value.trim();
     var name = document.getElementById("new-name").value.trim();
     var addOk = document.getElementById("add-ok");
     var addErr = document.getElementById("add-err");
-    if (!username || !password || !name) { addErr.style.display = "block"; addOk.style.display = "none"; return; }
+    if (!email || !password || !name) { addErr.style.display = "block"; addOk.style.display = "none"; return; }
+    if (email.indexOf("@") === -1) {
+      addErr.textContent = "Enter an email address for the new dealer login.";
+      addErr.style.display = "block";
+      addOk.style.display = "none";
+      return;
+    }
     try {
+      var baseUsername = generateUsername(email.split("@")[0] || name);
+      var username = await applicationsEnsureUniqueUsername(baseUsername);
+      var detachedClient = createDetachedSupabaseClient();
+      var signUpResult = await detachedClient.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          emailRedirectTo: "https://whitestone-dealer-portal.vercel.app"
+        }
+      });
+      if (signUpResult.error) throw signUpResult.error;
+
       var res = await fetch(SUPABASE_URL + "/rest/v1/dealers", {
         method: "POST",
         headers: supabaseHeaders({ Prefer: "return=representation" }),
@@ -3851,6 +4086,8 @@ document.addEventListener("DOMContentLoaded", function() {
           username: username,
           password: password,
           dealership_name: name,
+          email: email,
+          auth_id: signUpResult.data && signUpResult.data.user ? signUpResult.data.user.id : null,
           active: true,
           is_admin: false
         })
@@ -3864,7 +4101,8 @@ document.addEventListener("DOMContentLoaded", function() {
       renderDealerTable();
       if (currentDealer && currentDealer.isAdmin) adminLoadNetworkDashboard();
     } catch (e) {
-      addErr.textContent = "Could not add dealer. Check fields and try again.";
+      console.error("Could not add dealer", e);
+      addErr.textContent = "Could not add dealer. Use a valid email and try again.";
       addErr.style.display = "block"; addOk.style.display = "none";
     }
   });

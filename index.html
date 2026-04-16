@@ -6,19 +6,49 @@
 <title>Whitestone Partners — Dealer Portal</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/dealer-portal.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
 <!-- LOGIN -->
 <div id="login-screen">
   <div class="login-card">
-    <img src="assets/images/logo.png" alt="Whitestone Partners">
-    <h2>Dealer Portal</h2>
-    <p>Sign in with your dealer credentials.</p>
-    <div class="login-field"><label>Username</label><input type="text" id="username" placeholder="Enter your username" autocomplete="username"></div>
-    <div class="login-field"><label>Password</label><input type="password" id="password" placeholder="Enter your password" autocomplete="current-password"></div>
-    <button class="login-btn" id="login-btn">Sign In</button>
-    <div class="login-err" id="login-err">Incorrect username or password. Please try again.</div>
+
+    <div style="text-align:center;margin-bottom:2rem;">
+      <img src="assets/images/logo.png" style="height:56px;" alt="Whitestone Partners">
+    </div>
+
+    <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;color:var(--navy);margin-bottom:0.25rem;">Dealer Portal</div>
+    <div style="font-size:13px;color:var(--light);margin-bottom:2rem;">Sign in to your account</div>
+
+    <div id="login-form-wrap">
+      <div class="fg">
+        <label>Email Address</label>
+        <input type="email" id="login-email" placeholder="you@dealership.com" autocomplete="email">
+      </div>
+      <div class="fg">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="Your password" autocomplete="current-password">
+      </div>
+      <div style="text-align:right;margin-bottom:1rem;">
+        <button id="forgot-password-btn" style="background:none;border:none;font-size:12.5px;color:var(--blue);cursor:pointer;font-family:'DM Sans',sans-serif;">Forgot password?</button>
+      </div>
+      <button class="sub-btn" id="login-btn">Sign In</button>
+      <div id="login-err" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--red);text-align:center;padding:8px;background:#fff0f0;border-radius:6px;border:1px solid #ffb3b3;"></div>
+    </div>
+
+    <div id="forgot-form-wrap" style="display:none;">
+      <div style="font-size:14px;color:var(--mid);margin-bottom:1.25rem;">Enter your email address and we'll send you a link to reset your password.</div>
+      <div class="fg">
+        <label>Email Address</label>
+        <input type="email" id="reset-email" placeholder="you@dealership.com">
+      </div>
+      <button class="sub-btn" id="reset-btn">Send Reset Link</button>
+      <div id="reset-ok" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--green);text-align:center;padding:8px;background:#f0f9f4;border-radius:6px;border:1px solid #a8d5b5;">Reset link sent! Check your email.</div>
+      <div id="reset-err" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--red);text-align:center;padding:8px;background:#fff0f0;border-radius:6px;border:1px solid #ffb3b3;"></div>
+      <button id="back-to-login-btn" style="background:none;border:none;font-size:12.5px;color:var(--blue);cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:0.75rem;display:block;">&larr; Back to sign in</button>
+    </div>
+
   </div>
 </div>
 
