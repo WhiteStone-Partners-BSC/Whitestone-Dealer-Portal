@@ -789,7 +789,7 @@
             <div style="font-size:20px;color:var(--border);">→</div>
             <div style="text-align:center;">
               <div style="font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Dealer keeps</div>
-              <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;" id="ws-dealer-keeps">—</div>
+              <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:400;color:#1a5c45;" id="ws-dealer-keeps">—</div>
               <div style="font-size:10px;color:var(--light);" id="ws-dealer-pct">their margin</div>
             </div>
           </div>
@@ -1651,7 +1651,7 @@ window.addEventListener("load", function() {
     var keeps = retail - ws1;
     var el = document.getElementById("ws-dealer-keeps");
     el.textContent = wsFmt(keeps);
-    el.style.color = keeps >= 0 ? "var(--green)" : "var(--red)";
+    el.style.color = keeps >= 0 ? "#1a5c45" : "var(--red)";
     document.getElementById("ws-dealer-pct").textContent = retail > 0 ? wsPct(Math.round(keeps / retail * 100)) + " dealer margin" : "dealer margin";
   };
 
