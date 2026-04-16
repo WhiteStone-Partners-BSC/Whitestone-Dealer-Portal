@@ -2416,10 +2416,10 @@ document.addEventListener("DOMContentLoaded", function() {
       document.getElementById("portal-screen").className = "mode-admin";
       document.getElementById("dealer-layout").style.display = "none";
       document.getElementById("admin-layout").style.display = "flex";
-      document.querySelectorAll(".admin-nav-item").forEach(function(b) {
+      document.querySelectorAll("#admin-sidebar .admin-nav-item").forEach(function(b) {
         b.classList.remove("active");
       });
-      var dashNav = document.querySelector('.admin-nav-item[data-admin-panel="dashboard"]');
+      var dashNav = document.querySelector('#admin-sidebar .admin-nav-item[data-admin-panel="dashboard"]');
       if (dashNav) dashNav.classList.add("active");
       adminShowPanel("dashboard");
       adminLoadBadgeCounts();
@@ -2617,10 +2617,10 @@ document.addEventListener("DOMContentLoaded", function() {
     if (!currentDealer || !currentDealer.isAdmin) return;
     if (panel === "settings") {
       adminShowSettingsModal();
-      document.querySelectorAll(".admin-nav-item").forEach(function(b) {
+      document.querySelectorAll("#admin-sidebar .admin-nav-item").forEach(function(b) {
         b.classList.remove("active");
       });
-      var prevBtn = document.querySelector('.admin-nav-item[data-admin-panel="' + adminPanelLastNav + '"]');
+      var prevBtn = document.querySelector('#admin-sidebar .admin-nav-item[data-admin-panel="' + adminPanelLastNav + '"]');
       if (prevBtn) prevBtn.classList.add("active");
       return;
     }
@@ -3005,20 +3005,20 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   });
 
-  document.querySelectorAll(".admin-nav-item").forEach(function(btn) {
-    btn.addEventListener("click", function() {
-      var panel = this.getAttribute("data-admin-panel");
-      if (panel === "settings") {
-        adminShowPanel(panel);
-        return;
-      }
-      document.querySelectorAll(".admin-nav-item").forEach(function(b) {
+  var adminSidebarEl = document.getElementById("admin-sidebar");
+  if (adminSidebarEl) {
+    adminSidebarEl.addEventListener("click", function(e) {
+      var btn = e.target.closest(".admin-nav-item");
+      if (!btn || !adminSidebarEl.contains(btn)) return;
+      var panel = btn.getAttribute("data-admin-panel");
+      if (!panel) return;
+      adminSidebarEl.querySelectorAll(".admin-nav-item").forEach(function(b) {
         b.classList.remove("active");
       });
-      this.classList.add("active");
+      btn.classList.add("active");
       adminShowPanel(panel);
     });
-  });
+  }
 
   var settingsModalEl = document.getElementById("settings-modal");
   if (settingsModalEl) {
