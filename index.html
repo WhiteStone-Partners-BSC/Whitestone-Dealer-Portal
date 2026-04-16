@@ -514,55 +514,41 @@
     </div>
 
     <div id="admin-panel-dealers" class="admin-panel" style="display:none;">
-      <div class="admin-panel-shell">
-        <div class="applications-shell">
-          <div id="applications-toast" class="applications-toast" style="display:none;"></div>
-          <div id="applications-loading" class="applications-loading">Loading applications…</div>
-          <div id="applications-grid" class="applications-grid" style="display:none;">
-            <div class="applications-col">
-              <div class="applications-col-header">
-                <h3 class="applications-col-title">Pending Review</h3>
-                <span id="applications-count-pending" class="applications-badge applications-badge-amber">0</span>
-              </div>
-              <div id="applications-pending-body" class="applications-col-body"></div>
-            </div>
-            <div class="applications-col">
-              <div class="applications-col-header">
-                <h3 class="applications-col-title">Active Dealers</h3>
-                <span id="applications-count-active" class="applications-badge applications-badge-green">0</span>
-              </div>
-              <div id="applications-active-body" class="applications-col-body"></div>
-            </div>
-            <div class="applications-col">
-              <div class="applications-col-header">
-                <h3 class="applications-col-title">Declined &amp; Inactive</h3>
-                <span id="applications-count-third" class="applications-badge applications-badge-gray">0</span>
-              </div>
-              <div id="applications-third-body" class="applications-col-body"></div>
-            </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+        <input type="text" id="dealers-search" placeholder="Search dealers by name, location, or email..."
+          style="flex:1;min-width:240px;padding:10px 14px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;outline:none;">
+        <button id="add-dealer-btn" style="background:var(--navy);color:white;border:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;">+ Add Dealer</button>
+      </div>
+
+      <div style="margin-bottom:1.5rem;">
+        <div id="pending-apps-toggle" onclick="toggleDealerSection('pending-apps-body')"
+          style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:0.85rem 1.25rem;background:var(--white);border:1px solid var(--border);border-radius:8px;user-select:none;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:13.5px;font-weight:600;color:var(--navy);">Pending Applications</span>
+            <span id="pending-badge" style="background:var(--red-text);color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;display:none;">0</span>
           </div>
+          <span id="pending-arrow" style="color:var(--light);font-size:12px;">▶</span>
         </div>
-        <div class="admin-section-divider">
-          <span>Dealer account management</span>
+        <div id="pending-apps-body" style="display:none;margin-top:0.5rem;">
+          <div id="pending-apps-list"></div>
         </div>
-        <div class="card admin-dealer-mgmt-card">
-          <div class="card-title">Dealer Accounts</div>
-          <div class="card-sub">Add, remove, or manage dealer login credentials.</div>
-          <table class="dealer-table" id="dealer-table">
-            <thead><tr><th>Username</th><th>Dealership Name</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody id="dealer-tbody"></tbody>
-          </table>
-          <div class="add-dealer-form">
-            <h4>Add New Dealer</h4>
-            <div class="add-dealer-row">
-              <div class="fg"><label>Username</label><input type="text" id="new-username" placeholder="e.g. dealer3"></div>
-              <div class="fg"><label>Password</label><input type="text" id="new-password" placeholder="e.g. marina2026"></div>
-              <div class="fg"><label>Dealership Name</label><input type="text" id="new-name" placeholder="e.g. Harbor Marine"></div>
-              <button class="btn-add" id="add-dealer-btn">Add Dealer</button>
-            </div>
-            <div id="add-ok" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--green-text);">✓ Dealer added successfully.</div>
-            <div id="add-err" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--red-text);">Please fill in all fields.</div>
-          </div>
+      </div>
+
+      <div style="margin-bottom:1.5rem;">
+        <div style="font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:0.75rem;">
+          Active Dealers <span id="active-dealers-count" style="color:var(--gold);"></span>
+        </div>
+        <div id="active-dealers-list"></div>
+      </div>
+
+      <div>
+        <div id="inactive-toggle" onclick="toggleDealerSection('inactive-body')"
+          style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:0.75rem 1.25rem;background:var(--white);border:1px solid var(--border);border-radius:8px;user-select:none;">
+          <span style="font-size:13px;font-weight:500;color:var(--light);">Inactive &amp; Declined</span>
+          <span id="inactive-arrow" style="color:var(--light);font-size:12px;">▶</span>
+        </div>
+        <div id="inactive-body" style="display:none;margin-top:0.5rem;">
+          <div id="inactive-dealers-list"></div>
         </div>
       </div>
     </div>
@@ -942,7 +928,573 @@
 
 </div>
 
+<!-- Dealer Detail Slide-in Panel -->
+<div id="dealer-panel-overlay" onclick="closeDealerPanel()"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;"></div>
+
+<div id="dealer-detail-panel"
+  style="display:none;position:fixed;top:0;right:0;width:420px;max-width:95vw;height:100vh;background:white;z-index:201;box-shadow:-4px 0 32px rgba(0,0,0,0.15);overflow-y:auto;transform:translateX(100%);transition:transform 0.3s ease;">
+  <div style="background:var(--navy2);padding:1.25rem 1.5rem;position:sticky;top:0;z-index:1;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+      <div>
+        <div id="dp-name" style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:white;"></div>
+        <div id="dp-status-badge" style="margin-top:4px;"></div>
+      </div>
+      <button onclick="closeDealerPanel()" style="background:none;border:none;color:rgba(200,220,235,0.6);font-size:20px;cursor:pointer;padding:0;line-height:1;">✕</button>
+    </div>
+  </div>
+
+  <div style="padding:1.5rem;">
+    <div style="margin-bottom:1.5rem;">
+      <div style="font-size:9.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:0.85rem;">Contact Information</div>
+      <div id="dp-contact-info" style="display:flex;flex-direction:column;gap:0.6rem;font-size:13.5px;"></div>
+    </div>
+    <div style="height:1px;background:var(--border);margin-bottom:1.5rem;"></div>
+    <div style="margin-bottom:1.5rem;">
+      <div style="font-size:9.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:0.85rem;">Account</div>
+      <div id="dp-account-info" style="display:flex;flex-direction:column;gap:0.6rem;font-size:13.5px;"></div>
+    </div>
+    <div style="height:1px;background:var(--border);margin-bottom:1.5rem;"></div>
+    <div style="margin-bottom:1.5rem;">
+      <div style="font-size:9.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:0.85rem;">Performance</div>
+      <div id="dp-performance" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;"></div>
+    </div>
+    <div style="height:1px;background:var(--border);margin-bottom:1.5rem;"></div>
+    <div style="margin-bottom:1.5rem;">
+      <div style="font-size:9.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:0.85rem;">Pricing</div>
+      <div id="dp-pricing-info" style="display:flex;flex-direction:column;gap:0.6rem;font-size:13.5px;"></div>
+    </div>
+    <div style="height:1px;background:var(--border);margin-bottom:1.5rem;"></div>
+    <div>
+      <div style="font-size:9.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);margin-bottom:0.85rem;">Actions</div>
+      <div style="display:flex;flex-direction:column;gap:0.6rem;">
+        <button id="dp-generate-contract-btn" style="background:var(--navy);color:white;border:none;padding:10px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;text-align:left;">Generate Contract PDF</button>
+        <button id="dp-deactivate-btn" style="background:white;color:var(--red-text);border:1px solid var(--red-border);padding:10px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;text-align:left;">Deactivate Dealer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Dealer Modal -->
+<div id="add-dealer-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:2rem;max-width:480px;width:90%;max-height:85vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
+      <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:300;color:var(--navy);">Add New Dealer</div>
+      <button onclick="closeAddDealerModal()" style="background:none;border:none;font-size:20px;color:var(--light);cursor:pointer;">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+      <div class="fg">
+        <label>Dealership Name <span style="color:var(--red-text);">*</span></label>
+        <input type="text" id="add-dealership-name" placeholder="Lake City Marine">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div class="fg">
+          <label>Contact First Name</label>
+          <input type="text" id="add-contact-fname" placeholder="John">
+        </div>
+        <div class="fg">
+          <label>Contact Last Name</label>
+          <input type="text" id="add-contact-lname" placeholder="Smith">
+        </div>
+      </div>
+      <div class="fg">
+        <label>Login Email <span style="color:var(--red-text);">*</span></label>
+        <input type="email" id="add-dealer-email" placeholder="john@dealership.com">
+        <div style="font-size:11px;color:var(--light);margin-top:4px;">A welcome email with login instructions will be sent to this address.</div>
+      </div>
+      <div class="fg">
+        <label>Phone</label>
+        <input type="tel" id="add-dealer-phone" placeholder="(801) 555-1234">
+      </div>
+      <div class="fg">
+        <label>Address</label>
+        <input type="text" id="add-dealer-address" placeholder="123 Main Street">
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.75rem;">
+        <div class="fg">
+          <label>City</label>
+          <input type="text" id="add-dealer-city" placeholder="Salt Lake City">
+        </div>
+        <div class="fg">
+          <label>State</label>
+          <input type="text" id="add-dealer-state" placeholder="UT" maxlength="2">
+        </div>
+        <div class="fg">
+          <label>Zip</label>
+          <input type="text" id="add-dealer-zip" placeholder="84101">
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:1.5rem;display:flex;gap:0.75rem;">
+      <button onclick="closeAddDealerModal()" style="flex:1;padding:10px;border:1px solid var(--border);background:white;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>
+      <button id="add-dealer-submit-btn" onclick="submitAddDealer()" style="flex:2;padding:10px;background:var(--navy);color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Create Dealer Account</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="assets/js/dealer-portal.js" defer></script>
+<script>
+window.addEventListener("load", function() {
+  var esc = typeof escHtml === "function" ? escHtml : function(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  };
+
+  window.allDealersData = window.allDealersData || [];
+  window.allApplicationsData = window.allApplicationsData || [];
+  window.currentDealerPanel = null;
+
+  window.toggleDealerSection = function(id) {
+    var body = document.getElementById(id);
+    if (!body) return;
+    var open = body.style.display !== "none";
+    body.style.display = open ? "none" : "block";
+    if (id === "pending-apps-body") {
+      document.getElementById("pending-arrow").textContent = open ? "▶" : "▼";
+    } else if (id === "inactive-body") {
+      document.getElementById("inactive-arrow").textContent = open ? "▶" : "▼";
+    }
+  };
+
+  window.adminLoadDealerTable = async function() {
+    try {
+      var res = await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?is_admin=eq.false&select=*&order=dealership_name.asc",
+        { headers: authHeaders() }
+      );
+      allDealersData = (await res.json()) || [];
+    } catch (e) {
+      allDealersData = [];
+    }
+
+    try {
+      var res2 = await fetch(
+        SUPABASE_URL + "/rest/v1/dealer_applications?select=*&order=created_at.desc",
+        { headers: authHeaders() }
+      );
+      allApplicationsData = (await res2.json()) || [];
+    } catch (e2) {
+      allApplicationsData = [];
+    }
+
+    renderDealers(allDealersData);
+    renderApplications(allApplicationsData);
+    if (typeof applicationsRefreshTabBadgeOnly === "function") applicationsRefreshTabBadgeOnly();
+  };
+
+  window.renderDealers = function(dealers) {
+    dealers = Array.isArray(dealers) ? dealers : [];
+    var active = dealers.filter(function(d) { return d.active !== false; });
+    var inactive = dealers.filter(function(d) { return d.active === false; });
+
+    document.getElementById("active-dealers-count").textContent = "(" + active.length + ")";
+
+    var activeEl = document.getElementById("active-dealers-list");
+    if (active.length === 0) {
+      activeEl.innerHTML = '<div style="font-size:13px;color:var(--light);padding:1rem;text-align:center;background:white;border:1px solid var(--border);border-radius:8px;">No active dealers yet.</div>';
+    } else {
+      activeEl.innerHTML = '<div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden;">' +
+        active.map(function(d, i) {
+          var joined = d.joined_at ? new Date(d.joined_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+          var location = [d.city, d.state].filter(Boolean).join(", ") || d.location || "—";
+          return '<div onclick="openDealerPanel(\'' + esc(d.id) + '\')" ' +
+            'style="display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1.25rem;cursor:pointer;border-bottom:' + (i < active.length - 1 ? '1px solid var(--border)' : 'none') + ';transition:background 0.15s;" ' +
+            'onmouseover="this.style.background=\'#f8f9fb\'" onmouseout="this.style.background=\'white\'">' +
+            '<div style="display:flex;align-items:center;gap:10px;">' +
+              '<div style="width:8px;height:8px;border-radius:50%;background:var(--green-text);flex-shrink:0;"></div>' +
+              '<div>' +
+                '<div style="font-size:14px;font-weight:500;color:var(--navy);">' + esc(d.dealership_name || "—") + '</div>' +
+                '<div style="font-size:12px;color:var(--light);">' + esc(location) + '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div style="text-align:right;">' +
+              '<div style="font-size:11px;color:var(--light);">Joined ' + esc(joined) + '</div>' +
+              '<div style="font-size:11px;color:var(--mid);margin-top:1px;">→</div>' +
+            '</div>' +
+          '</div>';
+        }).join("") +
+      '</div>';
+    }
+
+    var inactiveEl = document.getElementById("inactive-dealers-list");
+    if (inactive.length === 0) {
+      inactiveEl.innerHTML = '<div style="font-size:13px;color:var(--light);padding:1rem;background:white;border:1px solid var(--border);border-radius:8px;">No inactive dealers.</div>';
+    } else {
+      inactiveEl.innerHTML = inactive.map(function(d) {
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1.25rem;background:white;border:1px solid var(--border);border-radius:6px;margin-bottom:0.5rem;">' +
+          '<div style="font-size:13.5px;color:var(--light);">' + esc(d.dealership_name || "—") + '</div>' +
+          '<button onclick="reactivateDealer(\'' + esc(d.id) + '\')" style="font-size:11.5px;color:var(--green-text);background:none;border:1px solid var(--green-text);padding:4px 12px;border-radius:4px;cursor:pointer;font-family:inherit;">Reactivate</button>' +
+        '</div>';
+      }).join("");
+    }
+  };
+
+  window.renderApplications = function(applications) {
+    applications = Array.isArray(applications) ? applications : [];
+    var pending = applications.filter(function(a) { return a.status === "pending"; });
+    var badge = document.getElementById("pending-badge");
+    badge.textContent = String(pending.length);
+    badge.style.display = pending.length > 0 ? "inline" : "none";
+
+    var el = document.getElementById("pending-apps-list");
+    if (pending.length === 0) {
+      el.innerHTML = '<div style="font-size:13px;color:var(--light);padding:1rem;background:white;border:1px solid var(--border);border-radius:8px;">No pending applications.</div>';
+      return;
+    }
+
+    el.innerHTML = pending.map(function(a) {
+      var date = a.created_at ? new Date(a.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+      var location = [a.city, a.state].filter(Boolean).join(", ") || a.location || "—";
+      var contact = [a.contact_first_name, a.contact_last_name].filter(Boolean).join(" ") || a.contact_name || "—";
+      var encodedApp = encodeURIComponent(JSON.stringify(a));
+      return '<div style="background:white;border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:8px;padding:1.25rem 1.5rem;margin-bottom:0.75rem;">' +
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;">' +
+          '<div>' +
+            '<div style="font-size:15px;font-weight:600;color:var(--navy);">' + esc(a.dealership_name || "—") + '</div>' +
+            '<div style="font-size:12px;color:var(--light);margin-top:3px;">' + esc(location) + ' · Applied ' + esc(date) + '</div>' +
+            '<div style="font-size:12.5px;color:var(--mid);margin-top:6px;">' +
+              '<span style="margin-right:12px;">Contact: ' + esc(contact) + '</span>' +
+              '<span style="margin-right:12px;">Email: ' + esc(a.email || "—") + '</span>' +
+              '<span>Phone: ' + esc(a.phone || "—") + '</span>' +
+            '</div>' +
+            (a.boat_brands ? '<div style="font-size:12px;color:var(--light);margin-top:4px;">Brands: ' + esc(a.boat_brands) + '</div>' : '') +
+            (a.service_volume ? '<div style="font-size:12px;color:var(--light);">Service volume: ' + esc(a.service_volume) + ' customers/yr</div>' : '') +
+          '</div>' +
+          '<div style="display:flex;gap:0.5rem;flex-shrink:0;">' +
+            '<button onclick="approveApplication(\'' + esc(a.id) + '\',\'' + encodedApp + '\')" style="background:var(--green-text);color:white;border:none;padding:7px 16px;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;">Approve</button>' +
+            '<button onclick="declineApplication(\'' + esc(a.id) + '\')" style="background:white;color:var(--red-text);border:1px solid var(--red-border);padding:7px 14px;border-radius:5px;font-size:12.5px;cursor:pointer;font-family:inherit;">Decline</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+  };
+
+  window.openDealerPanel = async function(dealerId) {
+    var dealer = allDealersData.find(function(d) { return d.id === dealerId; });
+    if (!dealer) return;
+    currentDealerPanel = dealer;
+
+    var tickets = [];
+    var contracts = [];
+    var pricing = [];
+
+    try {
+      var ticketsRes = await fetch(
+        SUPABASE_URL + "/rest/v1/tickets?dealership_name=eq." + encodeURIComponent(dealer.dealership_name) + "&select=id,status",
+        { headers: authHeaders() }
+      );
+      tickets = (await ticketsRes.json()) || [];
+    } catch (e) {}
+
+    try {
+      var contractsRes = await fetch(
+        SUPABASE_URL + "/rest/v1/contracts?dealership_name=eq." + encodeURIComponent(dealer.dealership_name) + "&select=id",
+        { headers: authHeaders() }
+      );
+      contracts = (await contractsRes.json()) || [];
+    } catch (e2) {}
+
+    try {
+      var pricingRes = await fetch(
+        SUPABASE_URL + "/rest/v1/dealer_pricing?dealer_id=eq." + encodeURIComponent(dealer.id) + "&select=*&limit=1",
+        { headers: authHeaders() }
+      );
+      pricing = (await pricingRes.json()) || [];
+    } catch (e3) {}
+
+    var pricingData = pricing[0] || null;
+    document.getElementById("dp-name").textContent = dealer.dealership_name || "—";
+
+    var statusColor = dealer.active !== false ? "var(--green-text)" : "var(--red-text)";
+    var statusLabel = dealer.active !== false ? "Active" : "Inactive";
+    document.getElementById("dp-status-badge").innerHTML =
+      '<span style="font-size:11px;font-weight:600;color:' + statusColor + ';background:rgba(255,255,255,0.1);padding:2px 10px;border-radius:20px;border:1px solid rgba(255,255,255,0.15);">' + statusLabel + '</span>';
+
+    var location = [dealer.address, dealer.city, dealer.state, dealer.zip].filter(Boolean).join(", ") || dealer.location || "—";
+    var contact = [dealer.contact_first_name, dealer.contact_last_name].filter(Boolean).join(" ") || "—";
+    document.getElementById("dp-contact-info").innerHTML = [
+      ["Contact", contact],
+      ["Email", dealer.email || "—"],
+      ["Phone", dealer.phone || "—"],
+      ["Address", location],
+      ["Website", dealer.website || "—"]
+    ].map(function(row) {
+      return '<div style="display:flex;gap:0.5rem;">' +
+        '<span style="color:var(--light);min-width:70px;font-size:12.5px;">' + esc(row[0]) + '</span>' +
+        '<span style="color:var(--navy);font-weight:500;">' + esc(row[1]) + '</span>' +
+      '</div>';
+    }).join("");
+
+    var joined = dealer.joined_at ? new Date(dealer.joined_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) :
+      dealer.created_at ? new Date(dealer.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "—";
+    document.getElementById("dp-account-info").innerHTML = [
+      ["Login Email", dealer.email || "—"],
+      ["Member Since", joined],
+      ["Username", dealer.username || "—"]
+    ].map(function(row) {
+      return '<div style="display:flex;gap:0.5rem;">' +
+        '<span style="color:var(--light);min-width:100px;font-size:12.5px;">' + esc(row[0]) + '</span>' +
+        '<span style="color:var(--navy);font-weight:500;">' + esc(row[1]) + '</span>' +
+      '</div>';
+    }).join("");
+
+    var approved = tickets.filter(function(t) { return t.status === "approved"; }).length;
+    var pending = tickets.filter(function(t) { return t.status === "pending"; }).length;
+    document.getElementById("dp-performance").innerHTML = [
+      ["Customers", contracts.length],
+      ["Tickets Total", tickets.length],
+      ["Approved", approved],
+      ["Pending", pending]
+    ].map(function(stat) {
+      return '<div style="background:var(--silver-bg);border-radius:6px;padding:0.75rem;text-align:center;">' +
+        '<div style="font-size:20px;font-weight:600;color:var(--navy);font-family:\'Cormorant Garamond\',serif;">' + esc(stat[1]) + '</div>' +
+        '<div style="font-size:11px;color:var(--light);margin-top:2px;">' + esc(stat[0]) + '</div>' +
+      '</div>';
+    }).join("");
+
+    if (pricingData) {
+      var confirmedDate = pricingData.confirmed_at ? new Date(pricingData.confirmed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
+      document.getElementById("dp-pricing-info").innerHTML = [
+        ["Wholesale 1-Year", "$" + Number(pricingData.contract_retail_1yr || 3325).toLocaleString()],
+        ["Wholesale 2-Year", "$" + Number(pricingData.contract_retail_2yr || 6650).toLocaleString()],
+        ["Wholesale 3-Year", "$" + Number(pricingData.contract_retail_3yr || 9975).toLocaleString()],
+        ["Confirmed", pricingData.confirmed ? (confirmedDate || "Yes") : "Not confirmed"]
+      ].map(function(row) {
+        return '<div style="display:flex;gap:0.5rem;">' +
+          '<span style="color:var(--light);min-width:130px;font-size:12.5px;">' + esc(row[0]) + '</span>' +
+          '<span style="color:var(--navy);font-weight:500;">' + esc(row[1]) + '</span>' +
+        '</div>';
+      }).join("");
+    } else {
+      document.getElementById("dp-pricing-info").innerHTML = '<div style="font-size:13px;color:var(--light);">No pricing set yet. Use the Pricing tab to configure.</div>';
+    }
+
+    document.getElementById("dp-generate-contract-btn").onclick = function() {
+      if (typeof pricingState !== "undefined") {
+        pricingState.dealerId = dealer.id || null;
+        pricingState.dealerName = dealer.dealership_name;
+        if (pricingData) {
+          pricingState.currentRates = {
+            reimbursement_rate: pricingData.reimbursement_rate,
+            commission_pct: pricingData.commission_pct,
+            contract_retail_1yr: pricingData.contract_retail_1yr,
+            contract_retail_2yr: pricingData.contract_retail_2yr,
+            contract_retail_3yr: pricingData.contract_retail_3yr
+          };
+          pricingState.confirmed = pricingData.confirmed;
+          pricingState.pricingId = pricingData.id;
+        }
+        if (typeof generateDealerContractPDF === "function") generateDealerContractPDF();
+      }
+      closeDealerPanel();
+    };
+
+    document.getElementById("dp-deactivate-btn").onclick = function() {
+      deactivateDealer(dealer.id, dealer.dealership_name);
+    };
+
+    document.getElementById("dealer-panel-overlay").style.display = "block";
+    var panel = document.getElementById("dealer-detail-panel");
+    panel.style.display = "block";
+    setTimeout(function() { panel.style.transform = "translateX(0)"; }, 10);
+  };
+
+  window.closeDealerPanel = function() {
+    var panel = document.getElementById("dealer-detail-panel");
+    panel.style.transform = "translateX(100%)";
+    setTimeout(function() {
+      panel.style.display = "none";
+      document.getElementById("dealer-panel-overlay").style.display = "none";
+    }, 300);
+  };
+
+  window.deactivateDealer = async function(id, name) {
+    if (!confirm("Deactivate " + name + "? They will lose portal access.")) return;
+    await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(id), {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify({ active: false })
+    });
+    closeDealerPanel();
+    adminLoadDealerTable();
+  };
+
+  window.reactivateDealer = async function(id) {
+    await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(id), {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify({ active: true })
+    });
+    adminLoadDealerTable();
+  };
+
+  window.approveApplication = async function(appId, encodedApp) {
+    var application = JSON.parse(decodeURIComponent(encodedApp));
+    var loginEmail = prompt("Confirm login email for " + application.dealership_name + ":", application.email || "");
+    if (!loginEmail) return;
+
+    try {
+      var authClient = typeof createDetachedSupabaseClient === "function" ? createDetachedSupabaseClient() : supabase;
+      var tempPassword = typeof generateTempPassword === "function" ? generateTempPassword() : ("WSP-" + Math.random().toString(36).substring(2, 8).toUpperCase());
+      var signUpResult = await authClient.auth.signUp({
+        email: loginEmail,
+        password: tempPassword,
+        options: { emailRedirectTo: "https://whitestone-dealer-portal.vercel.app" }
+      });
+      var authId = signUpResult && signUpResult.data && signUpResult.data.user ? signUpResult.data.user.id : null;
+      var username = typeof generateUsername === "function" ? generateUsername(application.dealership_name) : String(application.dealership_name || "").toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 20);
+
+      await fetch(SUPABASE_URL + "/rest/v1/dealers", {
+        method: "POST",
+        headers: authHeaders({ Prefer: "return=minimal" }),
+        body: JSON.stringify({
+          username: username,
+          password: "supabase-auth",
+          dealership_name: application.dealership_name,
+          contact_first_name: application.contact_first_name || "",
+          contact_last_name: application.contact_last_name || "",
+          email: loginEmail,
+          phone: application.phone || "",
+          address: application.address || "",
+          city: application.city || "",
+          state: application.state || "",
+          zip: application.zip || "",
+          website: application.website || "",
+          boat_brands: application.boat_brands || "",
+          service_volume: application.service_volume || "",
+          location: [application.city, application.state].filter(Boolean).join(", "),
+          auth_id: authId,
+          active: true,
+          is_admin: false,
+          joined_at: new Date().toISOString()
+        })
+      });
+
+      await fetch(SUPABASE_URL + "/rest/v1/dealer_applications?id=eq." + encodeURIComponent(appId), {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ status: "approved", reviewed_at: new Date().toISOString(), reviewed_by: "admin" })
+      });
+
+      await writeAuditLog("application", appId, "application_approved", null, { dealer: application.dealership_name, email: loginEmail }, application.dealership_name, null, "Application approved");
+      alert("✓ " + application.dealership_name + " approved! A welcome email has been sent to " + loginEmail);
+      adminLoadDealerTable();
+    } catch (e) {
+      alert("Error approving application: " + e.message);
+    }
+  };
+
+  window.declineApplication = async function(appId) {
+    if (!confirm("Decline this application?")) return;
+    await fetch(SUPABASE_URL + "/rest/v1/dealer_applications?id=eq." + encodeURIComponent(appId), {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify({ status: "declined", reviewed_at: new Date().toISOString(), reviewed_by: "admin" })
+    });
+    adminLoadDealerTable();
+  };
+
+  window.closeAddDealerModal = function() {
+    document.getElementById("add-dealer-modal").style.display = "none";
+  };
+
+  window.submitAddDealer = async function() {
+    var name = document.getElementById("add-dealership-name").value.trim();
+    var email = document.getElementById("add-dealer-email").value.trim();
+    if (!name || !email) {
+      alert("Dealership name and login email are required.");
+      return;
+    }
+
+    var btn = document.getElementById("add-dealer-submit-btn");
+    btn.disabled = true;
+    btn.textContent = "Creating...";
+
+    try {
+      var authClient = typeof createDetachedSupabaseClient === "function" ? createDetachedSupabaseClient() : supabase;
+      var tempPassword = typeof generateTempPassword === "function" ? generateTempPassword() : ("WSP-" + Math.random().toString(36).substring(2, 8).toUpperCase());
+      var signUpResult = await authClient.auth.signUp({
+        email: email,
+        password: tempPassword,
+        options: { emailRedirectTo: "https://whitestone-dealer-portal.vercel.app" }
+      });
+      var authId = signUpResult && signUpResult.data && signUpResult.data.user ? signUpResult.data.user.id : null;
+      var username = typeof generateUsername === "function" ? generateUsername(name) : name.toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 20);
+
+      await fetch(SUPABASE_URL + "/rest/v1/dealers", {
+        method: "POST",
+        headers: authHeaders({ Prefer: "return=minimal" }),
+        body: JSON.stringify({
+          username: username,
+          password: "supabase-auth",
+          dealership_name: name,
+          contact_first_name: document.getElementById("add-contact-fname").value.trim(),
+          contact_last_name: document.getElementById("add-contact-lname").value.trim(),
+          email: email,
+          phone: document.getElementById("add-dealer-phone").value.trim(),
+          address: document.getElementById("add-dealer-address").value.trim(),
+          city: document.getElementById("add-dealer-city").value.trim(),
+          state: document.getElementById("add-dealer-state").value.trim(),
+          zip: document.getElementById("add-dealer-zip").value.trim(),
+          location: [document.getElementById("add-dealer-city").value.trim(), document.getElementById("add-dealer-state").value.trim()].filter(Boolean).join(", "),
+          auth_id: authId,
+          active: true,
+          is_admin: false,
+          joined_at: new Date().toISOString()
+        })
+      });
+
+      await writeAuditLog("dealer", null, "dealer_created", null, { dealer: name, email: email }, name, null, "Dealer manually added by admin");
+      alert("✓ " + name + " created! A welcome email has been sent to " + email);
+      closeAddDealerModal();
+      adminLoadDealerTable();
+
+      ["add-dealership-name", "add-contact-fname", "add-contact-lname", "add-dealer-email", "add-dealer-phone", "add-dealer-address", "add-dealer-city", "add-dealer-state", "add-dealer-zip"].forEach(function(id) {
+        var field = document.getElementById(id);
+        if (field) field.value = "";
+      });
+    } catch (e) {
+      alert("Error creating dealer: " + e.message);
+    }
+
+    btn.disabled = false;
+    btn.textContent = "Create Dealer Account";
+  };
+
+  document.getElementById("dealers-search").addEventListener("input", function() {
+    var q = this.value.toLowerCase();
+    var filtered = allDealersData.filter(function(d) {
+      return (d.dealership_name || "").toLowerCase().includes(q) ||
+        (d.city || "").toLowerCase().includes(q) ||
+        (d.email || "").toLowerCase().includes(q) ||
+        (d.location || "").toLowerCase().includes(q);
+    });
+    renderDealers(filtered);
+  });
+
+  var addDealerBtn = document.getElementById("add-dealer-btn");
+  var addDealerBtnFresh = addDealerBtn.cloneNode(true);
+  addDealerBtn.parentNode.replaceChild(addDealerBtnFresh, addDealerBtn);
+  addDealerBtnFresh.addEventListener("click", function() {
+    document.getElementById("add-dealer-modal").style.display = "flex";
+  });
+
+  document.getElementById("add-dealer-modal").addEventListener("click", function(e) {
+    if (e.target === this) closeAddDealerModal();
+  });
+
+  if (typeof adminLoadDealersPanel === "function") {
+    adminLoadDealersPanel = async function() {
+      if (!currentDealer || !currentDealer.isAdmin) return;
+      await adminLoadDealerTable();
+    };
+  }
+});
+</script>
 </body>
 </html>
