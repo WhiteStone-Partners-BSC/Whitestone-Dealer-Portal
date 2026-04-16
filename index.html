@@ -462,27 +462,35 @@
   <!-- Admin Sidebar -->
   <nav class="admin-sidebar" id="admin-sidebar">
     <div class="admin-sidebar-brand">
-      <div class="brand-name">Whitestone Partners</div>
-      <div class="brand-badge">Admin Portal</div>
+      <div>
+        <div class="brand-name">Whitestone Partners</div>
+        <div class="brand-badge">Admin Portal</div>
+      </div>
+      <button type="button" class="admin-mobile-menu-btn" id="admin-mobile-menu-btn" aria-label="Menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
     </div>
 
-    <div class="admin-sidebar-section-label">Main</div>
-    <button type="button" class="admin-nav-item active" data-admin-panel="dashboard">Dashboard</button>
-    <button type="button" class="admin-nav-item" data-admin-panel="dealers">
-      Dealers
-      <span class="admin-nav-badge" id="dealers-pending-badge" style="display:none;"></span>
-    </button>
-    <button type="button" class="admin-nav-item" data-admin-panel="customers">Customers</button>
-    <button type="button" class="admin-nav-item" data-admin-panel="claims">Claims</button>
-    <button type="button" class="admin-nav-item" data-admin-panel="financials">Financials</button>
-    <button type="button" class="admin-nav-item" data-admin-panel="pricing">Pricing</button>
-    <button type="button" class="admin-nav-item" data-admin-panel="messages">
-      Messages
-      <span class="admin-nav-badge" id="messages-badge" style="display:none;"></span>
-    </button>
-
-    <div class="admin-sidebar-section-label">System</div>
-    <button type="button" class="admin-nav-item" data-admin-panel="settings">Settings</button>
+    <div class="admin-mobile-nav-items" id="admin-mobile-nav-items">
+      <div class="admin-sidebar-section-label">Main</div>
+      <button type="button" class="admin-nav-item active" data-admin-panel="dashboard">Dashboard</button>
+      <button type="button" class="admin-nav-item" data-admin-panel="dealers">
+        Dealers
+        <span class="admin-nav-badge" id="dealers-pending-badge" style="display:none;"></span>
+      </button>
+      <button type="button" class="admin-nav-item" data-admin-panel="customers">Customers</button>
+      <button type="button" class="admin-nav-item" data-admin-panel="claims">Claims</button>
+      <button type="button" class="admin-nav-item" data-admin-panel="financials">Financials</button>
+      <button type="button" class="admin-nav-item" data-admin-panel="pricing">Pricing</button>
+      <button type="button" class="admin-nav-item" data-admin-panel="messages">
+        Messages
+        <span class="admin-nav-badge" id="messages-badge" style="display:none;"></span>
+      </button>
+      <div class="admin-sidebar-section-label">System</div>
+      <button type="button" class="admin-nav-item" data-admin-panel="settings">Settings</button>
+    </div>
 
     <div class="admin-sidebar-footer">
       <button type="button" class="admin-sidebar-logout" id="admin-logout-btn">Sign out</button>
@@ -855,7 +863,7 @@
       <div style="display:flex;gap:1.5rem;align-items:flex-start;flex-wrap:wrap;">
 
         <!-- Left sidebar nav -->
-        <div style="width:160px;flex-shrink:0;">
+        <div style="width:100%;max-width:160px;flex-shrink:0;">
           <div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
             <button type="button" onclick="financialsShowSection('overview')"       id="fin-nav-overview"       class="fin-nav-item active">Overview</button>
             <button type="button" onclick="financialsShowSection('revenue')"        id="fin-nav-revenue"        class="fin-nav-item">Revenue</button>

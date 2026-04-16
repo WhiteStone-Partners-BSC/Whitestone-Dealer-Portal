@@ -414,17 +414,118 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 #admin-sidebar .admin-sidebar-logout:hover{color:rgba(200,220,235,0.8);}
 .admin-content{flex:1;padding:2rem;overflow-y:auto;min-width:0;}
 
+#admin-sidebar .admin-mobile-nav-items{
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  min-height:0;
+}
+
 @media(max-width:768px){
   .admin-layout{flex-direction:column;}
+
   #admin-sidebar{
-    width:100%;height:auto;position:relative;flex-direction:row;flex-wrap:nowrap;padding:0.5rem;overflow-x:auto;overflow-y:hidden;
+    width:100%;
+    height:auto;
+    position:relative;
+    flex-direction:column;
+    padding:0;
+    overflow:visible;
   }
-  #admin-sidebar .admin-sidebar-brand{display:none;}
-  #admin-sidebar .admin-sidebar-section-label{display:none;}
-  #admin-sidebar .admin-sidebar-footer{display:none;}
-  #admin-sidebar .admin-nav-item{padding:8px 12px;font-size:12px;border-left:none;border-bottom:3px solid transparent;flex:0 0 auto;width:auto;}
-  #admin-sidebar .admin-nav-item.active{border-bottom-color:var(--gold);border-left-color:transparent;}
-  .admin-content{padding:1.25rem;}
+
+  #admin-sidebar .admin-sidebar-brand{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0.85rem 1.25rem;
+    border-bottom:1px solid rgba(143,165,184,0.1);
+    margin-bottom:0;
+  }
+
+  #admin-sidebar .admin-sidebar-brand .brand-name{font-size:15px;}
+
+  #admin-sidebar .admin-mobile-menu-btn{
+    display:flex !important;
+    background:none;
+    border:none;
+    cursor:pointer;
+    padding:4px;
+    flex-direction:column;
+    gap:5px;
+  }
+
+  #admin-sidebar .admin-mobile-menu-btn span{
+    display:block;
+    width:22px;
+    height:2px;
+    background:rgba(200,220,235,0.7);
+    border-radius:2px;
+    transition:all 0.2s;
+  }
+
+  #admin-sidebar .admin-mobile-nav-items{
+    display:none;
+    flex-direction:column;
+    padding:0.5rem 0;
+    border-bottom:1px solid rgba(143,165,184,0.1);
+    flex:0 1 auto;
+    min-height:0;
+  }
+
+  #admin-sidebar .admin-mobile-nav-items.open{display:flex;}
+
+  #admin-sidebar .admin-sidebar-section-label{padding:0.75rem 1.25rem 0.25rem;}
+
+  #admin-sidebar .admin-nav-item{
+    padding:10px 1.25rem;
+    font-size:14px;
+    border-left:3px solid transparent;
+    width:100%;
+  }
+
+  #admin-sidebar .admin-nav-item.active{border-left-color:var(--gold);}
+
+  #admin-sidebar .admin-sidebar-footer{
+    display:block !important;
+    padding:0.75rem 1.25rem;
+    border-top:1px solid rgba(143,165,184,0.1);
+  }
+
+  .admin-content{padding:1rem;}
+
+  .fin-nav-item{padding:8px 0.75rem;font-size:12.5px;}
+  #admin-panel-financials .card{padding:1rem;}
+}
+
+.admin-mobile-menu-btn{display:none;}
+
+@media(max-width:600px){
+  #admin-panel-financials > div:last-child{flex-direction:column;}
+
+  #admin-panel-financials > div > div:first-child > div{
+    display:flex;
+    flex-direction:row;
+    overflow-x:auto;
+    width:100%;
+    max-width:100%;
+    border-radius:8px;
+  }
+
+  .fin-nav-item{
+    flex:0 0 auto;
+    border-bottom:none !important;
+    border-right:1px solid var(--border);
+    border-left:none !important;
+    border-bottom:3px solid transparent !important;
+    white-space:nowrap;
+  }
+
+  .fin-nav-item.active{
+    border-left-color:transparent !important;
+    border-bottom-color:var(--gold) !important;
+  }
+
+  #fin-stat-cards{grid-template-columns:1fr 1fr !important;}
 }
 
 .fin-period-btn{padding:6px 14px;border:none;background:none;border-radius:6px;font-size:12.5px;font-family:"DM Sans",sans-serif;color:var(--light);cursor:pointer;transition:all 0.15s;}

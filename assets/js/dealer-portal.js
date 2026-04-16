@@ -3176,6 +3176,11 @@ document.addEventListener("DOMContentLoaded", function() {
   var adminSidebarEl = document.getElementById("admin-sidebar");
   if (adminSidebarEl) {
     adminSidebarEl.addEventListener("click", function(e) {
+      if (e.target.closest("#admin-mobile-menu-btn")) {
+        var nav = document.getElementById("admin-mobile-nav-items");
+        if (nav) nav.classList.toggle("open");
+        return;
+      }
       var btn = e.target.closest(".admin-nav-item");
       if (!btn || !adminSidebarEl.contains(btn)) return;
       var panel = btn.getAttribute("data-admin-panel");
@@ -3185,6 +3190,10 @@ document.addEventListener("DOMContentLoaded", function() {
       });
       btn.classList.add("active");
       adminShowPanel(panel);
+      if (window.innerWidth <= 768) {
+        var nav = document.getElementById("admin-mobile-nav-items");
+        if (nav) nav.classList.remove("open");
+      }
     });
   }
 
