@@ -134,6 +134,137 @@ function toggleSettingsSection(id) {
   if (arrow) arrow.textContent = isOpen ? "▶" : "▼";
 }
 
+var allMessages = [];
+var currentFilter = "all";
+
+async function adminLoadMessages() {
+  var listEl = document.getElementById("messages-list");
+  if (listEl) {
+    listEl.innerHTML = "<div style='text-align:center;padding:2rem;color:var(--light);font-size:13px;'>Loading messages...</div>";
+  }
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/dealer_messages?select=*&order=created_at.desc",
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+    );
+    allMessages = (await res.json()) || [];
+  } catch (e) {
+    allMessages = [];
+  }
+
+  var newCount = allMessages.filter(function(m) { return m.status === "new"; }).length;
+  var badge = document.getElementById("messages-badge");
+  if (badge) {
+    badge.textContent = String(newCount);
+    badge.style.display = newCount > 0 ? "inline" : "none";
+  }
+
+  var inProg = allMessages.filter(function(m) { return m.status === "in_progress"; }).length;
+  var resolved = allMessages.filter(function(m) { return m.status === "resolved"; }).length;
+  var elNew = document.getElementById("msg-count-new");
+  var elProg = document.getElementById("msg-count-progress");
+  var elRes = document.getElementById("msg-count-resolved");
+  if (elNew) elNew.textContent = String(newCount);
+  if (elProg) elProg.textContent = String(inProg);
+  if (elRes) elRes.textContent = String(resolved);
+
+  messagesRender();
+}
+
+function messagesFilter(filter) {
+  currentFilter = filter;
+  ["all", "new", "progress", "resolved"].forEach(function(f) {
+    var btn = document.getElementById("filter-" + f);
+    if (btn) {
+      btn.style.background = "";
+      btn.style.color = "";
+    }
+  });
+  var active = document.getElementById("filter-" + (filter === "in_progress" ? "progress" : filter));
+  if (active) {
+    active.style.background = "var(--navy)";
+    active.style.color = "white";
+  }
+  messagesRender();
+}
+
+function messageStatusMeta(status) {
+  if (status === "new") return { color: "var(--red-text)", bg: "rgba(192,57,43,0.1)", label: "New" };
+  if (status === "in_progress") return { color: "var(--gold)", bg: "rgba(184,150,62,0.12)", label: "In Progress" };
+  if (status === "resolved") return { color: "var(--green-text)", bg: "rgba(27,94,32,0.1)", label: "Resolved" };
+  return { color: "var(--light)", bg: "rgba(143,165,184,0.16)", label: String(status || "Unknown") };
+}
+
+function messagesRender() {
+  var filtered = currentFilter === "all"
+    ? allMessages
+    : allMessages.filter(function(m) { return m.status === currentFilter; });
+
+  var el = document.getElementById("messages-list");
+  if (!el) return;
+  if (!filtered || filtered.length === 0) {
+    el.innerHTML = "<div style='text-align:center;padding:2rem;color:var(--light);font-size:13px;'>No messages found.</div>";
+    return;
+  }
+
+  el.innerHTML = filtered.map(function(m) {
+    var meta = messageStatusMeta(m.status);
+    var dt = m.created_at ? new Date(m.created_at) : new Date();
+    var date = dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    var safeId = String(m.id || "").replace(/'/g, "\\'");
+    return "<div style='background:white;border:1px solid var(--border);border-radius:10px;padding:1.25rem 1.5rem;margin-bottom:0.85rem;border-left:3px solid " + meta.color + ";'>" +
+      "<div style='display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;'>" +
+        "<div>" +
+          "<div style='font-size:15px;font-weight:600;color:var(--navy);'>" + escHtml(m.dealership_name || "Unknown") + "</div>" +
+          "<div style='font-size:12px;color:var(--light);margin-top:2px;'>" + escHtml(m.request_type || "General") + " · " + escHtml(date) + "</div>" +
+        "</div>" +
+        "<span style='font-size:11px;font-weight:600;color:" + meta.color + ";background:" + meta.bg + ";padding:3px 12px;border-radius:20px;border:1px solid " + meta.color + ";'>" + escHtml(meta.label) + "</span>" +
+      "</div>" +
+      "<div style='font-size:13.5px;color:var(--mid);line-height:1.7;margin-bottom:1rem;padding:0.75rem 1rem;background:var(--silver-bg);border-radius:6px;'>" +
+        escHtml(m.message || "") +
+      "</div>" +
+      "<div style='display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;'>" +
+        "<select onchange=\"messagesUpdateStatus('" + safeId + "', this.value)\" style='padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12.5px;font-family:inherit;color:var(--navy);'>" +
+          "<option value='new'" + (m.status === "new" ? " selected" : "") + ">New</option>" +
+          "<option value='in_progress'" + (m.status === "in_progress" ? " selected" : "") + ">In Progress</option>" +
+          "<option value='resolved'" + (m.status === "resolved" ? " selected" : "") + ">Resolved</option>" +
+        "</select>" +
+        "<input type='text' placeholder='Add a note (optional)...' id='note-" + safeId + "' value=\"" + escHtml(m.admin_notes || "") + "\" style='flex:1;min-width:180px;padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12.5px;font-family:inherit;'>" +
+        "<button onclick=\"messagesSaveNote('" + safeId + "')\" style='background:var(--navy);color:white;border:none;padding:6px 16px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;'>Save Note</button>" +
+      "</div>" +
+    "</div>";
+  }).join("");
+}
+
+async function messagesUpdateStatus(id, status) {
+  await fetch(SUPABASE_URL + "/rest/v1/dealer_messages?id=eq." + encodeURIComponent(id), {
+    method: "PATCH",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: "Bearer " + SUPABASE_ANON_KEY,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ status: status })
+  });
+  await adminLoadMessages();
+}
+
+async function messagesSaveNote(id) {
+  var note = document.getElementById("note-" + id);
+  if (!note) return;
+  await fetch(SUPABASE_URL + "/rest/v1/dealer_messages?id=eq." + encodeURIComponent(id), {
+    method: "PATCH",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: "Bearer " + SUPABASE_ANON_KEY,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ admin_notes: note.value })
+  });
+  note.style.borderColor = "var(--green-text)";
+  setTimeout(function() { note.style.borderColor = ""; }, 1500);
+}
+
 function generateUsername(dealershipName) {
   var s = String(dealershipName || "")
     .toLowerCase()
@@ -1990,6 +2121,9 @@ document.addEventListener("DOMContentLoaded", function() {
       case "claims":
         claimsLoadTab();
         break;
+      case "messages":
+        adminLoadMessages();
+        break;
       case "pricing":
         pricingInitOnTab();
         break;
@@ -2031,6 +2165,7 @@ document.addEventListener("DOMContentLoaded", function() {
           if (dashNav) dashNav.classList.add("active");
           adminShowPanel("dashboard");
           applicationsRefreshTabBadgeOnly();
+          adminLoadMessages();
         } else {
           document.getElementById("portal-screen").className = "mode-dealer";
           document.getElementById("dealer-layout").style.display = "flex";
@@ -3566,6 +3701,55 @@ document.addEventListener("DOMContentLoaded", function() {
         }
       });
     }
+  }
+
+  var supportSubmitBtn = document.getElementById("support-submit-btn");
+  if (supportSubmitBtn) {
+    supportSubmitBtn.addEventListener("click", async function() {
+      var type = document.getElementById("support-type").value;
+      var message = document.getElementById("support-message").value.trim();
+      if (!type) { alert("Please select a request type."); return; }
+      if (!message) { alert("Please enter a message."); return; }
+
+      var btn = document.getElementById("support-submit-btn");
+      var okEl = document.getElementById("support-ok");
+      var errEl = document.getElementById("support-err");
+      btn.disabled = true;
+      btn.textContent = "Sending...";
+
+      try {
+        var res = await fetch(SUPABASE_URL + "/rest/v1/dealer_messages", {
+          method: "POST",
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: "Bearer " + SUPABASE_ANON_KEY,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal"
+          },
+          body: JSON.stringify({
+            dealer_id: currentDealer && currentDealer.id ? currentDealer.id : null,
+            dealership_name: currentDealer ? currentDealer.name : "",
+            request_type: type,
+            message: message,
+            status: "new"
+          })
+        });
+        if (res.ok || res.status === 201) {
+          if (okEl) okEl.style.display = "block";
+          if (errEl) errEl.style.display = "none";
+          document.getElementById("support-type").value = "";
+          document.getElementById("support-message").value = "";
+          if (currentDealer && currentDealer.isAdmin) adminLoadMessages();
+        } else {
+          if (errEl) errEl.style.display = "block";
+        }
+      } catch (e) {
+        if (errEl) errEl.style.display = "block";
+      }
+
+      btn.disabled = false;
+      btn.textContent = "Send Message";
+    });
   }
 
   // CONTACT

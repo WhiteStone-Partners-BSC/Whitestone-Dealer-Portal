@@ -48,6 +48,7 @@
       <div class="sidebar-section-label">Info</div>
       <button type="button" class="sidebar-nav-item" data-panel="resources">Resources</button>
       <button type="button" class="sidebar-nav-item" data-panel="faq">FAQ &amp; Contact</button>
+      <button type="button" class="sidebar-nav-item" data-panel="support">Support</button>
       <div class="dealer-sidebar-footer">
         <button type="button" class="sidebar-logout-btn" id="sidebar-logout">Sign out</button>
       </div>
@@ -315,6 +316,42 @@
       </div>
     </div>
 
+    <div id="panel-support" class="tab-panel">
+      <div class="card">
+        <div class="card-title">Contact Support</div>
+        <div class="card-sub">Send a message to the Whitestone Partners team. We typically respond within 1 business day.</div>
+
+        <div class="fg" style="margin-bottom:1rem;">
+          <label>Request Type</label>
+          <select id="support-type">
+            <option value="">Select a category</option>
+            <option value="Service Question">Service Question</option>
+            <option value="Billing Issue">Billing Issue</option>
+            <option value="Technical Problem">Technical Problem</option>
+            <option value="Customer Issue">Customer Issue</option>
+            <option value="Feature Request">Feature Request</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="fg" style="margin-bottom:1.25rem;">
+          <label>Message</label>
+          <textarea id="support-message" placeholder="Describe your question or issue in as much detail as possible..." style="min-height:140px;resize:vertical;"></textarea>
+        </div>
+
+        <button class="sub-btn" id="support-submit-btn">Send Message</button>
+
+        <div id="support-ok" style="display:none;margin-top:1rem;background:#f0f9f4;border:1px solid #a8d5b5;border-radius:8px;padding:1.25rem;text-align:center;">
+          <div style="font-size:16px;font-weight:600;color:#1b5e20;margin-bottom:4px;">Message sent!</div>
+          <div style="font-size:13px;color:#2e7d32;">The Whitestone Partners team will be in touch within 1 business day.</div>
+        </div>
+
+        <div id="support-err" style="display:none;margin-top:1rem;background:#fff0f0;border:1px solid #ffb3b3;border-radius:8px;padding:1rem;text-align:center;font-size:13px;color:#c0392b;">
+          Something went wrong. Please email support@whitestone-partners.com directly.
+        </div>
+      </div>
+    </div>
+
     </div>
   </div>
 
@@ -329,6 +366,9 @@
       </span>
       <button type="button" class="admin-nav-item" data-admin-panel="customers">Customers</button>
       <button type="button" class="admin-nav-item" data-admin-panel="claims">Claims</button>
+      <button type="button" class="admin-nav-item" data-admin-panel="messages">
+        Messages <span id="messages-badge" style="display:none;background:var(--red-text);color:white;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:5px;vertical-align:middle;"></span>
+      </button>
       <button type="button" class="admin-nav-item" data-admin-panel="pricing">Pricing</button>
       <button type="button" class="admin-nav-item" data-admin-panel="settings">Settings</button>
     </div>
@@ -555,6 +595,35 @@
         </div>
       </div>
     </div>
+    </div>
+
+    <div id="admin-panel-messages" class="admin-panel" style="display:none;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;">
+        <div class="stat-card">
+          <div class="stat-label">New</div>
+          <div class="stat-num" id="msg-count-new" style="color:var(--red-text);">—</div>
+          <div class="stat-sub">Awaiting response</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">In Progress</div>
+          <div class="stat-num" id="msg-count-progress" style="color:var(--gold);">—</div>
+          <div class="stat-sub">Being handled</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Resolved</div>
+          <div class="stat-num" id="msg-count-resolved" style="color:var(--green-text);">—</div>
+          <div class="stat-sub">All time</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;">
+        <button onclick="messagesFilter('all')" id="filter-all" class="btn-sm" style="background:var(--navy);color:white;">All</button>
+        <button onclick="messagesFilter('new')" id="filter-new" class="btn-sm">New</button>
+        <button onclick="messagesFilter('in_progress')" id="filter-progress" class="btn-sm">In Progress</button>
+        <button onclick="messagesFilter('resolved')" id="filter-resolved" class="btn-sm">Resolved</button>
+      </div>
+
+      <div id="messages-list"></div>
     </div>
 
     <!-- PRICING MODEL (admin only) -->
