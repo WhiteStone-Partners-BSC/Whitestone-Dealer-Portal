@@ -1763,14 +1763,38 @@ window.addEventListener("load", function() {
     wsLoadHistory();
   };
 
-  window.dealerLoadRateCard = async function() {
-    if (!currentDealer || !currentDealer.id) return;
+  async function fetchDealerPricingForCurrentDealer() {
+    if (!currentDealer || !currentDealer.id) return null;
     var res = await fetch(
       SUPABASE_URL + "/rest/v1/dealer_pricing?dealer_id=eq." + currentDealer.id + "&select=*&limit=1",
       { headers: authHeaders() }
     );
     var records = await res.json() || [];
-    var pricing = records[0] || null;
+    if (!records || records.length === 0) {
+      var res2 = await fetch(
+        SUPABASE_URL + "/rest/v1/dealer_pricing?dealership_name=eq." + encodeURIComponent(currentDealer.name) + "&select=*&limit=1",
+        { headers: authHeaders() }
+      );
+      records = await res2.json() || [];
+    }
+    var row = records && records[0] ? records[0] : null;
+    if (row && row.dealer_id !== currentDealer.id) {
+      await fetch(
+        SUPABASE_URL + "/rest/v1/dealer_pricing?id=eq." + row.id,
+        {
+          method: "PATCH",
+          headers: authHeaders(),
+          body: JSON.stringify({ dealer_id: currentDealer.id })
+        }
+      );
+      row = Object.assign({}, row, { dealer_id: currentDealer.id });
+    }
+    return row;
+  }
+
+  window.dealerLoadRateCard = async function() {
+    if (!currentDealer || !currentDealer.id) return;
+    var pricing = await fetchDealerPricingForCurrentDealer();
     var cardEl = document.getElementById("dealer-rate-card");
     if (!cardEl) return;
     if (!pricing || !pricing.confirmed) {
@@ -1785,12 +1809,7 @@ window.addEventListener("load", function() {
 
   window.loadDealerPricingForEnrollment = async function() {
     if (!currentDealer || !currentDealer.id) return;
-    var res = await fetch(
-      SUPABASE_URL + "/rest/v1/dealer_pricing?dealer_id=eq." + currentDealer.id + "&select=*&limit=1",
-      { headers: authHeaders() }
-    );
-    var records = await res.json() || [];
-    dealerPricingData = records[0] || null;
+    dealerPricingData = await fetchDealerPricingForCurrentDealer();
     var msgEl = document.getElementById("enroll-no-pricing-msg");
     if (!dealerPricingData || !dealerPricingData.confirmed) {
       if (msgEl) msgEl.style.display = "block";

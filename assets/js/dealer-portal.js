@@ -39,9 +39,10 @@ function supabaseHeaders(extra) {
 }
 
 function buildDealerSession(dealer, session) {
+  var authUserId = session && session.user ? session.user.id : null;
   return {
     id: dealer.id,
-    authId: session && session.user ? session.user.id : dealer.auth_id || null,
+    authId: authUserId || dealer.auth_id || null,
     username: dealer.username,
     name: dealer.dealership_name,
     email: dealer.email || (session && session.user ? session.user.email : ""),
@@ -2085,7 +2086,7 @@ document.addEventListener("DOMContentLoaded", function() {
       });
       var sbd = document.querySelector('.sidebar-nav-item[data-panel="dashboard"]');
       if (sbd) sbd.classList.add("active");
-      switchTab("dashboard");
+      window.switchTab("dashboard");
     }
   }
 
@@ -2114,24 +2115,6 @@ document.addEventListener("DOMContentLoaded", function() {
           location.reload();
         }
       }
-    }
-  });
-
-  supabase.auth.getSession().then(async function(result) {
-    var session = result && result.data ? result.data.session : null;
-    if (!session) return;
-    try {
-      window.authToken = session.access_token;
-      var dealer = await fetchDealerByAuthId(session.user.id, session.access_token);
-      if (!dealer) {
-        console.error("No active dealer record found for session", session.user.id);
-        await supabase.auth.signOut();
-        return;
-      }
-      currentDealer = buildDealerSession(dealer, session);
-      onLoginSuccess();
-    } catch (err) {
-      console.error("Failed to restore session", err);
     }
   });
 
@@ -2370,7 +2353,7 @@ document.addEventListener("DOMContentLoaded", function() {
       }
 
       currentDealer = buildDealerSession(dealer, session);
-      onLoginSuccess();
+      window.onLoginSuccess();
       btn.disabled = false;
       btn.textContent = "Sign In";
     } catch (e) {
@@ -2398,6 +2381,27 @@ document.addEventListener("DOMContentLoaded", function() {
     if (name === "history") loadTickets();
     if (name === "customers") loadCustomersTab();
   }
+
+  window.switchTab = switchTab;
+  window.onLoginSuccess = onLoginSuccess;
+
+  supabase.auth.getSession().then(async function(result) {
+    var session = result && result.data ? result.data.session : null;
+    if (!session) return;
+    try {
+      window.authToken = session.access_token;
+      var dealer = await fetchDealerByAuthId(session.user.id, session.access_token);
+      if (!dealer) {
+        console.error("No active dealer record found for session", session.user.id);
+        await supabase.auth.signOut();
+        return;
+      }
+      currentDealer = buildDealerSession(dealer, session);
+      window.onLoginSuccess();
+    } catch (err) {
+      console.error("Failed to restore session", err);
+    }
+  });
 
   function animateEarningsTo(targetDollars, el) {
     if (!el) return;
@@ -2644,7 +2648,7 @@ document.addEventListener("DOMContentLoaded", function() {
         b.classList.remove("active");
       });
       this.classList.add("active");
-      switchTab(panel);
+      window.switchTab(panel);
     });
   });
 
@@ -2682,8 +2686,8 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   });
 
-  document.getElementById("qa-ticket").addEventListener("click", function() { switchTab("ticket"); });
-  document.getElementById("qa-enroll").addEventListener("click", function() { switchTab("enroll"); });
+  document.getElementById("qa-ticket").addEventListener("click", function() { window.switchTab("ticket"); });
+  document.getElementById("qa-enroll").addEventListener("click", function() { window.switchTab("enroll"); });
 
   function prefillEnrollFromContract(c) {
     if (!c) return;
@@ -2702,7 +2706,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     document.getElementById("e-err").style.display = "none";
     document.getElementById("enroll-link-box").style.display = "none";
-    switchTab("enroll");
+    window.switchTab("enroll");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -2804,7 +2808,7 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 
   document.getElementById("renewals-container").addEventListener("click", function(e) {
-    if (e.target && e.target.classList.contains("btn-reenroll")) switchTab("enroll");
+    if (e.target && e.target.classList.contains("btn-reenroll")) window.switchTab("enroll");
   });
 
   // SERVICE BUTTONS
