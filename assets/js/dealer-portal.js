@@ -170,6 +170,174 @@ function escHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+// Supabase (run in SQL editor if needed): alter table tickets add column if not exists rejection_reason text;
+
+function getTicketStatusBadge(status) {
+  var s = (status || "pending").toLowerCase();
+  var styles = {
+    approved: "background:#e8f5e9;color:#1b5e20;border:1px solid #a8d5b5;",
+    rejected: "background:#fff0f0;color:#c0392b;border:1px solid #ffb3b3;",
+    pending: "background:#fff8e1;color:#7a4f00;border:1px solid #f0d060;"
+  };
+  var labels = { approved: "Approved", rejected: "Rejected", pending: "Pending" };
+  var style = styles[s] || styles.pending;
+  var label = labels[s] || escHtml(status);
+  return '<span style="' + style + 'font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;">' + label + "</span>";
+}
+
+function dealerTicketStatusBlockHtml(t) {
+  var st = (t.status || "pending").toLowerCase();
+  var html = '<div style="margin-top:0.65rem;display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;">' + getTicketStatusBadge(t.status) + "</div>";
+  if (st === "approved") {
+    html += '<div style="margin-top:0.35rem;font-size:12px;color:var(--mid);">$150 reimbursement</div>';
+  }
+  return html;
+}
+
+function ticketRejectionNoticeHtml(t) {
+  if ((t.status || "").toLowerCase() !== "rejected") return "";
+  var rr = String(t.rejectionReason || "").trim();
+  if (rr) {
+    return (
+      '<div style="margin-top:0.75rem;background:#fff0f0;border:1px solid #ffb3b3;border-left:3px solid var(--red);border-radius:6px;padding:0.75rem 1rem;font-size:13px;color:#c0392b;">' +
+      '<span style="font-weight:600;">Rejected: </span>' +
+      escHtml(rr) +
+      "</div>"
+    );
+  }
+  return (
+    '<div style="margin-top:0.75rem;background:#fff0f0;border:1px solid #ffb3b3;border-left:3px solid var(--red);border-radius:6px;padding:0.75rem 1rem;font-size:13px;color:#c0392b;">' +
+    '<span style="font-weight:600;">Rejected</span> — Contact support@whitestone-partners.com for details.' +
+    "</div>"
+  );
+}
+
+async function toggleReimbursementHistory() {
+  var body = document.getElementById("reimb-history-body");
+  var arrow = document.getElementById("reimb-history-arrow");
+  if (!body || !arrow) return;
+  var isVisible = body.style.display === "block";
+  body.style.display = isVisible ? "none" : "block";
+  arrow.textContent = isVisible ? "▶" : "▼";
+  if (!isVisible) await loadReimbursementHistory();
+}
+
+async function loadReimbursementHistory() {
+  var el = document.getElementById("reimb-history-list");
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--light);font-size:13px;">Loading...</div>';
+
+  if (!currentDealer || !currentDealer.name) {
+    el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--light);font-size:13px;">Sign in to view reimbursements.</div>';
+    var badge0 = document.getElementById("reimb-total-badge");
+    if (badge0) badge0.textContent = "$0";
+    return;
+  }
+
+  var res = await fetch(
+    SUPABASE_URL +
+      "/rest/v1/reimbursements?dealership_name=eq." +
+      encodeURIComponent(currentDealer.name) +
+      "&select=*&order=created_at.desc",
+    { headers: authHeaders() }
+  );
+  var reimbs = (await res.json()) || [];
+
+  if (!reimbs || reimbs.length === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--light);font-size:13px;">No reimbursements yet.</div>';
+    var badgeEmpty = document.getElementById("reimb-total-badge");
+    if (badgeEmpty) badgeEmpty.textContent = "$0";
+    return;
+  }
+
+  var totalPaid = reimbs
+    .filter(function(r) {
+      return r.status === "paid";
+    })
+    .reduce(function(a, r) {
+      return a + (r.amount || 150);
+    }, 0);
+  var totalPending = reimbs
+    .filter(function(r) {
+      return r.status !== "paid" && r.status !== "rejected";
+    })
+    .reduce(function(a, r) {
+      return a + (r.amount || 150);
+    }, 0);
+
+  var badgePaid = document.getElementById("reimb-total-badge");
+  if (badgePaid) badgePaid.textContent = "$" + totalPaid.toLocaleString() + " paid";
+
+  var summaryHtml =
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.25rem;">' +
+    '<div style="text-align:center;background:var(--silver-bg);border-radius:8px;padding:1rem;">' +
+    '<div style="font-family:\'Cormorant Garamond\',serif;font-size:26px;font-weight:300;color:var(--green);">$' +
+    totalPaid.toLocaleString() +
+    "</div>" +
+    '<div style="font-size:11px;color:var(--light);">Total Paid</div>' +
+    "</div>" +
+    '<div style="text-align:center;background:var(--silver-bg);border-radius:8px;padding:1rem;">' +
+    '<div style="font-family:\'Cormorant Garamond\',serif;font-size:26px;font-weight:300;color:var(--amber);">$' +
+    totalPending.toLocaleString() +
+    "</div>" +
+    '<div style="font-size:11px;color:var(--light);">Pending</div>' +
+    "</div>" +
+    '<div style="text-align:center;background:var(--silver-bg);border-radius:8px;padding:1rem;">' +
+    '<div style="font-family:\'Cormorant Garamond\',serif;font-size:26px;font-weight:300;color:var(--navy);">' +
+    reimbs.length +
+    "</div>" +
+    '<div style="font-size:11px;color:var(--light);">Total Tickets</div>' +
+    "</div>" +
+    "</div>";
+
+  var rowsHtml = reimbs
+    .map(function(r) {
+      var statusColors = {
+        paid: { bg: "#e8f5e9", color: "#1b5e20", border: "#a8d5b5", label: "Paid" },
+        pending: { bg: "#fff8e1", color: "#7a4f00", border: "#f0d060", label: "Pending" },
+        approved: { bg: "#e3f2fd", color: "#1a5276", border: "#90caf9", label: "Approved" },
+        rejected: { bg: "#fff0f0", color: "#c0392b", border: "#ffb3b3", label: "Rejected" }
+      };
+      var sc = statusColors[(r.status || "pending").toLowerCase()] || statusColors.pending;
+      var date = r.paid_date
+        ? new Date(r.paid_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        : new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+      return (
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 0;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:0.5rem;">' +
+        "<div>" +
+        '<div style="font-size:13.5px;font-weight:500;color:var(--navy);">' +
+        escHtml(r.service_type || "Service Reimbursement") +
+        "</div>" +
+        '<div style="font-size:12px;color:var(--light);margin-top:2px;">' +
+        escHtml(date) +
+        (r.ticket_number ? " · Ticket " + escHtml(String(r.ticket_number)) : "") +
+        "</div>" +
+        "</div>" +
+        '<div style="display:flex;align-items:center;gap:0.75rem;">' +
+        '<span style="background:' +
+        sc.bg +
+        ";color:" +
+        sc.color +
+        ";border:1px solid " +
+        sc.border +
+        ';font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;">' +
+        escHtml(sc.label) +
+        "</span>" +
+        '<span style="font-family:\'Cormorant Garamond\',serif;font-size:20px;font-weight:300;color:' +
+        (r.status === "paid" ? "var(--green)" : "var(--mid)") +
+        ';">$' +
+        (r.amount || 150).toLocaleString() +
+        "</span>" +
+        "</div>" +
+        "</div>"
+      );
+    })
+    .join("");
+
+  el.innerHTML = summaryHtml + rowsHtml;
+}
+
 function toggleSettingsSection(id) {
   var content = document.getElementById(id);
   var arrowId = id.replace("-content", "-arrow");
@@ -3331,16 +3499,6 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   }
 
-  function ticketStatusHtml(t) {
-    var st = String(t.status || "pending").toLowerCase();
-    if (st === "approved") return "<div class='ticket-status ticket-status-approved'>🟢 Approved · $150 reimbursement</div>";
-    if (st === "rejected") {
-      var rr = t.rejectionReason ? " — " + escHtml(t.rejectionReason) : "";
-      return "<div class='ticket-status ticket-status-rejected'>🔴 Rejected" + rr + "</div>";
-    }
-    return "<div class='ticket-status ticket-status-pending'>🟡 Pending — Under review</div>";
-  }
-
   async function updateTicketContractIndicator() {
     var hinEl = document.getElementById("t-hin");
     var el = document.getElementById("t-hin-status");
@@ -3570,7 +3728,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     try {
       var url = SUPABASE_URL + "/rest/v1/tickets?dealership_name=eq." + encodeURIComponent(currentDealer.name) + "&select=*&order=created_at.desc";
-      var r = await fetch(url, { headers: supabaseHeaders() });
+      var r = await fetch(url, { headers: authHeaders() });
       var rows = await r.json();
       if (!r.ok) throw new Error();
       if (!Array.isArray(rows) || rows.length === 0) {
@@ -3583,7 +3741,7 @@ document.addEventListener("DOMContentLoaded", function() {
         var services = t.serviceType ? t.serviceType.split(",") : [];
         var pillsHtml = services.map(function(s) { return "<span class='service-pill'>" + escHtml(s.trim()) + "</span>"; }).join("");
         html += "<div class='ticket-card'><div class='ticket-header'><span class='ticket-id'>" + escHtml(t.ticketNum || "") + "</span><span class='ticket-date'>" + escHtml(t.date || "") + "</span></div>";
-        html += ticketStatusHtml(t);
+        html += dealerTicketStatusBlockHtml(t);
         if (pillsHtml) html += "<div class='ticket-services'>" + pillsHtml + "</div>";
         html += "<div class='ticket-grid'>";
         html += "<div class='ticket-field'><label>Customer</label><p>" + escHtml((t.firstName || "") + " " + (t.lastName || "")) + "</p></div>";
@@ -3595,6 +3753,7 @@ document.addEventListener("DOMContentLoaded", function() {
         html += "<div class='ticket-field'><label>Technician</label><p>" + escHtml(t.technician || "—") + "</p></div>";
         html += "</div>";
         if (t.serviceNotes) html += "<div class='ticket-notes'><label>Notes</label><p>" + escHtml(t.serviceNotes) + "</p></div>";
+        html += ticketRejectionNoticeHtml(t);
         html += "</div>";
       });
       container.innerHTML = html;
@@ -3619,22 +3778,38 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   }
 
-  async function claimsReject(ticketId, reason) {
+  async function rejectTicket(ticketId) {
+    var reason = prompt("Enter rejection reason (this will be shown to the dealer):");
+    if (reason === null) return;
+    if (!reason.trim()) {
+      reason = "Ticket rejected by admin. Contact support@whitestone-partners.com for details.";
+    } else {
+      reason = reason.trim();
+    }
     try {
       var url = SUPABASE_URL + "/rest/v1/tickets?id=eq." + encodeURIComponent(ticketId);
       var r1 = await fetch(url, {
         method: "PATCH",
-        headers: supabaseHeaders({ Prefer: "return=minimal" }),
+        headers: authHeaders({ Prefer: "return=minimal" }),
         body: JSON.stringify({ status: "rejected", rejection_reason: reason })
       });
       if (!r1.ok) throw new Error();
       await fetch(SUPABASE_URL + "/rest/v1/reimbursements?ticket_id=eq." + encodeURIComponent(ticketId), {
         method: "PATCH",
-        headers: supabaseHeaders({ Prefer: "return=minimal" }),
+        headers: authHeaders({ Prefer: "return=minimal" }),
         body: JSON.stringify({ status: "rejected" })
       });
-      await writeAuditLog("reimbursement", ticketId, "reimbursement_rejected", { status: "pending" }, { status: "rejected" }, "admin", null, reason);
-      await writeAuditLog("ticket", ticketId, "ticket_rejected", { status: "pending" }, { status: "rejected", reason: reason }, "admin", null, reason);
+      await writeAuditLog("reimbursement", ticketId, "reimbursement_rejected", { status: "pending" }, { status: "rejected" }, null, null, reason);
+      await writeAuditLog(
+        "ticket",
+        ticketId,
+        "ticket_rejected",
+        { status: "pending" },
+        { status: "rejected", rejection_reason: reason },
+        null,
+        null,
+        reason
+      );
       await claimsLoadTab();
     } catch (e) {
       alert("Could not reject. Please try again.");
@@ -3698,7 +3873,6 @@ document.addEventListener("DOMContentLoaded", function() {
         html += "<div style='margin-top:0.5rem;font-weight:600;color:var(--navy);'>$150 reimbursement</div>";
         html += "<div class='claims-queue-actions'>";
         html += "<button type='button' class='btn-claims-approve' data-tid='" + escHtml(String(row.id)) + "'>Approve</button>";
-        html += "<input type='text' class='claims-reject-reason' placeholder='Rejection reason' />";
         html += "<button type='button' class='btn-claims-reject' data-tid='" + escHtml(String(row.id)) + "'>Reject</button>";
         html += "</div></div>";
       });
@@ -3710,12 +3884,7 @@ document.addEventListener("DOMContentLoaded", function() {
       });
       el.querySelectorAll(".btn-claims-reject").forEach(function(btn) {
         btn.addEventListener("click", function() {
-          var row = btn.closest(".claims-queue-row");
-          var tid = btn.getAttribute("data-tid");
-          var inp = row ? row.querySelector(".claims-reject-reason") : null;
-          var reason = inp ? inp.value.trim() : "";
-          if (!reason) { alert("Enter a rejection reason."); return; }
-          claimsReject(tid, reason);
+          rejectTicket(btn.getAttribute("data-tid"));
         });
       });
     } catch (e) {
