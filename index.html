@@ -1932,11 +1932,28 @@ window.addEventListener("load", function() {
   window.showStripeSetupBanner = function() {
     var existing = document.getElementById("stripe-setup-banner");
     if (existing) return;
+
     var banner = document.createElement("div");
     banner.id = "stripe-setup-banner";
-    banner.style.cssText = "background:var(--navy2);border-bottom:3px solid var(--gold);padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;";
-    banner.innerHTML = '<div><div style="font-size:13.5px;font-weight:600;color:white;">Save a payment method to activate enrollments</div><div style="font-size:12px;color:rgba(200,220,235,0.6);margin-top:2px;">Required to enroll customers. Your card is charged when you confirm each enrollment.</div></div><button id="stripe-setup-btn" style="background:var(--gold);color:var(--navy);border:none;padding:9px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;">Set Up Payment</button>';
-    document.getElementById("dealer-layout").prepend(banner);
+    banner.style.cssText = "background:#fffbf0;border:1px solid #f0d060;border-left:3px solid var(--gold);border-radius:8px;padding:1rem 1.25rem;margin-top:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;";
+    banner.innerHTML =
+      "<div>" +
+        '<div style="font-size:13.5px;font-weight:600;color:var(--navy);">Save a payment method to activate enrollments</div>' +
+        '<div style="font-size:12px;color:var(--mid);margin-top:2px;">Required to enroll customers. Your card is charged when you confirm each enrollment.</div>' +
+      "</div>" +
+      '<button id="stripe-setup-btn" style="background:var(--gold);color:var(--navy);border:none;padding:9px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;">Set Up Payment</button>';
+
+    var contractSelector = document.getElementById("contract-length-selector");
+    if (contractSelector && contractSelector.parentNode) {
+      contractSelector.parentNode.insertBefore(banner, contractSelector.nextSibling);
+    } else {
+      var enrollPanel = document.getElementById("panel-enroll");
+      if (enrollPanel) {
+        var firstCard = enrollPanel.querySelector(".card");
+        if (firstCard) firstCard.appendChild(banner);
+      }
+    }
+
     document.getElementById("stripe-setup-btn").addEventListener("click", showStripeSetupModal);
   };
 
