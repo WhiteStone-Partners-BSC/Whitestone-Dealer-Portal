@@ -6,6 +6,7 @@
   --border:rgba(130,160,180,0.18);--gold:#b8963e;--gold2:#d4ac52;
   --green:#e8f5e9;--green-border:#a8d5b5;--green-text:#1b5e20;
   --red-bg:#fff0f0;--red-border:#ffb3b3;--red-text:#c0392b;
+  --red:#c0392b;--amber:#ba7517;
 }
 body{font-family:"DM Sans",sans-serif;background:var(--silver-bg);color:var(--text);font-size:15px;line-height:1.7;min-height:100vh;}
 h1,h2,h3{font-family:"Cormorant Garamond",serif;}
@@ -358,7 +359,7 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .application-card-third.application-card-declined-app{border-left-color:#888780;}
 .tab.admin-applications-tab.active{border-bottom-color:var(--gold);}
 
-/* Dealer sidebar + admin top nav (see index.html structure) */
+/* Dealer sidebar + admin sidebar (see index.html structure) */
 #portal-screen.mode-admin #portal-nav-dealer{display:none;}
 #portal-screen.mode-dealer #portal-nav-dealer .dealer-info{display:none;}
 #portal-screen.mode-dealer #portal-nav-dealer{justify-content:center;}
@@ -388,24 +389,36 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
   .dealer-main-content{padding:1.25rem;}
 }
 
-.admin-layout{min-height:100vh;background:var(--silver-bg);}
-.admin-topnav{background:var(--navy2);border-bottom:1px solid rgba(143,165,184,0.1);display:flex;align-items:center;padding:0 2rem;height:56px;position:sticky;top:0;z-index:100;}
-.admin-topnav-brand{font-size:12px;font-weight:600;color:var(--gold);letter-spacing:0.12em;text-transform:uppercase;margin-right:2.5rem;white-space:nowrap;}
-.admin-nav-items{display:flex;align-items:center;gap:0;flex:1;flex-wrap:nowrap;}
-.admin-nav-item{padding:0 1.1rem;height:56px;line-height:56px;font-size:13px;font-weight:400;color:rgba(200,220,235,0.55);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.15s;background:none;border-top:none;border-left:none;border-right:none;font-family:"DM Sans",sans-serif;white-space:nowrap;}
-.admin-nav-item:hover{color:var(--white);}
-.admin-nav-item.active{color:var(--white);border-bottom-color:var(--gold);font-weight:500;}
-.admin-topnav-right{display:flex;align-items:center;gap:1rem;margin-left:auto;}
-.admin-badge{font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;background:var(--gold);color:var(--navy2);padding:3px 10px;border-radius:20px;}
-.admin-logout-btn{font-size:12px;color:rgba(200,220,235,0.4);cursor:pointer;background:none;border:none;font-family:"DM Sans",sans-serif;transition:color 0.15s;}
-.admin-logout-btn:hover{color:rgba(200,220,235,0.8);}
-.admin-content{padding:2rem;max-width:1200px;margin:0 auto;}
+.admin-layout{display:flex;min-height:100vh;background:var(--silver-bg);}
+
+.admin-sidebar{width:220px;flex-shrink:0;background:var(--navy2);border-right:1px solid rgba(143,165,184,0.1);padding:1.5rem 0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.admin-sidebar-brand{padding:0 1.25rem 1.5rem;border-bottom:1px solid rgba(143,165,184,0.08);margin-bottom:0.75rem;}
+.admin-sidebar-brand .brand-name{font-family:"Cormorant Garamond",serif;font-size:18px;font-weight:300;color:var(--white);letter-spacing:0.04em;margin-bottom:2px;}
+.admin-sidebar-brand .brand-badge{font-size:9px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);}
+.admin-sidebar-section-label{font-size:9.5px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:rgba(143,165,184,0.3);padding:1rem 1.25rem 0.4rem;}
+.admin-nav-item{display:block;padding:11px 1.25rem;font-size:13.5px;font-weight:400;color:rgba(200,220,235,0.6);cursor:pointer;transition:all 0.15s;border-left:3px solid transparent;border-top:none;border-right:none;border-bottom:none;background:none;width:100%;text-align:left;font-family:"DM Sans",sans-serif;position:relative;}
+.admin-nav-item:hover{color:var(--white);background:rgba(255,255,255,0.04);}
+.admin-nav-item.active{color:var(--white);background:rgba(184,150,62,0.08);border-left-color:var(--gold);font-weight:500;}
+.admin-nav-badge{position:absolute;right:1rem;top:50%;transform:translateY(-50%);background:var(--red);color:white;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;min-width:16px;text-align:center;}
+.admin-sidebar-footer{margin-top:auto;padding:1rem 1.25rem;border-top:1px solid rgba(143,165,184,0.08);}
+.admin-sidebar-logout{font-size:12.5px;color:rgba(200,220,235,0.4);cursor:pointer;background:none;border:none;font-family:"DM Sans",sans-serif;padding:0;transition:color 0.15s;}
+.admin-sidebar-logout:hover{color:rgba(200,220,235,0.8);}
+.admin-content{flex:1;padding:2rem;overflow-y:auto;min-width:0;}
+
 @media(max-width:768px){
-  .admin-topnav{overflow-x:auto;padding:0 1rem;}
-  .admin-topnav-brand{display:none;}
-  .admin-nav-item{padding:0 0.75rem;font-size:12px;}
-  .admin-content{padding:1rem;}
+  .admin-layout{flex-direction:column;}
+  .admin-sidebar{width:100%;height:auto;position:relative;flex-direction:row;flex-wrap:wrap;padding:0.5rem;overflow-x:auto;}
+  .admin-sidebar-brand{display:none;}
+  .admin-sidebar-section-label{display:none;}
+  .admin-sidebar-footer{display:none;}
+  .admin-nav-item{padding:8px 12px;font-size:12px;border-left:none;border-bottom:3px solid transparent;flex:0 0 auto;width:auto;}
+  .admin-nav-item.active{border-bottom-color:var(--gold);border-left-color:transparent;}
+  .admin-content{padding:1.25rem;}
 }
 
-.admin-nav-dealers-wrap{display:inline-flex;align-items:center;gap:6px;}
-.admin-nav-dealers-wrap .applications-tab-badge{position:relative;top:0;}
+.fin-period-btn{padding:6px 14px;border:none;background:none;border-radius:6px;font-size:12.5px;font-family:"DM Sans",sans-serif;color:var(--light);cursor:pointer;transition:all 0.15s;}
+.fin-period-btn.active{background:var(--navy);color:white;font-weight:500;}
+.fin-nav-item{display:block;width:100%;padding:10px 1rem;border:none;border-left:3px solid transparent;background:none;font-size:13px;font-family:"DM Sans",sans-serif;color:var(--mid);text-align:left;cursor:pointer;transition:all 0.15s;border-bottom:1px solid var(--border);}
+.fin-nav-item:last-child{border-bottom:none;}
+.fin-nav-item:hover{background:var(--silver-bg);color:var(--navy);}
+.fin-nav-item.active{border-left-color:var(--gold);color:var(--navy);font-weight:600;background:#fffbf0;}

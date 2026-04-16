@@ -19,6 +19,9 @@ var renewalContractsDealer = [];
 var adminContractsCache = [];
 var dealerContractsCache = [];
 
+var currentFinPeriod = "month";
+var currentFinSection = "overview";
+
 var ADMIN_CONTRACT_AVG = 3699;
 var ADMIN_AVG_REIMB = 150;
 var ADMIN_COMMISSION_RATE = 0.2;
@@ -199,7 +202,7 @@ async function adminLoadMessages() {
   var badge = document.getElementById("messages-badge");
   if (badge) {
     badge.textContent = String(newCount);
-    badge.style.display = newCount > 0 ? "inline" : "none";
+    badge.style.display = newCount > 0 ? "block" : "none";
   }
 
   var inProg = allMessages.filter(function(m) { return m.status === "in_progress"; }).length;
@@ -330,16 +333,45 @@ function formatApplicationDate(iso) {
 }
 
 function applicationsUpdateTabBadge(count) {
-  var badge = document.getElementById("applications-tab-badge");
+  var badge = document.getElementById("dealers-pending-badge");
   if (!badge) return;
   var n = Math.max(0, parseInt(count, 10) || 0);
   if (n > 0) {
-    badge.textContent = "(" + n + ")";
-    badge.style.display = "inline-block";
+    badge.textContent = String(n);
+    badge.style.display = "block";
     badge.title = n + " pending application" + (n === 1 ? "" : "s");
   } else {
     badge.textContent = "";
     badge.style.display = "none";
+  }
+}
+
+async function adminLoadBadgeCounts() {
+  if (!currentDealer || !currentDealer.isAdmin) return;
+  try {
+    var res1 = await fetch(
+      SUPABASE_URL + "/rest/v1/dealer_applications?status=eq.pending&select=id",
+      { headers: authHeaders() }
+    );
+    var apps = await res1.json() || [];
+    var dealerBadge = document.getElementById("dealers-pending-badge");
+    if (dealerBadge) {
+      dealerBadge.textContent = apps.length;
+      dealerBadge.style.display = apps.length > 0 ? "block" : "none";
+    }
+
+    var res2 = await fetch(
+      SUPABASE_URL + "/rest/v1/dealer_messages?status=eq.new&select=id",
+      { headers: authHeaders() }
+    );
+    var msgs = await res2.json() || [];
+    var msgBadge = document.getElementById("messages-badge");
+    if (msgBadge) {
+      msgBadge.textContent = msgs.length;
+      msgBadge.style.display = msgs.length > 0 ? "block" : "none";
+    }
+  } catch (e) {
+    /* ignore */
   }
 }
 
@@ -2022,7 +2054,322 @@ function daysUntilNextAnniversary(enrollDate) {
   return Math.round((next - now) / 86400000);
 }
 
+window.financialsSetPeriod = function(period) {
+  currentFinPeriod = period;
+  ["week", "month", "year", "all"].forEach(function(p) {
+    var btn = document.getElementById("fin-btn-" + p);
+    if (btn) btn.classList.toggle("active", p === period);
+  });
+  window.financialsLoad();
+};
+
+window.financialsShowSection = function(section) {
+  currentFinSection = section;
+  ["overview", "revenue", "reimbursements", "contracts", "projections"].forEach(function(s) {
+    var el = document.getElementById("fin-section-" + s);
+    var nav = document.getElementById("fin-nav-" + s);
+    if (el) el.style.display = s === section ? "block" : "none";
+    if (nav) nav.classList.toggle("active", s === section);
+  });
+};
+
+function financialsGetDateFilter() {
+  var now = new Date();
+  var start = null;
+  if (currentFinPeriod === "week") {
+    start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  } else if (currentFinPeriod === "month") {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else if (currentFinPeriod === "year") {
+    start = new Date(now.getFullYear(), 0, 1);
+  }
+  return start ? start.toISOString() : null;
+}
+
+window.financialsLoad = async function() {
+  var dateFilter = financialsGetDateFilter();
+
+  var contractsUrl = SUPABASE_URL + "/rest/v1/contracts?select=*";
+  if (dateFilter) contractsUrl += "&created_at=gte." + dateFilter;
+  var contractsRes = await fetch(contractsUrl, { headers: authHeaders() });
+  var contracts = await contractsRes.json() || [];
+
+  var reimbUrl = SUPABASE_URL + "/rest/v1/reimbursements?select=*";
+  if (dateFilter) reimbUrl += "&created_at=gte." + dateFilter;
+  var reimbRes = await fetch(reimbUrl, { headers: authHeaders() });
+  var reimbs = await reimbRes.json() || [];
+
+  var pricingRes = await fetch(
+    SUPABASE_URL + "/rest/v1/dealer_pricing?select=*",
+    { headers: authHeaders() }
+  );
+  var pricing = await pricingRes.json() || [];
+
+  var wholesaleTotal = contracts.reduce(function(total, c) {
+    var dealerPricing = pricing.find(function(p) {
+      return p.dealership_name === c.dealership_name;
+    });
+    if (!dealerPricing) return total;
+    var priceMap = {
+      "1yr": dealerPricing.contract_retail_1yr || 3325,
+      "2yr": dealerPricing.contract_retail_2yr || 6650,
+      "3yr": dealerPricing.contract_retail_3yr || 9975
+    };
+    return total + (priceMap[c.contract_type] || 0);
+  }, 0);
+
+  var paidReimbs = reimbs.filter(function(r) { return r.status === "paid"; });
+  var pendingReimbs = reimbs.filter(function(r) {
+    return r.status === "pending" || r.status === "approved";
+  });
+  var reimbTotal = paidReimbs.reduce(function(a, r) { return a + (r.amount || 150); }, 0);
+  var outstandingTotal = pendingReimbs.reduce(function(a, r) { return a + (r.amount || 150); }, 0);
+  var netProfit = wholesaleTotal - reimbTotal;
+
+  var wEl = document.getElementById("fin-wholesale");
+  if (wEl) wEl.textContent = "$" + wholesaleTotal.toLocaleString();
+  var wsSub = document.getElementById("fin-wholesale-sub");
+  if (wsSub) wsSub.textContent = contracts.length + " contract" + (contracts.length !== 1 ? "s" : "");
+  var rEl = document.getElementById("fin-reimbursed");
+  if (rEl) rEl.textContent = "$" + reimbTotal.toLocaleString();
+  var rsSub = document.getElementById("fin-reimbursed-sub");
+  if (rsSub) rsSub.textContent = paidReimbs.length + " ticket" + (paidReimbs.length !== 1 ? "s" : "") + " paid";
+  var oEl = document.getElementById("fin-outstanding");
+  if (oEl) oEl.textContent = "$" + outstandingTotal.toLocaleString();
+
+  var profitEl = document.getElementById("fin-profit");
+  if (profitEl) {
+    profitEl.style.color = netProfit >= 0 ? "var(--green-text)" : "var(--red)";
+    profitEl.textContent = (netProfit < 0 ? "-$" : "$") + Math.abs(netProfit).toLocaleString();
+  }
+
+  var transEl = document.getElementById("fin-recent-transactions");
+  var allTrans = [];
+  contracts.forEach(function(c) {
+    allTrans.push({
+      type: "contract",
+      date: c.created_at,
+      label: "Contract enrolled — " + c.dealership_name,
+      sub: c.customer_first_name + " " + c.customer_last_name + " · " + (c.contract_type || "1yr"),
+      amount: "+$" + (function() {
+        var dp = pricing.find(function(p) { return p.dealership_name === c.dealership_name; });
+        var pm = {
+          "1yr": dp ? dp.contract_retail_1yr : 3325,
+          "2yr": dp ? dp.contract_retail_2yr : 6650,
+          "3yr": dp ? dp.contract_retail_3yr : 9975
+        };
+        return (pm[c.contract_type] || 0).toLocaleString();
+      })(),
+      color: "var(--green-text)"
+    });
+  });
+  paidReimbs.forEach(function(r) {
+    allTrans.push({
+      type: "reimbursement",
+      date: r.paid_date || r.created_at,
+      label: "Reimbursement paid — " + (r.dealership_name || ""),
+      sub: "Ticket approved",
+      amount: "-$" + (r.amount || 150).toLocaleString(),
+      color: "var(--red)"
+    });
+  });
+
+  allTrans.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+  allTrans = allTrans.slice(0, 20);
+
+  if (transEl) {
+    if (allTrans.length === 0) {
+      transEl.innerHTML = "<div style=\"text-align:center;padding:2rem;color:var(--light);font-size:13px;\">No transactions yet.</div>";
+    } else {
+      transEl.innerHTML = allTrans.map(function(t) {
+        var date = new Date(t.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        return "<div style=\"display:flex;align-items:center;justify-content:space-between;padding:0.85rem 0;border-bottom:1px solid var(--border);\">" +
+          "<div>" +
+            "<div style=\"font-size:13.5px;font-weight:500;color:var(--navy);\">" + t.label + "</div>" +
+            "<div style=\"font-size:12px;color:var(--light);\">" + t.sub + " · " + date + "</div>" +
+          "</div>" +
+          "<div style=\"font-size:15px;font-weight:600;color:" + t.color + ";font-family:'Cormorant Garamond',serif;\">" + t.amount + "</div>" +
+        "</div>";
+      }).join("");
+    }
+  }
+
+  var revenueByDealer = {};
+  contracts.forEach(function(c) {
+    var dp = pricing.find(function(p) { return p.dealership_name === c.dealership_name; });
+    var pm = {
+      "1yr": dp ? dp.contract_retail_1yr : 3325,
+      "2yr": dp ? dp.contract_retail_2yr : 6650,
+      "3yr": dp ? dp.contract_retail_3yr : 9975
+    };
+    var amt = pm[c.contract_type] || 0;
+    revenueByDealer[c.dealership_name] = (revenueByDealer[c.dealership_name] || 0) + amt;
+  });
+
+  var revEl = document.getElementById("fin-revenue-by-dealer");
+  var dealerRevList = Object.keys(revenueByDealer).sort(function(a, b) {
+    return revenueByDealer[b] - revenueByDealer[a];
+  });
+  if (revEl) {
+    if (dealerRevList.length === 0) {
+      revEl.innerHTML = "<div style=\"text-align:center;padding:2rem;color:var(--light);font-size:13px;\">No revenue data yet.</div>";
+    } else {
+      var maxRev = Math.max.apply(null, dealerRevList.map(function(d) { return revenueByDealer[d]; }));
+      revEl.innerHTML = dealerRevList.map(function(dealer) {
+        var amt = revenueByDealer[dealer];
+        var pct = Math.round(amt / maxRev * 100);
+        return "<div style=\"margin-bottom:1rem;\">" +
+          "<div style=\"display:flex;justify-content:space-between;margin-bottom:4px;\">" +
+            "<span style=\"font-size:13px;color:var(--navy);font-weight:500;\">" + dealer + "</span>" +
+            "<span style=\"font-size:13px;font-weight:600;color:var(--gold);\">$" + amt.toLocaleString() + "</span>" +
+          "</div>" +
+          "<div style=\"height:6px;background:var(--silver-bg);border-radius:3px;\"><div style=\"height:100%;width:" + pct + "%;background:var(--gold);border-radius:3px;\"></div></div>" +
+        "</div>";
+      }).join("");
+    }
+  }
+
+  var revenueByType = { "1yr": 0, "2yr": 0, "3yr": 0 };
+  contracts.forEach(function(c) {
+    var dp = pricing.find(function(p) { return p.dealership_name === c.dealership_name; });
+    var pm = {
+      "1yr": dp ? dp.contract_retail_1yr : 3325,
+      "2yr": dp ? dp.contract_retail_2yr : 6650,
+      "3yr": dp ? dp.contract_retail_3yr : 9975
+    };
+    revenueByType[c.contract_type] = (revenueByType[c.contract_type] || 0) + (pm[c.contract_type] || 0);
+  });
+
+  var typeEl = document.getElementById("fin-revenue-by-type");
+  if (typeEl) {
+    typeEl.innerHTML = ["1yr", "2yr", "3yr"].map(function(type) {
+      var count = contracts.filter(function(c) { return c.contract_type === type; }).length;
+      return "<div style=\"display:flex;align-items:center;justify-content:space-between;padding:0.85rem 0;border-bottom:1px solid var(--border);\">" +
+        "<div><div style=\"font-size:13.5px;font-weight:500;color:var(--navy);\">" + type.toUpperCase() + " Contract</div>" +
+        "<div style=\"font-size:12px;color:var(--light);\">" + count + " enrolled</div></div>" +
+        "<div style=\"font-size:15px;font-weight:600;color:var(--gold);font-family:'Cormorant Garamond',serif;\">$" + revenueByType[type].toLocaleString() + "</div>" +
+      "</div>";
+    }).join("");
+  }
+
+  var reimbEl = document.getElementById("fin-reimbursements-breakdown");
+  if (reimbEl) {
+    if (reimbs.length === 0) {
+      reimbEl.innerHTML = "<div style=\"text-align:center;padding:2rem;color:var(--light);font-size:13px;\">No reimbursement data yet.</div>";
+    } else {
+      var byDealer = {};
+      reimbs.forEach(function(r) {
+        if (!byDealer[r.dealership_name]) byDealer[r.dealership_name] = { paid: 0, pending: 0 };
+        if (r.status === "paid") byDealer[r.dealership_name].paid += (r.amount || 150);
+        else byDealer[r.dealership_name].pending += (r.amount || 150);
+      });
+      reimbEl.innerHTML = "<table style=\"width:100%;border-collapse:collapse;font-size:13px;\">" +
+        "<thead><tr>" +
+          "<th style=\"text-align:left;padding:8px;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);border-bottom:2px solid var(--border);\">Dealer</th>" +
+          "<th style=\"text-align:right;padding:8px;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);border-bottom:2px solid var(--border);\">Paid</th>" +
+          "<th style=\"text-align:right;padding:8px;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);border-bottom:2px solid var(--border);\">Outstanding</th>" +
+        "</tr></thead><tbody>" +
+        Object.keys(byDealer).map(function(dealer) {
+          return "<tr>" +
+            "<td style=\"padding:9px 8px;border-bottom:1px solid var(--border);font-weight:500;color:var(--navy);\">" + dealer + "</td>" +
+            "<td style=\"padding:9px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--green-text);font-weight:600;\">$" + byDealer[dealer].paid.toLocaleString() + "</td>" +
+            "<td style=\"padding:9px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--amber);font-weight:600;\">$" + byDealer[dealer].pending.toLocaleString() + "</td>" +
+          "</tr>";
+        }).join("") +
+        "</tbody></table>";
+    }
+  }
+
+  var contractsEl = document.getElementById("fin-contracts-breakdown");
+  var active = contracts.filter(function(c) { return c.status === "active"; });
+  var expiring = contracts.filter(function(c) {
+    if (!c.end_date) return false;
+    var days = Math.ceil((new Date(c.end_date) - new Date()) / 86400000);
+    return days >= 0 && days <= 30;
+  });
+  var expired = contracts.filter(function(c) {
+    return c.status === "expired" || (c.end_date && new Date(c.end_date) < new Date());
+  });
+
+  if (contractsEl) {
+    contractsEl.innerHTML =
+      "<div style=\"display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;\">" +
+        "<div style=\"text-align:center;background:var(--silver-bg);border-radius:8px;padding:1rem;\">" +
+          "<div style=\"font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:300;color:var(--green);\">" + active.length + "</div>" +
+          "<div style=\"font-size:11px;color:var(--light);\">Active</div>" +
+        "</div>" +
+        "<div style=\"text-align:center;background:var(--silver-bg);border-radius:8px;padding:1rem;\">" +
+          "<div style=\"font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:300;color:var(--amber);\">" + expiring.length + "</div>" +
+          "<div style=\"font-size:11px;color:var(--light);\">Expiring (30 days)</div>" +
+        "</div>" +
+        "<div style=\"text-align:center;background:var(--silver-bg);border-radius:8px;padding:1rem;\">" +
+          "<div style=\"font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:300;color:var(--red);\">" + expired.length + "</div>" +
+          "<div style=\"font-size:11px;color:var(--light);\">Expired</div>" +
+        "</div>" +
+      "</div>" +
+      (contracts.length === 0
+        ? "<div style=\"text-align:center;padding:2rem;color:var(--light);font-size:13px;\">No contracts yet.</div>"
+        : "<table style=\"width:100%;border-collapse:collapse;font-size:13px;\">" +
+        "<thead><tr>" +
+          "<th style=\"text-align:left;padding:8px;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);border-bottom:2px solid var(--border);\">Customer</th>" +
+          "<th style=\"text-align:left;padding:8px;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);border-bottom:2px solid var(--border);\">Dealer</th>" +
+          "<th style=\"text-align:right;padding:8px;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);border-bottom:2px solid var(--border);\">Type</th>" +
+          "<th style=\"text-align:right;padding:8px;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);border-bottom:2px solid var(--border);\">Expires</th>" +
+          "<th style=\"text-align:right;padding:8px;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);border-bottom:2px solid var(--border);\">Status</th>" +
+        "</tr></thead><tbody>" +
+        contracts.slice(0, 20).map(function(c) {
+          var days = c.end_date ? Math.ceil((new Date(c.end_date) - new Date()) / 86400000) : null;
+          var statusColor = days === null ? "var(--light)" : days < 0 ? "var(--red)" : days <= 30 ? "var(--amber)" : "var(--green)";
+          var statusLabel = days === null ? "—" : days < 0 ? "Expired" : days <= 30 ? "Expiring" : "Active";
+          return "<tr>" +
+            "<td style=\"padding:9px 8px;border-bottom:1px solid var(--border);font-weight:500;color:var(--navy);\">" + c.customer_first_name + " " + c.customer_last_name + "</td>" +
+            "<td style=\"padding:9px 8px;border-bottom:1px solid var(--border);color:var(--mid);font-size:12px;\">" + (c.dealership_name || "—") + "</td>" +
+            "<td style=\"padding:9px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--gold);font-weight:600;\">" + (c.contract_type || "1yr").toUpperCase() + "</td>" +
+            "<td style=\"padding:9px 8px;border-bottom:1px solid var(--border);text-align:right;font-size:12px;color:var(--mid);\">" + (c.end_date ? new Date(c.end_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—") + "</td>" +
+            "<td style=\"padding:9px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;color:" + statusColor + ";\">" + statusLabel + "</td>" +
+          "</tr>";
+        }).join("") +
+        "</tbody></table>"
+      );
+  }
+
+  var projEl = document.getElementById("fin-projections-content");
+  if (projEl) {
+    if (active.length === 0) {
+      projEl.innerHTML = "<div style=\"text-align:center;padding:2rem;color:var(--light);font-size:13px;\">No active contracts to project from yet.</div>";
+    } else {
+      var avgWholesale = wholesaleTotal / Math.max(contracts.length, 1);
+      var annualCost = active.length * 3325 * 0.8;
+      var annualRevenue = active.length * avgWholesale;
+      var projProfit = annualRevenue - annualCost;
+      var renewalRevenue75 = active.length * 0.75 * avgWholesale;
+      var renewalRevenue50 = active.length * 0.5 * avgWholesale;
+
+      projEl.innerHTML =
+        "<div style=\"display:flex;flex-direction:column;gap:1rem;\">" +
+          "<div style=\"background:var(--silver-bg);border-radius:8px;padding:1.25rem;\">" +
+            "<div style=\"font-size:12px;font-weight:600;color:var(--mid);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.75rem;\">Next 12 Months (current contracts)</div>" +
+            "<div style=\"display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;text-align:center;\">" +
+              "<div><div style=\"font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:300;color:var(--green);\">$" + Math.round(annualRevenue).toLocaleString() + "</div><div style=\"font-size:11px;color:var(--light);\">Expected revenue</div></div>" +
+              "<div><div style=\"font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:300;color:var(--red);\">$" + Math.round(annualCost).toLocaleString() + "</div><div style=\"font-size:11px;color:var(--light);\">Expected costs</div></div>" +
+              "<div><div style=\"font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:300;color:" + (projProfit >= 0 ? "var(--green)" : "var(--red)") + ";\">$" + Math.round(Math.abs(projProfit)).toLocaleString() + "</div><div style=\"font-size:11px;color:var(--light);\">Projected profit</div></div>" +
+            "</div>" +
+          "</div>" +
+          "<div style=\"background:var(--silver-bg);border-radius:8px;padding:1.25rem;\">" +
+            "<div style=\"font-size:12px;font-weight:600;color:var(--mid);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.75rem;\">Renewal Scenarios</div>" +
+            "<div style=\"display:flex;flex-direction:column;gap:0.75rem;font-size:13.5px;\">" +
+              "<div style=\"display:flex;justify-content:space-between;padding:0.75rem;background:white;border-radius:6px;\"><span style=\"color:var(--mid);\">75% renewal rate</span><span style=\"font-weight:600;color:var(--green);\">$" + Math.round(renewalRevenue75).toLocaleString() + "</span></div>" +
+              "<div style=\"display:flex;justify-content:space-between;padding:0.75rem;background:white;border-radius:6px;\"><span style=\"color:var(--mid);\">50% renewal rate</span><span style=\"font-weight:600;color:var(--amber);\">$" + Math.round(renewalRevenue50).toLocaleString() + "</span></div>" +
+            "</div>" +
+          "</div>" +
+        "</div>";
+    }
+  }
+};
+
 document.addEventListener("DOMContentLoaded", function() {
+
+  var adminPanelLastNav = "dashboard";
 
   function resetLoginPanels() {
     document.getElementById("forgot-form-wrap").style.display = "none";
@@ -2068,15 +2415,14 @@ document.addEventListener("DOMContentLoaded", function() {
     if (currentDealer && currentDealer.isAdmin) {
       document.getElementById("portal-screen").className = "mode-admin";
       document.getElementById("dealer-layout").style.display = "none";
-      document.getElementById("admin-layout").style.display = "block";
+      document.getElementById("admin-layout").style.display = "flex";
       document.querySelectorAll(".admin-nav-item").forEach(function(b) {
         b.classList.remove("active");
       });
       var dashNav = document.querySelector('.admin-nav-item[data-admin-panel="dashboard"]');
       if (dashNav) dashNav.classList.add("active");
       adminShowPanel("dashboard");
-      applicationsRefreshTabBadgeOnly();
-      adminLoadMessages();
+      adminLoadBadgeCounts();
     } else {
       document.getElementById("portal-screen").className = "mode-dealer";
       document.getElementById("dealer-layout").style.display = "flex";
@@ -2265,17 +2611,20 @@ document.addEventListener("DOMContentLoaded", function() {
     var modal = document.getElementById("settings-modal");
     if (!modal) return;
     modal.style.display = "flex";
-    document.querySelectorAll('.admin-nav-item[data-admin-panel="settings"]').forEach(function(b) {
-      b.classList.remove("active");
-    });
   }
 
   function adminShowPanel(panel) {
     if (!currentDealer || !currentDealer.isAdmin) return;
     if (panel === "settings") {
       adminShowSettingsModal();
+      document.querySelectorAll(".admin-nav-item").forEach(function(b) {
+        b.classList.remove("active");
+      });
+      var prevBtn = document.querySelector('.admin-nav-item[data-admin-panel="' + adminPanelLastNav + '"]');
+      if (prevBtn) prevBtn.classList.add("active");
       return;
     }
+    adminPanelLastNav = panel;
     document.querySelectorAll("#admin-content .admin-panel").forEach(function(p) {
       if (p.id === "admin-panel-settings") return;
       p.style.display = "none";
@@ -2294,6 +2643,10 @@ document.addEventListener("DOMContentLoaded", function() {
         break;
       case "claims":
         claimsLoadTab();
+        break;
+      case "financials":
+        window.financialsShowSection("overview");
+        window.financialsLoad();
         break;
       case "messages":
         adminLoadMessages();
@@ -2656,7 +3009,7 @@ document.addEventListener("DOMContentLoaded", function() {
     btn.addEventListener("click", function() {
       var panel = this.getAttribute("data-admin-panel");
       if (panel === "settings") {
-        adminShowSettingsModal();
+        adminShowPanel(panel);
         return;
       }
       document.querySelectorAll(".admin-nav-item").forEach(function(b) {

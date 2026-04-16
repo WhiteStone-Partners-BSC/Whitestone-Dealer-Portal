@@ -443,28 +443,38 @@
   </div>
 
   <div class="admin-layout" id="admin-layout" style="display:none;">
-  <nav class="admin-topnav">
-    <div class="admin-topnav-brand">Whitestone Partners</div>
-    <div class="admin-nav-items">
-      <button type="button" class="admin-nav-item active" data-admin-panel="dashboard">Dashboard</button>
-      <span class="admin-nav-dealers-wrap">
-        <button type="button" class="admin-nav-item" data-admin-panel="dealers">Dealers</button>
-        <span id="applications-tab-badge" class="applications-tab-badge" style="display:none;"></span>
-      </span>
-      <button type="button" class="admin-nav-item" data-admin-panel="customers">Customers</button>
-      <button type="button" class="admin-nav-item" data-admin-panel="claims">Claims</button>
-      <button type="button" class="admin-nav-item" data-admin-panel="messages">
-        Messages <span id="messages-badge" style="display:none;background:var(--red-text);color:white;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:5px;vertical-align:middle;"></span>
-      </button>
-      <button type="button" class="admin-nav-item" data-admin-panel="pricing">Pricing</button>
-      <button type="button" class="admin-nav-item" data-admin-panel="settings">Settings</button>
+
+  <!-- Admin Sidebar -->
+  <nav class="admin-sidebar">
+    <div class="admin-sidebar-brand">
+      <div class="brand-name">Whitestone Partners</div>
+      <div class="brand-badge">Admin Portal</div>
     </div>
-    <div class="admin-topnav-right">
-      <span class="admin-badge">Admin</span>
-      <button type="button" class="admin-logout-btn" id="admin-logout-btn">Sign out</button>
+
+    <div class="admin-sidebar-section-label">Main</div>
+    <button type="button" class="admin-nav-item active" data-admin-panel="dashboard">Dashboard</button>
+    <button type="button" class="admin-nav-item" data-admin-panel="dealers">
+      Dealers
+      <span class="admin-nav-badge" id="dealers-pending-badge" style="display:none;"></span>
+    </button>
+    <button type="button" class="admin-nav-item" data-admin-panel="customers">Customers</button>
+    <button type="button" class="admin-nav-item" data-admin-panel="claims">Claims</button>
+    <button type="button" class="admin-nav-item" data-admin-panel="financials">Financials</button>
+    <button type="button" class="admin-nav-item" data-admin-panel="pricing">Pricing</button>
+    <button type="button" class="admin-nav-item" data-admin-panel="messages">
+      Messages
+      <span class="admin-nav-badge" id="messages-badge" style="display:none;"></span>
+    </button>
+
+    <div class="admin-sidebar-section-label">System</div>
+    <button type="button" class="admin-nav-item" data-admin-panel="settings">Settings</button>
+
+    <div class="admin-sidebar-footer">
+      <button type="button" class="admin-sidebar-logout" id="admin-logout-btn">Sign out</button>
     </div>
   </nav>
 
+  <!-- Admin Content -->
   <div class="admin-content" id="admin-content">
 
     <div id="admin-panel-dashboard" class="admin-panel" style="display:block;">
@@ -809,6 +819,122 @@
           <div id="ws-history-panel" style="display:none;margin-top:1rem;">
             <div id="ws-history-list" style="font-size:13px;color:var(--light);">Loading...</div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-panel-financials" class="admin-panel" style="display:none;">
+
+      <!-- Time filter -->
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;color:var(--navy);flex:1;">Financials</div>
+        <div style="display:flex;gap:0.5rem;background:white;border:1px solid var(--border);border-radius:8px;padding:4px;">
+          <button type="button" onclick="financialsSetPeriod('week')"   id="fin-btn-week"   class="fin-period-btn">Week</button>
+          <button type="button" onclick="financialsSetPeriod('month')"  id="fin-btn-month"  class="fin-period-btn active">Month</button>
+          <button type="button" onclick="financialsSetPeriod('year')"   id="fin-btn-year"   class="fin-period-btn">Year</button>
+          <button type="button" onclick="financialsSetPeriod('all')"    id="fin-btn-all"    class="fin-period-btn">All Time</button>
+        </div>
+      </div>
+
+      <!-- Left/Right layout -->
+      <div style="display:flex;gap:1.5rem;align-items:flex-start;flex-wrap:wrap;">
+
+        <!-- Left sidebar nav -->
+        <div style="width:160px;flex-shrink:0;">
+          <div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+            <button type="button" onclick="financialsShowSection('overview')"       id="fin-nav-overview"       class="fin-nav-item active">Overview</button>
+            <button type="button" onclick="financialsShowSection('revenue')"        id="fin-nav-revenue"        class="fin-nav-item">Revenue</button>
+            <button type="button" onclick="financialsShowSection('reimbursements')" id="fin-nav-reimbursements" class="fin-nav-item">Reimbursements</button>
+            <button type="button" onclick="financialsShowSection('contracts')"      id="fin-nav-contracts"      class="fin-nav-item">Contracts</button>
+            <button type="button" onclick="financialsShowSection('projections')"    id="fin-nav-projections"    class="fin-nav-item">Projections</button>
+          </div>
+        </div>
+
+        <!-- Right content -->
+        <div style="flex:1;min-width:0;">
+
+          <!-- OVERVIEW -->
+          <div id="fin-section-overview">
+            <!-- Stat cards -->
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;margin-bottom:1.5rem;" id="fin-stat-cards">
+              <div class="card" style="text-align:center;">
+                <div style="font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:8px;">Wholesale Collected</div>
+                <div style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;color:var(--gold);" id="fin-wholesale">$0</div>
+                <div style="font-size:11px;color:var(--light);margin-top:4px;" id="fin-wholesale-sub">0 contracts</div>
+              </div>
+              <div class="card" style="text-align:center;">
+                <div style="font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:8px;">Reimbursements Paid</div>
+                <div style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;color:var(--red);" id="fin-reimbursed">$0</div>
+                <div style="font-size:11px;color:var(--light);margin-top:4px;" id="fin-reimbursed-sub">0 tickets paid</div>
+              </div>
+              <div class="card" style="text-align:center;">
+                <div style="font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:8px;">Net Profit</div>
+                <div style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;" id="fin-profit">$0</div>
+                <div style="font-size:11px;color:var(--light);margin-top:4px;" id="fin-profit-sub">wholesale minus reimbursements</div>
+              </div>
+              <div class="card" style="text-align:center;">
+                <div style="font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:8px;">Outstanding Owed</div>
+                <div style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;color:var(--amber);" id="fin-outstanding">$0</div>
+                <div style="font-size:11px;color:var(--light);margin-top:4px;">Approved tickets not yet paid</div>
+              </div>
+            </div>
+
+            <!-- Recent transactions -->
+            <div class="card">
+              <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:1rem;">Recent Transactions</div>
+              <div id="fin-recent-transactions">
+                <div style="text-align:center;padding:2rem;color:var(--light);font-size:13px;">No transactions yet.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- REVENUE -->
+          <div id="fin-section-revenue" style="display:none;">
+            <div class="card">
+              <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:1rem;">Revenue by Dealer</div>
+              <div id="fin-revenue-by-dealer">
+                <div style="text-align:center;padding:2rem;color:var(--light);font-size:13px;">No revenue data yet.</div>
+              </div>
+            </div>
+            <div class="card" style="margin-top:1rem;">
+              <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:1rem;">Revenue by Contract Type</div>
+              <div id="fin-revenue-by-type">
+                <div style="text-align:center;padding:2rem;color:var(--light);font-size:13px;">No revenue data yet.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- REIMBURSEMENTS -->
+          <div id="fin-section-reimbursements" style="display:none;">
+            <div class="card">
+              <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:1rem;">Reimbursements Breakdown</div>
+              <div id="fin-reimbursements-breakdown">
+                <div style="text-align:center;padding:2rem;color:var(--light);font-size:13px;">No reimbursement data yet.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CONTRACTS -->
+          <div id="fin-section-contracts" style="display:none;">
+            <div class="card">
+              <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:1rem;">Active Contracts</div>
+              <div id="fin-contracts-breakdown">
+                <div style="text-align:center;padding:2rem;color:var(--light);font-size:13px;">No contract data yet.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PROJECTIONS -->
+          <div id="fin-section-projections" style="display:none;">
+            <div class="card">
+              <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:8px;">Revenue Projections</div>
+              <div style="font-size:12px;color:var(--light);margin-bottom:1.25rem;">Based on active contracts at 80% claims rate.</div>
+              <div id="fin-projections-content">
+                <div style="text-align:center;padding:2rem;color:var(--light);font-size:13px;">No active contracts to project from yet.</div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
