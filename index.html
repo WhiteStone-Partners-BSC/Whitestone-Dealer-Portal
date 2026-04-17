@@ -2574,6 +2574,46 @@ window.addEventListener("load", function() {
         paid_at: new Date().toISOString()
       })
     });
+    var custEmail     = document.getElementById("e-email") ? document.getElementById("e-email").value.trim() : "";
+    var custFirstName = document.getElementById("e-fname") ? document.getElementById("e-fname").value.trim() : "";
+    var boatMakeBk    = document.getElementById("e-make")  ? document.getElementById("e-make").value.trim()  : "";
+    var boatModelBk   = document.getElementById("e-model") ? document.getElementById("e-model").value.trim() : "";
+    var boatYearBk    = document.getElementById("e-year")  ? document.getElementById("e-year").value.trim()  : "";
+    var hinValBk      = document.getElementById("e-hin")   ? document.getElementById("e-hin").value.trim()   : "";
+    var contractLabelBk = selectedContractLength === "2yr" ? "2-Year" : selectedContractLength === "3yr" ? "3-Year" : "1-Year";
+    var enrollDateBk    = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    var expireDateBk    = "";
+    if (selectedContractLength === "3yr") {
+      expireDateBk = new Date(new Date().setFullYear(new Date().getFullYear() + 3)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    } else if (selectedContractLength === "2yr") {
+      expireDateBk = new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    } else {
+      expireDateBk = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    }
+    if (custEmail) {
+      await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to:      custEmail,
+          subject: "Your Whitestone Partners Contract is Active — " + boatYearBk + " " + boatMakeBk + " " + boatModelBk,
+          html:    "<div style=\"font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:2rem;\">" +
+                   "<h2 style=\"color:#0c1e2e;font-family:Georgia,serif;font-weight:300;\">Your contract is active.</h2>" +
+                   "<p style=\"color:#6b8599;\">Hi " + custFirstName + ", your Whitestone Partners annual boat service contract is now active.</p>" +
+                   "<table style=\"width:100%;border-collapse:collapse;font-size:14px;margin:1.5rem 0;\">" +
+                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;width:120px;\">Boat</td><td style=\"padding:8px 0;font-weight:500;\">" + boatYearBk + " " + boatMakeBk + " " + boatModelBk + "</td></tr>" +
+                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">HIN</td><td style=\"padding:8px 0;font-family:monospace;\">" + hinValBk + "</td></tr>" +
+                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">Contract</td><td style=\"padding:8px 0;font-weight:500;\">" + contractLabelBk + "</td></tr>" +
+                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">Enrolled</td><td style=\"padding:8px 0;\">" + enrollDateBk + "</td></tr>" +
+                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">Expires</td><td style=\"padding:8px 0;\">" + expireDateBk + "</td></tr>" +
+                   "<tr><td style=\"padding:8px 0;color:#999;\">Dealer</td><td style=\"padding:8px 0;font-weight:500;\">" + currentDealer.name + "</td></tr>" +
+                   "</table>" +
+                   "<p style=\"color:#6b8599;font-size:13px;\">Questions? <a href=\"mailto:support@whitestone-partners.com\" style=\"color:#b8963e;\">support@whitestone-partners.com</a></p>" +
+                   "<p style=\"color:#b8963e;font-style:italic;font-family:Georgia,serif;\">\"The contract that brings your customers back. Every season.\"</p>" +
+                   "</div>"
+        })
+      }).catch(function(e) { console.log("Customer email error:", e); });
+    }
     await writeAuditLog(
       "contract",
       contractId,

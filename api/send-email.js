@@ -1,20 +1,23 @@
 export default async function handler(req, res) {
-  // Only allow POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Get API key from environment variable — never exposed to client
   var apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: 'Email service not configured' });
   }
 
-  var { subject, html } = req.body;
+  var { subject, html, to } = req.body;
 
   if (!subject || !html) {
     return res.status(400).json({ error: 'Missing subject or html' });
   }
+
+  // Default to support inbox — allow override for customer emails
+  var recipient = to || 'support@whitestone-partners.com';
+
+  var toArray = Array.isArray(recipient) ? recipient : [recipient];
 
   try {
     var response = await fetch('https://api.resend.com/emails', {
@@ -24,10 +27,10 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: 'Whitestone Partners <support@whitestone-partners.com>',
-        to:   ['support@whitestone-partners.com'],
+        from:    'Whitestone Partners <support@whitestone-partners.com>',
+        to:      toArray,
         subject: subject,
-        html: html
+        html:    html
       })
     });
 
