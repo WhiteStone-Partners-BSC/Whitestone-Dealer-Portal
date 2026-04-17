@@ -37,6 +37,21 @@ function authHeaders(extraHeaders) {
   return headers;
 }
 
+async function sendResendEmail(subject, htmlContent) {
+  try {
+    await fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject: subject,
+        html: htmlContent
+      })
+    });
+  } catch (e) {
+    console.log("Email notification error:", e);
+  }
+}
+
 function supabaseHeaders(extra) {
   return authHeaders(extra);
 }
@@ -3620,6 +3635,46 @@ document.addEventListener("DOMContentLoaded", function() {
         })
       });
       await writeAuditLog("ticket", newTicket.id, "ticket_submitted", null, { hin: hinVal, services: services }, currentDealer.name, fname + " " + lname, null);
+      var ticketEmailHtml =
+        '<!DOCTYPE html><html><body style="font-family:DM Sans,sans-serif;background:#f0f4f8;margin:0;padding:2rem;">' +
+        '<div style="max-width:560px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">' +
+        '<div style="background:#0c1e2e;padding:1.5rem 2rem;border-bottom:3px solid #b8963e;">' +
+        '<div style="font-family:Georgia,serif;font-size:20px;font-weight:300;color:white;letter-spacing:0.04em;">Whitestone Partners</div>' +
+        '<div style="font-size:11px;color:#b8963e;letter-spacing:0.12em;text-transform:uppercase;margin-top:2px;">New Service Ticket</div>' +
+        "</div>" +
+        '<div style="padding:1.5rem 2rem;">' +
+        '<p style="font-size:15px;font-weight:600;color:#0c1e2e;margin-bottom:1.25rem;">A new ticket has been submitted and is waiting for your review.</p>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:13.5px;">' +
+        '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;width:140px;">Dealer</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' +
+        escHtml(currentDealer.name) +
+        "</td></tr>" +
+        '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;">Customer</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' +
+        escHtml(fname + " " + lname) +
+        "</td></tr>" +
+        '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;">Service</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' +
+        escHtml(services || "—") +
+        "</td></tr>" +
+        '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;">Boat</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' +
+        escHtml(
+          (
+            (document.getElementById("t-make") ? document.getElementById("t-make").value : "") +
+            " " +
+            (document.getElementById("t-model") ? document.getElementById("t-model").value : "")
+          ).trim() || "—"
+        ) +
+        "</td></tr>" +
+        '<tr><td style="padding:8px 0;color:#6b8599;">HIN</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;font-family:monospace;">' +
+        escHtml(document.getElementById("t-hin") ? document.getElementById("t-hin").value : "—") +
+        "</td></tr>" +
+        "</table>" +
+        '<div style="margin-top:1.5rem;">' +
+        '<a href="https://whitestone-dealer-portal.vercel.app" style="display:inline-block;background:#0c1e2e;color:white;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:13px;font-weight:600;">Review in Portal →</a>' +
+        "</div>" +
+        "</div>" +
+        '<div style="padding:1rem 2rem;background:#f8f9fb;border-top:1px solid #eef0f3;font-size:11px;color:#9aafbf;">Whitestone Partners LLC · St. George, Utah · support@whitestone-partners.com</div>' +
+        "</div>" +
+        "</body></html>";
+      await sendResendEmail("🎫 New Ticket — " + currentDealer.name, ticketEmailHtml);
       document.getElementById("t-num").textContent = ticketNum;
       document.getElementById("t-ok").style.display = "block";
       document.getElementById("t-err").style.display = "none";
@@ -4083,6 +4138,35 @@ document.addEventListener("DOMContentLoaded", function() {
         "Dealer approved and Supabase Auth account created"
       );
 
+      var welcomeNotifyHtml =
+        '<!DOCTYPE html><html><body style="font-family:DM Sans,sans-serif;background:#f0f4f8;margin:0;padding:2rem;">' +
+        '<div style="max-width:560px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">' +
+        '<div style="background:#0c1e2e;padding:1.5rem 2rem;border-bottom:3px solid #b8963e;">' +
+        '<div style="font-family:Georgia,serif;font-size:20px;font-weight:300;color:white;letter-spacing:0.04em;">Whitestone Partners</div>' +
+        '<div style="font-size:11px;color:#b8963e;letter-spacing:0.12em;text-transform:uppercase;margin-top:2px;">New Dealer Approved</div>' +
+        "</div>" +
+        '<div style="padding:1.5rem 2rem;">' +
+        '<p style="font-size:15px;font-weight:600;color:#0c1e2e;margin-bottom:1.25rem;">A new dealer has been approved and their account is now active.</p>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:13.5px;">' +
+        '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;width:140px;">Dealership</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' +
+        escHtml(app.dealership_name || "—") +
+        "</td></tr>" +
+        '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;">Contact</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' +
+        escHtml((app.contact_first_name || "") + " " + (app.contact_last_name || "")) +
+        "</td></tr>" +
+        '<tr><td style="padding:8px 0;color:#6b8599;">Email</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' +
+        escHtml(app.email || "—") +
+        "</td></tr>" +
+        "</table>" +
+        '<div style="margin-top:1.5rem;">' +
+        '<a href="https://whitestone-dealer-portal.vercel.app" style="display:inline-block;background:#0c1e2e;color:white;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:13px;font-weight:600;">View in Portal →</a>' +
+        "</div>" +
+        "</div>" +
+        '<div style="padding:1rem 2rem;background:#f8f9fb;border-top:1px solid #eef0f3;font-size:11px;color:#9aafbf;">Whitestone Partners LLC · St. George, Utah · support@whitestone-partners.com</div>' +
+        "</div>" +
+        "</body></html>";
+      await sendResendEmail("🤝 New Dealer Approved — " + (app.dealership_name || ""), welcomeNotifyHtml);
+
       var welcomeMsg =
         "Welcome to the Whitestone Partners certified dealer network!\n\n" +
         "Your dealer portal access has been set up. Here are your login credentials:\n\n" +
@@ -4489,6 +4573,34 @@ document.addEventListener("DOMContentLoaded", function() {
         if (res.ok || res.status === 201) {
           if (okEl) okEl.style.display = "block";
           if (errEl) errEl.style.display = "none";
+          var msgEmailHtml =
+            '<!DOCTYPE html><html><body style="font-family:DM Sans,sans-serif;background:#f0f4f8;margin:0;padding:2rem;">' +
+            '<div style="max-width:560px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">' +
+            '<div style="background:#0c1e2e;padding:1.5rem 2rem;border-bottom:3px solid #b8963e;">' +
+            '<div style="font-family:Georgia,serif;font-size:20px;font-weight:300;color:white;letter-spacing:0.04em;">Whitestone Partners</div>' +
+            '<div style="font-size:11px;color:#b8963e;letter-spacing:0.12em;text-transform:uppercase;margin-top:2px;">New Support Message</div>' +
+            "</div>" +
+            '<div style="padding:1.5rem 2rem;">' +
+            '<p style="font-size:15px;font-weight:600;color:#0c1e2e;margin-bottom:1.25rem;">A dealer has sent a support message.</p>' +
+            '<table style="width:100%;border-collapse:collapse;font-size:13.5px;">' +
+            '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;width:140px;">Dealer</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' +
+            escHtml(currentDealer ? currentDealer.name : "—") +
+            "</td></tr>" +
+            '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;">Type</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' +
+            escHtml(type) +
+            "</td></tr>" +
+            '<tr><td style="padding:8px 0;color:#6b8599;vertical-align:top;padding-top:10px;">Message</td><td style="padding:8px 0;color:#0c1e2e;">' +
+            escHtml(message) +
+            "</td></tr>" +
+            "</table>" +
+            '<div style="margin-top:1.5rem;">' +
+            '<a href="https://whitestone-dealer-portal.vercel.app" style="display:inline-block;background:#0c1e2e;color:white;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:13px;font-weight:600;">View Messages →</a>' +
+            "</div>" +
+            "</div>" +
+            '<div style="padding:1rem 2rem;background:#f8f9fb;border-top:1px solid #eef0f3;font-size:11px;color:#9aafbf;">Whitestone Partners LLC · St. George, Utah · support@whitestone-partners.com</div>' +
+            "</div>" +
+            "</body></html>";
+          await sendResendEmail("💬 Support Message — " + (currentDealer ? currentDealer.name : ""), msgEmailHtml);
           document.getElementById("support-type").value = "";
           document.getElementById("support-message").value = "";
           if (currentDealer && currentDealer.isAdmin) adminLoadMessages();

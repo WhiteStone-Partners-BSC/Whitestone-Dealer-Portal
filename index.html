@@ -1559,6 +1559,31 @@ window.addEventListener("load", function() {
       });
 
       await writeAuditLog("application", appId, "application_approved", null, { dealer: application.dealership_name, email: loginEmail }, application.dealership_name, null, "Application approved");
+      var welcomeEmailHtml =
+        '<!DOCTYPE html><html><body style="font-family:DM Sans,sans-serif;background:#f0f4f8;margin:0;padding:2rem;">' +
+        '<div style="max-width:560px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">' +
+        '<div style="background:#0c1e2e;padding:1.5rem 2rem;border-bottom:3px solid #b8963e;">' +
+        '<div style="font-family:Georgia,serif;font-size:20px;font-weight:300;color:white;letter-spacing:0.04em;">Whitestone Partners</div>' +
+        '<div style="font-size:11px;color:#b8963e;letter-spacing:0.12em;text-transform:uppercase;margin-top:2px;">New Dealer Approved</div>' +
+        '</div>' +
+        '<div style="padding:1.5rem 2rem;">' +
+        '<p style="font-size:15px;font-weight:600;color:#0c1e2e;margin-bottom:1.25rem;">A new dealer has been approved and their account is now active.</p>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:13.5px;">' +
+        '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;width:140px;">Dealership</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' + (typeof escHtml === "function" ? escHtml(application.dealership_name || "—") : esc(application.dealership_name || "—")) + '</td></tr>' +
+        '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;">Contact</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' + (typeof escHtml === "function" ? escHtml((application.contact_first_name || "") + " " + (application.contact_last_name || "")) : esc((application.contact_first_name || "") + " " + (application.contact_last_name || ""))) + '</td></tr>' +
+        '<tr><td style="padding:8px 0;color:#6b8599;">Email</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' + (typeof escHtml === "function" ? escHtml(application.email || "—") : esc(application.email || "—")) + '</td></tr>' +
+        '</table>' +
+        '<div style="margin-top:1.5rem;">' +
+        '<a href="https://whitestone-dealer-portal.vercel.app" style="display:inline-block;background:#0c1e2e;color:white;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:13px;font-weight:600;">View in Portal →</a>' +
+        '</div>' +
+        '</div>' +
+        '<div style="padding:1rem 2rem;background:#f8f9fb;border-top:1px solid #eef0f3;font-size:11px;color:#9aafbf;">Whitestone Partners LLC · St. George, Utah · support@whitestone-partners.com</div>' +
+        '</div>' +
+        '</body></html>';
+      await sendResendEmail(
+        '🤝 New Dealer Approved — ' + (application ? application.dealership_name : ''),
+        welcomeEmailHtml
+      );
       alert("✓ " + application.dealership_name + " approved! A welcome email has been sent to " + loginEmail);
       adminLoadDealerTable();
     } catch (e) {
