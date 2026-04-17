@@ -1772,7 +1772,7 @@ window.addEventListener("load", function() {
 </script>
 <script>
 window.addEventListener("load", function() {
-  var stripe = Stripe('pk_test_51TGqaEIAUAXnMPxHPTki6GDJ3RvXQxcURlKXXK76GriuULfXCFjPWUtYvan9sL3WjhiUbzp2ci1Nkn690OFjScHE00wDfI4Ri0');
+  var stripe = Stripe('pk_live_51TGqa7IqLgfXEPH5BhbHyrZszISJtc36yFPPB3wKezyreNxHCopwsTMli9XaPBRS9Gsemx0AGlNCSIMMCzHkuD55007UQrA1eJ');
   window.stripe = stripe;
 
   window.WHOLESALE_SERVICES_DEFAULT = [
@@ -2116,54 +2116,6 @@ window.addEventListener("load", function() {
     document.getElementById("enroll-confirm-modal").style.display = "none";
   };
 
-  window.doEnrollSubmit = async function(contractType) {
-    var fname = document.getElementById("e-fname").value;
-    var lname = document.getElementById("e-lname").value;
-    var hinVal = normalizeHin(document.getElementById("e-hin").value);
-    var priceMap = {
-      "1yr": dealerPricingData && dealerPricingData.contract_retail_1yr,
-      "2yr": dealerPricingData && dealerPricingData.contract_retail_2yr,
-      "3yr": dealerPricingData && dealerPricingData.contract_retail_3yr
-    };
-    var years = contractType === "2yr" ? 2 : contractType === "3yr" ? 3 : 1;
-    var end = new Date();
-    end.setFullYear(end.getFullYear() + years);
-    var endStr = end.toISOString().split("T")[0];
-    var res = await fetch(SUPABASE_URL + "/rest/v1/contracts", {
-      method: "POST",
-      headers: supabaseHeaders({ Prefer: "return=representation" }),
-      body: JSON.stringify({
-        dealer_id: currentDealer.id,
-        dealership_name: currentDealer.name,
-        customer_first_name: fname,
-        customer_last_name: lname,
-        customer_email: document.getElementById("e-email").value,
-        customer_phone: document.getElementById("e-phone").value,
-        boat_make: document.getElementById("e-make").value,
-        boat_model: document.getElementById("e-model").value,
-        boat_year: document.getElementById("e-year").value,
-        hin: hinVal,
-        contract_type: contractType,
-        retail_price: Number(priceMap[contractType] || 0),
-        start_date: new Date().toISOString().split("T")[0],
-        end_date: endStr,
-        status: "active"
-      })
-    });
-    if (!res.ok) throw new Error("Could not save enrollment");
-    var contractRows = await res.json();
-    var newContract = Array.isArray(contractRows) ? contractRows[0] : null;
-    await writeAuditLog("contract", newContract ? newContract.id : null, "customer_enrolled", null, {
-      hin: hinVal,
-      customer: fname + " " + lname,
-      contract_type: contractType
-    }, currentDealer.name, fname + " " + lname, null);
-    document.getElementById("enroll-link-box").style.display = "block";
-    document.getElementById("e-err").style.display = "none";
-    document.getElementById("enroll-link-box").scrollIntoView({ behavior: "smooth", block: "center" });
-    if (typeof loadDashboard === "function") loadDashboard();
-  };
-
   window.checkDealerPaymentMethod = async function() {
     if (!currentDealer || currentDealer.isAdmin) return;
     var res = await fetch(
@@ -2222,10 +2174,41 @@ window.addEventListener("load", function() {
       document.getElementById("stripe-save-card-btn").addEventListener("click", async function() {
         this.disabled = true;
         this.textContent = "Saving...";
-        var result = await stripe.createPaymentMethod({ type: "card", card: stripeCardElement });
-        if (result.error) {
-          document.getElementById("stripe-card-error").textContent = result.error.message;
-          document.getElementById("stripe-card-error").style.display = "block";
+        var errEl = document.getElementById("stripe-card-error");
+        errEl.style.display = "none";
+        var pmResult = await stripe.createPaymentMethod({
+          type: "card",
+          card: stripeCardElement,
+          billing_details: {
+            name: currentDealer.name,
+            email: currentDealer.email
+          }
+        });
+        if (pmResult.error) {
+          errEl.textContent = pmResult.error.message;
+          errEl.style.display = "block";
+          this.disabled = false;
+          this.textContent = "Save Card";
+          return;
+        }
+        var response = await fetch("/api/create-stripe-customer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dealerName: currentDealer.name,
+            email: currentDealer.email,
+            paymentMethodId: pmResult.paymentMethod.id,
+            dealerId: currentDealer.id
+          })
+        });
+        var apiResult = await response.json();
+        if (!response.ok || !apiResult.success) {
+          var errMsg = apiResult.error;
+          if (errMsg && typeof errMsg === "object") {
+            errMsg = errMsg.message || (errMsg.error && errMsg.error.message) || JSON.stringify(errMsg);
+          }
+          errEl.textContent = errMsg || "Failed to save card. Please try again.";
+          errEl.style.display = "block";
           this.disabled = false;
           this.textContent = "Save Card";
           return;
@@ -2233,8 +2216,10 @@ window.addEventListener("load", function() {
         await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + currentDealer.id, {
           method: "PATCH",
           headers: authHeaders(),
-          body: JSON.stringify({ stripe_customer_id: "pm_test_" + result.paymentMethod.id })
+          body: JSON.stringify({ stripe_customer_id: apiResult.customerId })
         });
+        currentDealer.stripeCustomerId = apiResult.customerId;
+        if (window.currentDealer) window.currentDealer.stripeCustomerId = apiResult.customerId;
         if (typeof window.onboardingMarkStep === "function") await window.onboardingMarkStep("payment_method");
         closeStripeSetupModal();
         var banner = document.getElementById("stripe-setup-banner");
@@ -2482,15 +2467,135 @@ window.addEventListener("load", function() {
   });
 
   document.getElementById("enroll-confirm-submit-btn").addEventListener("click", async function() {
+    if (!selectedContractLength) return;
     this.disabled = true;
     this.textContent = "Processing...";
-    try {
-      closeEnrollConfirmModal();
-      await doEnrollSubmit(selectedContractLength);
-    } catch (e) {
+    var priceMap = {
+      "1yr": dealerPricingData ? dealerPricingData.contract_retail_1yr : 3325,
+      "2yr": dealerPricingData ? dealerPricingData.contract_retail_2yr : 6650,
+      "3yr": dealerPricingData ? dealerPricingData.contract_retail_3yr : 9975
+    };
+    var amount = priceMap[selectedContractLength] || 3325;
+    var stripeCustomerId = currentDealer.stripeCustomerId;
+    if (!stripeCustomerId) {
+      var dealerRes = await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?id=eq." + currentDealer.id + "&select=stripe_customer_id",
+        { headers: authHeaders() }
+      );
+      var dealerRows = await dealerRes.json();
+      stripeCustomerId = dealerRows[0] && dealerRows[0].stripe_customer_id;
+      if (stripeCustomerId) {
+        currentDealer.stripeCustomerId = stripeCustomerId;
+        if (window.currentDealer) window.currentDealer.stripeCustomerId = stripeCustomerId;
+      }
+    }
+    if (!stripeCustomerId) {
+      alert("No payment method on file. Please set up a payment method first.");
+      this.disabled = false;
+      this.textContent = "Confirm Enrollment";
+      return;
+    }
+    var fname = document.getElementById("e-fname") ? document.getElementById("e-fname").value : "";
+    var lname = document.getElementById("e-lname") ? document.getElementById("e-lname").value : "";
+    var customerName = (fname + " " + lname).trim();
+    var hinVal = normalizeHin(document.getElementById("e-hin") ? document.getElementById("e-hin").value : "");
+    var years = selectedContractLength === "2yr" ? 2 : selectedContractLength === "3yr" ? 3 : 1;
+    var end = new Date();
+    end.setFullYear(end.getFullYear() + years);
+    var endStr = end.toISOString().split("T")[0];
+    var yearEl = document.getElementById("e-year");
+    var boatYear = yearEl && yearEl.value ? parseInt(yearEl.value, 10) : null;
+    if (boatYear !== null && isNaN(boatYear)) boatYear = null;
+    var contractData = {
+      dealer_id: currentDealer.id,
+      dealership_name: currentDealer.name,
+      customer_first_name: fname,
+      customer_last_name: lname,
+      customer_email: document.getElementById("e-email") ? document.getElementById("e-email").value : "",
+      customer_phone: document.getElementById("e-phone") ? document.getElementById("e-phone").value : "",
+      boat_make: document.getElementById("e-make") ? document.getElementById("e-make").value : "",
+      boat_model: document.getElementById("e-model") ? document.getElementById("e-model").value : "",
+      boat_year: boatYear,
+      hin: hinVal,
+      contract_type: selectedContractLength,
+      retail_price: amount,
+      start_date: new Date().toISOString().split("T")[0],
+      end_date: endStr,
+      status: "pending_payment"
+    };
+    var contractRes = await fetch(SUPABASE_URL + "/rest/v1/contracts", {
+      method: "POST",
+      headers: authHeaders({ Prefer: "return=representation" }),
+      body: JSON.stringify(contractData)
+    });
+    var contractResult = await contractRes.json();
+    if (!contractRes.ok) {
       document.getElementById("e-err").textContent = "Could not save enrollment. Please try again.";
       document.getElementById("e-err").style.display = "block";
+      this.disabled = false;
+      this.textContent = "Confirm Enrollment";
+      return;
     }
+    var contractId = Array.isArray(contractResult) ? contractResult[0].id : contractResult.id;
+    var chargeRes = await fetch("/api/charge-enrollment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        stripeCustomerId: stripeCustomerId,
+        amount: amount,
+        dealerName: currentDealer.name,
+        customerName: customerName,
+        contractType: selectedContractLength,
+        contractId: contractId
+      })
+    });
+    var chargeResult = await chargeRes.json();
+    if (!chargeRes.ok || !chargeResult.success) {
+      var failMsg = chargeResult.error;
+      if (failMsg && typeof failMsg === "object") {
+        failMsg = failMsg.message || JSON.stringify(failMsg);
+      }
+      await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + contractId, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ status: "payment_failed" })
+      });
+      alert("Payment failed: " + (failMsg || "Please check your payment method and try again."));
+      this.disabled = false;
+      this.textContent = "Confirm Enrollment";
+      return;
+    }
+    await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + contractId, {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        status: "active",
+        stripe_payment_id: chargeResult.paymentIntentId,
+        paid_at: new Date().toISOString()
+      })
+    });
+    await writeAuditLog(
+      "contract",
+      contractId,
+      "customer_enrolled",
+      null,
+      {
+        contract_type: selectedContractLength,
+        amount: amount,
+        payment_id: chargeResult.paymentIntentId
+      },
+      currentDealer.name,
+      customerName,
+      "Contract enrolled and payment charged $" + amount
+    );
+    if (typeof window.onboardingMarkStep === "function") await window.onboardingMarkStep("first_customer");
+    closeEnrollConfirmModal();
+    document.getElementById("enroll-link-box").style.display = "block";
+    document.getElementById("e-err").style.display = "none";
+    document.getElementById("enroll-link-box").scrollIntoView({ behavior: "smooth", block: "center" });
+    if (typeof window.loadDashboard === "function") await window.loadDashboard();
+    if (typeof window.loadCustomersTab === "function") await window.loadCustomersTab();
+    alert("✓ Enrollment complete! $" + amount.toLocaleString() + " charged successfully. Contract is now active.");
     this.disabled = false;
     this.textContent = "Confirm Enrollment";
   });

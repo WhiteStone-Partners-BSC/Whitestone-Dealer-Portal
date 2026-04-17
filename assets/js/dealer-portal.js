@@ -70,7 +70,8 @@ function buildDealerSession(dealer, session) {
     name: dealer.dealership_name,
     email: dealer.email || (session && session.user ? session.user.email : ""),
     isAdmin: dealer.is_admin === true,
-    token: session ? session.access_token : window.authToken || null
+    token: session ? session.access_token : window.authToken || null,
+    stripeCustomerId: dealer.stripe_customer_id || null
   };
 }
 
@@ -4344,6 +4345,9 @@ document.addEventListener("DOMContentLoaded", function() {
       box.innerHTML = "<div class='renewals-empty'>Could not load customers. Please try again.</div>";
     }
   }
+
+  window.loadDashboard = loadDashboard;
+  window.loadCustomersTab = loadCustomersTab;
 
   document.getElementById("customers-container").addEventListener("click", function(e) {
     var reBtn = e.target.closest(".btn-reenroll-sm");
