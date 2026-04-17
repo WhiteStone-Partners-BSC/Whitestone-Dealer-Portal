@@ -1,3 +1,8 @@
+/*
+ * Supabase (run in SQL editor before using onboarding checklist):
+ * alter table dealers add column if not exists onboarding_completed boolean default false;
+ * alter table dealers add column if not exists onboarding_steps jsonb default '{}';
+ */
 var SUPABASE_URL = "https://ypuohmiynnmbnlqfctlg.supabase.co";
 var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwdW9obWl5bm5tYm5scWZjdGxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwODU4NzEsImV4cCI6MjA5MTY2MTg3MX0.HzrF_OCr2T9rKV9am90B2OvIQKjq28pObheMRps82AI";
 var FORMSPREE_CONTACT = "https://formspree.io/f/mvzvzkqa";
@@ -1425,6 +1430,189 @@ window.openDealerCancelModal = openDealerCancelModal;
 window.closeDealerCancelModal = closeDealerCancelModal;
 window.submitDealerCancelRequest = submitDealerCancelRequest;
 window.adminLoadAllCustomers = adminLoadAllCustomers;
+
+var onboardingSteps = {
+  portal_access: true,
+  payment_method: false,
+  dealer_agreement: false,
+  first_customer: false,
+  first_ticket: false
+};
+
+var onboardingCompletionInProgress = false;
+
+var ONBOARDING_STEP_ROWS = [
+  { key: "portal_access", itemId: "ob-item-portal", checkId: "ob-check-portal", actionId: null },
+  { key: "payment_method", itemId: "ob-item-payment", checkId: "ob-check-payment", actionId: "ob-action-payment" },
+  { key: "dealer_agreement", itemId: "ob-item-agreement", checkId: "ob-check-agreement", actionId: "ob-action-agreement" },
+  { key: "first_customer", itemId: "ob-item-customer", checkId: "ob-check-customer", actionId: "ob-action-customer" },
+  { key: "first_ticket", itemId: "ob-item-ticket", checkId: "ob-check-ticket", actionId: "ob-action-ticket" }
+];
+
+async function loadOnboardingChecklist() {
+  if (!currentDealer || currentDealer.isAdmin) return;
+  var checklistEl = document.getElementById("onboarding-checklist");
+  if (!checklistEl) return;
+
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(String(currentDealer.id)) + "&select=onboarding_completed,onboarding_steps,stripe_customer_id",
+      { headers: authHeaders() }
+    );
+    var records = await res.json();
+    var dealer = Array.isArray(records) && records[0] ? records[0] : {};
+
+    if (dealer.onboarding_completed) {
+      checklistEl.style.display = "none";
+      return;
+    }
+
+    onboardingSteps = {
+      portal_access: true,
+      payment_method: false,
+      dealer_agreement: false,
+      first_customer: false,
+      first_ticket: false
+    };
+
+    if (dealer.onboarding_steps) {
+      try {
+        var saved = typeof dealer.onboarding_steps === "string" ? JSON.parse(dealer.onboarding_steps) : dealer.onboarding_steps;
+        if (saved && typeof saved === "object") Object.assign(onboardingSteps, saved);
+      } catch (e2) {}
+    }
+
+    onboardingSteps.portal_access = true;
+
+    if (dealer.stripe_customer_id) onboardingSteps.payment_method = true;
+
+    var contractsRes = await fetch(
+      SUPABASE_URL +
+        "/rest/v1/contracts?dealership_name=eq." +
+        encodeURIComponent(currentDealer.name) +
+        "&select=id&limit=1",
+      { headers: authHeaders() }
+    );
+    var contracts = await contractsRes.json();
+    if (Array.isArray(contracts) && contracts.length > 0) onboardingSteps.first_customer = true;
+
+    var ticketsRes = await fetch(
+      SUPABASE_URL +
+        "/rest/v1/tickets?dealership_name=eq." +
+        encodeURIComponent(currentDealer.name) +
+        "&select=id&limit=1",
+      { headers: authHeaders() }
+    );
+    var tickets = await ticketsRes.json();
+    if (Array.isArray(tickets) && tickets.length > 0) onboardingSteps.first_ticket = true;
+
+    renderOnboardingChecklist();
+  } catch (e) {
+    checklistEl.style.display = "none";
+  }
+}
+
+function renderOnboardingChecklist() {
+  var checklistEl = document.getElementById("onboarding-checklist");
+  if (!checklistEl || !currentDealer || currentDealer.isAdmin) return;
+
+  var completedCount = 0;
+  var total = ONBOARDING_STEP_ROWS.length;
+
+  ONBOARDING_STEP_ROWS.forEach(function(row) {
+    var done = !!onboardingSteps[row.key];
+    if (done) completedCount++;
+    var itemEl = document.getElementById(row.itemId);
+    var checkEl = document.getElementById(row.checkId);
+    var actionEl = row.actionId ? document.getElementById(row.actionId) : null;
+
+    if (itemEl) {
+      if (done) itemEl.classList.add("ob-completed");
+      else itemEl.classList.remove("ob-completed");
+    }
+    if (checkEl) {
+      if (done) {
+        checkEl.classList.add("ob-done");
+        checkEl.textContent = "✓";
+      } else {
+        checkEl.classList.remove("ob-done");
+        checkEl.textContent = "○";
+      }
+    }
+    if (actionEl) {
+      if (done) actionEl.classList.add("ob-done-btn");
+      else actionEl.classList.remove("ob-done-btn");
+    }
+  });
+
+  checklistEl.style.opacity = "1";
+  var pct = Math.round((completedCount / total) * 100);
+  var barEl = document.getElementById("onboarding-progress-bar");
+  var textEl = document.getElementById("onboarding-progress-text");
+  if (barEl) barEl.style.width = pct + "%";
+  if (textEl) textEl.textContent = completedCount + " of " + total + " complete";
+
+  if (completedCount === total) {
+    checklistEl.style.display = "block";
+    checklistEl.style.opacity = "1";
+    if (!onboardingCompletionInProgress) onboardingMarkComplete();
+    return;
+  }
+
+  checklistEl.style.display = "block";
+}
+
+async function onboardingMarkStep(step) {
+  if (!step || !currentDealer || currentDealer.isAdmin) return;
+  onboardingSteps[step] = true;
+  try {
+    await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(String(currentDealer.id)), {
+      method: "PATCH",
+      headers: authHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ onboarding_steps: onboardingSteps })
+    });
+  } catch (e) {}
+  renderOnboardingChecklist();
+}
+
+async function onboardingMarkComplete() {
+  if (onboardingCompletionInProgress) return;
+  onboardingCompletionInProgress = true;
+  var checklistEl = document.getElementById("onboarding-checklist");
+  var progressText = document.getElementById("onboarding-progress-text");
+  var barEl = document.getElementById("onboarding-progress-bar");
+
+  if (progressText) progressText.textContent = "🎉 All done!";
+  if (barEl) barEl.style.width = "100%";
+
+  try {
+    await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(String(currentDealer.id)), {
+      method: "PATCH",
+      headers: authHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({
+        onboarding_completed: true,
+        onboarding_steps: onboardingSteps
+      })
+    });
+  } catch (e) {}
+
+  setTimeout(function() {
+    if (checklistEl) {
+      checklistEl.style.transition = "opacity 0.8s ease";
+      checklistEl.style.opacity = "0";
+      setTimeout(function() {
+        if (checklistEl) checklistEl.style.display = "none";
+        onboardingCompletionInProgress = false;
+      }, 800);
+    } else {
+      onboardingCompletionInProgress = false;
+    }
+  }, 2000);
+}
+
+window.loadOnboardingChecklist = loadOnboardingChecklist;
+window.onboardingMarkStep = onboardingMarkStep;
+window.onboardingMarkComplete = onboardingMarkComplete;
 
 var pricingModelServices = [];
 var pricingProfitChartInstance = null;
@@ -3853,6 +4041,7 @@ document.addEventListener("DOMContentLoaded", function() {
       updateDashboardStats();
       renderRenewalsUI();
       if (currentDealer && !currentDealer.isAdmin) updateSidebarInfo();
+      if (currentDealer && !currentDealer.isAdmin && typeof loadOnboardingChecklist === "function") loadOnboardingChecklist();
     } catch (e) {
       allTickets = [];
       dealerContractCount = 0;
@@ -4491,6 +4680,7 @@ document.addEventListener("DOMContentLoaded", function() {
         })
       });
       await writeAuditLog("ticket", newTicket.id, "ticket_submitted", null, { hin: hinVal, services: services }, currentDealer.name, fname + " " + lname, null);
+      if (typeof window.onboardingMarkStep === "function") await window.onboardingMarkStep("first_ticket");
       var ticketEmailHtml =
         '<!DOCTYPE html><html><body style="font-family:DM Sans,sans-serif;background:#f0f4f8;margin:0;padding:2rem;">' +
         '<div style="max-width:560px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">' +
@@ -4628,6 +4818,7 @@ document.addEventListener("DOMContentLoaded", function() {
       var contractRows = await res.json();
       var newContract = Array.isArray(contractRows) ? contractRows[0] : null;
       await writeAuditLog("contract", newContract ? newContract.id : null, "customer_enrolled", null, { hin: hinVal, customer: fname + " " + lname, contract_type: "1yr" }, currentDealer.name, fname + " " + lname, null);
+      if (typeof window.onboardingMarkStep === "function") await window.onboardingMarkStep("first_customer");
       document.getElementById("enroll-link-box").style.display = "block";
       document.getElementById("enroll-link-box").scrollIntoView({ behavior: "smooth", block: "center" });
     } catch (e) {

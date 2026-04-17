@@ -88,6 +88,62 @@
 
     <!-- DASHBOARD -->
     <div class="tab-panel active" id="panel-dashboard">
+      <div id="onboarding-checklist" style="display:none;margin-bottom:1.5rem;">
+        <div style="background:var(--navy2);border-radius:12px;padding:1.5rem;position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#b8963e,#d4ac52,#b8963e);"></div>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.25rem;">
+            <div>
+              <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:var(--white);">Getting Started</div>
+              <div style="font-size:12px;color:rgba(200,220,235,0.5);margin-top:2px;">Complete these steps to activate your dealership.</div>
+            </div>
+            <div id="onboarding-progress-text" style="font-size:12px;font-weight:600;color:var(--gold);text-align:right;white-space:nowrap;"></div>
+          </div>
+          <div style="height:4px;background:rgba(255,255,255,0.08);border-radius:2px;margin-bottom:1.25rem;overflow:hidden;">
+            <div id="onboarding-progress-bar" style="height:100%;background:var(--gold);border-radius:2px;transition:width 0.4s ease;width:0%;"></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:0.6rem;" id="onboarding-items">
+            <div class="onboarding-item" id="ob-item-portal" data-step="portal_access">
+              <div class="ob-check ob-done" id="ob-check-portal">✓</div>
+              <div class="ob-content">
+                <div class="ob-label">Portal access activated</div>
+                <div class="ob-sub">You're logged in and ready to go</div>
+              </div>
+            </div>
+            <div class="onboarding-item" id="ob-item-payment" data-step="payment_method">
+              <div class="ob-check" id="ob-check-payment">○</div>
+              <div class="ob-content">
+                <div class="ob-label">Save your payment method</div>
+                <div class="ob-sub">Required to enroll customers</div>
+              </div>
+              <button type="button" onclick="window.switchTab('enroll');setTimeout(function(){var b=document.getElementById('stripe-setup-btn');if(b)b.click();},300);" class="ob-action" id="ob-action-payment">Set Up →</button>
+            </div>
+            <div class="onboarding-item" id="ob-item-agreement" data-step="dealer_agreement">
+              <div class="ob-check" id="ob-check-agreement">○</div>
+              <div class="ob-content">
+                <div class="ob-label">Download your dealer agreement</div>
+                <div class="ob-sub">Review and keep for your records</div>
+              </div>
+              <button type="button" onclick="window.switchTab('resources');if(typeof window.onboardingMarkStep==='function')window.onboardingMarkStep('dealer_agreement');" class="ob-action" id="ob-action-agreement">View →</button>
+            </div>
+            <div class="onboarding-item" id="ob-item-customer" data-step="first_customer">
+              <div class="ob-check" id="ob-check-customer">○</div>
+              <div class="ob-content">
+                <div class="ob-label">Enroll your first customer</div>
+                <div class="ob-sub">Get your first contract active</div>
+              </div>
+              <button type="button" onclick="window.switchTab('enroll');" class="ob-action" id="ob-action-customer">Enroll →</button>
+            </div>
+            <div class="onboarding-item" id="ob-item-ticket" data-step="first_ticket">
+              <div class="ob-check" id="ob-check-ticket">○</div>
+              <div class="ob-content">
+                <div class="ob-label">Submit your first service ticket</div>
+                <div class="ob-sub">Start earning reimbursements</div>
+              </div>
+              <button type="button" onclick="window.switchTab('ticket');" class="ob-action" id="ob-action-ticket">Submit →</button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="card tier-badge-card" id="tier-card">
         <div class="tier-badge-inner">
           <div class="tier-icon-wrap" id="tier-icon-wrap" aria-hidden="true"><span class="tier-icon" id="tier-icon">◆</span></div>
@@ -2179,6 +2235,7 @@ window.addEventListener("load", function() {
           headers: authHeaders(),
           body: JSON.stringify({ stripe_customer_id: "pm_test_" + result.paymentMethod.id })
         });
+        if (typeof window.onboardingMarkStep === "function") await window.onboardingMarkStep("payment_method");
         closeStripeSetupModal();
         var banner = document.getElementById("stripe-setup-banner");
         if (banner) banner.remove();
