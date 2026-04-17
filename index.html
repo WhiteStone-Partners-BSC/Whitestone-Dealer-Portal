@@ -308,6 +308,7 @@
       <div class="card">
         <div class="card-title">Enroll a Customer</div>
         <div class="card-sub">Enter your customer's details, choose a contract length, and confirm enrollment before saving.</div>
+        <div id="enroll-form-content">
         <div class="fr">
           <div class="fg"><label>Customer First Name</label><input type="text" id="e-fname" placeholder="First name"></div>
           <div class="fg"><label>Customer Last Name</label><input type="text" id="e-lname" placeholder="Last name"></div>
@@ -350,6 +351,42 @@
         </div>
         <div class="stripe-note"><span class="stripe-badge">Stripe</span> Pricing is dealer-specific. Payment processing is wired in test mode only.</div>
         <button class="sub-btn" id="enroll-btn">Review Enrollment</button>
+        </div>
+
+        <!-- Enrollment Success Screen -->
+        <div id="enroll-success-screen" style="display:none;text-align:center;padding:2.5rem 1.5rem;">
+
+          <!-- Success icon -->
+          <div style="width:64px;height:64px;background:#f0f9f4;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;border:2px solid #a8d5b5;">
+            <span style="font-size:28px;color:#0F6E56;">✓</span>
+          </div>
+
+          <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;color:var(--navy);margin-bottom:0.5rem;">Enrollment Complete</div>
+          <div style="font-size:13.5px;color:var(--light);margin-bottom:1.75rem;">Contract is active and payment has been processed.</div>
+
+          <!-- Summary card -->
+          <div style="background:var(--silver-bg);border:1px solid var(--border);border-radius:10px;padding:1.25rem;margin-bottom:1.5rem;text-align:left;max-width:420px;margin-left:auto;margin-right:auto;">
+            <div id="success-customer-name" style="font-size:16px;font-weight:600;color:var(--navy);margin-bottom:4px;"></div>
+            <div id="success-boat" style="font-size:13px;color:var(--light);margin-bottom:12px;"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;font-size:12.5px;">
+              <div><div style="color:var(--light);margin-bottom:2px;">Contract</div><div style="font-weight:600;color:var(--navy);" id="success-contract-type"></div></div>
+              <div><div style="color:var(--light);margin-bottom:2px;">Amount Charged</div><div style="font-weight:700;color:var(--gold);font-family:'Cormorant Garamond',serif;font-size:18px;" id="success-amount"></div></div>
+              <div><div style="color:var(--light);margin-bottom:2px;">Activated</div><div style="font-weight:500;color:var(--navy);" id="success-start-date"></div></div>
+              <div><div style="color:var(--light);margin-bottom:2px;">Expires</div><div style="font-weight:500;color:var(--navy);" id="success-end-date"></div></div>
+            </div>
+            <div style="margin-top:0.85rem;padding-top:0.85rem;border-top:1px solid var(--border);font-size:12px;color:var(--green);">
+              ✓ Customer welcome email sent &nbsp;·&nbsp; ✓ Dealer notification sent
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;">
+            <button type="button" onclick="enrollAnotherCustomer()" style="background:var(--navy);color:white;border:none;padding:10px 24px;border-radius:6px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;">Enroll Another Customer</button>
+            <button type="button" onclick="window.switchTab('customers');" style="background:white;color:var(--navy);border:1px solid var(--border);padding:10px 24px;border-radius:6px;font-size:13.5px;cursor:pointer;font-family:inherit;">View All Customers</button>
+          </div>
+
+        </div>
+
         <div id="enroll-link-box" class="enroll-link-box">
           <h3>Enrollment complete</h3>
           <p>The customer's contract has been saved and is now active.</p>
@@ -378,6 +415,18 @@
           <div style="font-size:12px;color:var(--light);margin-bottom:4px;">Payment Method</div>
           <div id="ec-payment-info" style="font-size:13.5px;font-weight:500;color:var(--navy);">Card on file — **** **** **** ****</div>
           <div style="font-size:11px;color:var(--light);margin-top:3px;">Charged automatically on confirmation</div>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:center;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--light);">
+            <span style="font-size:14px;">🔒</span> Secured by Stripe
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--light);">
+            <span style="font-size:14px;">✓</span> PCI Compliant
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--light);">
+            <span style="font-size:14px;">📧</span> Receipt emailed automatically
+          </div>
         </div>
 
         <div style="font-size:12px;color:var(--light);text-align:center;margin-bottom:1.25rem;">
@@ -2116,6 +2165,41 @@ window.addEventListener("load", function() {
     document.getElementById("enroll-confirm-modal").style.display = "none";
   };
 
+  window.showEnrollSuccess = function(data) {
+    var formContent = document.getElementById("enroll-form-content");
+    if (formContent) formContent.style.display = "none";
+    var linkBox = document.getElementById("enroll-link-box");
+    if (linkBox) linkBox.style.display = "none";
+    document.getElementById("success-customer-name").textContent = data.customerName;
+    document.getElementById("success-boat").textContent = data.boat;
+    document.getElementById("success-contract-type").textContent = data.contractLabel;
+    document.getElementById("success-amount").textContent = "$" + data.amount.toLocaleString();
+    document.getElementById("success-start-date").textContent = data.enrollDate;
+    document.getElementById("success-end-date").textContent = data.expireDate;
+    document.getElementById("enroll-success-screen").style.display = "block";
+  };
+
+  window.enrollAnotherCustomer = function() {
+    document.getElementById("enroll-success-screen").style.display = "none";
+    var formContent = document.getElementById("enroll-form-content");
+    if (formContent) formContent.style.display = "block";
+    window.selectedContractLength = null;
+    document.querySelectorAll(".contract-length-option").forEach(function(el) {
+      el.style.borderColor = "";
+      el.style.background = "";
+    });
+    var fields = ["e-fname", "e-lname", "e-email", "e-phone", "e-make", "e-model", "e-year", "e-hin"];
+    fields.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+    var hinErr = document.getElementById("e-hin-error");
+    if (hinErr) {
+      hinErr.style.display = "none";
+      hinErr.textContent = "";
+    }
+  };
+
   window.checkDealerPaymentMethod = async function() {
     if (!currentDealer || currentDealer.isAdmin) return;
     var res = await fetch(
@@ -2504,8 +2588,8 @@ window.addEventListener("load", function() {
     end.setFullYear(end.getFullYear() + years);
     var endStr = end.toISOString().split("T")[0];
     var yearEl = document.getElementById("e-year");
-    var boatYear = yearEl && yearEl.value ? parseInt(yearEl.value, 10) : null;
-    if (boatYear !== null && isNaN(boatYear)) boatYear = null;
+    var boatYearNum = yearEl && yearEl.value ? parseInt(yearEl.value, 10) : null;
+    if (boatYearNum !== null && isNaN(boatYearNum)) boatYearNum = null;
     var contractData = {
       dealer_id: currentDealer.id,
       dealership_name: currentDealer.name,
@@ -2515,7 +2599,7 @@ window.addEventListener("load", function() {
       customer_phone: document.getElementById("e-phone") ? document.getElementById("e-phone").value : "",
       boat_make: document.getElementById("e-make") ? document.getElementById("e-make").value : "",
       boat_model: document.getElementById("e-model") ? document.getElementById("e-model").value : "",
-      boat_year: boatYear,
+      boat_year: boatYearNum,
       hin: hinVal,
       contract_type: selectedContractLength,
       retail_price: amount,
@@ -2576,19 +2660,19 @@ window.addEventListener("load", function() {
     });
     var custEmail     = document.getElementById("e-email") ? document.getElementById("e-email").value.trim() : "";
     var custFirstName = document.getElementById("e-fname") ? document.getElementById("e-fname").value.trim() : "";
-    var boatMakeBk    = document.getElementById("e-make")  ? document.getElementById("e-make").value.trim()  : "";
-    var boatModelBk   = document.getElementById("e-model") ? document.getElementById("e-model").value.trim() : "";
-    var boatYearBk    = document.getElementById("e-year")  ? document.getElementById("e-year").value.trim()  : "";
-    var hinValBk      = document.getElementById("e-hin")   ? document.getElementById("e-hin").value.trim()   : "";
-    var contractLabelBk = selectedContractLength === "2yr" ? "2-Year" : selectedContractLength === "3yr" ? "3-Year" : "1-Year";
-    var enrollDateBk    = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    var expireDateBk    = "";
+    var custLastName  = document.getElementById("e-lname") ? document.getElementById("e-lname").value.trim() : "";
+    var boatMake      = document.getElementById("e-make")  ? document.getElementById("e-make").value.trim()  : "";
+    var boatModel     = document.getElementById("e-model") ? document.getElementById("e-model").value.trim() : "";
+    var boatYear      = document.getElementById("e-year")  ? document.getElementById("e-year").value.trim()  : "";
+    var contractLabel = selectedContractLength === "2yr" ? "2-Year" : selectedContractLength === "3yr" ? "3-Year" : "1-Year";
+    var enrollDate    = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    var expireDate    = "";
     if (selectedContractLength === "3yr") {
-      expireDateBk = new Date(new Date().setFullYear(new Date().getFullYear() + 3)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      expireDate = new Date(new Date().setFullYear(new Date().getFullYear() + 3)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     } else if (selectedContractLength === "2yr") {
-      expireDateBk = new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      expireDate = new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     } else {
-      expireDateBk = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      expireDate = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     }
     if (custEmail) {
       await fetch("/api/send-email", {
@@ -2596,16 +2680,16 @@ window.addEventListener("load", function() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to:      custEmail,
-          subject: "Your Whitestone Partners Contract is Active — " + boatYearBk + " " + boatMakeBk + " " + boatModelBk,
+          subject: "Your Whitestone Partners Contract is Active — " + boatYear + " " + boatMake + " " + boatModel,
           html:    "<div style=\"font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:2rem;\">" +
                    "<h2 style=\"color:#0c1e2e;font-family:Georgia,serif;font-weight:300;\">Your contract is active.</h2>" +
                    "<p style=\"color:#6b8599;\">Hi " + custFirstName + ", your Whitestone Partners annual boat service contract is now active.</p>" +
                    "<table style=\"width:100%;border-collapse:collapse;font-size:14px;margin:1.5rem 0;\">" +
-                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;width:120px;\">Boat</td><td style=\"padding:8px 0;font-weight:500;\">" + boatYearBk + " " + boatMakeBk + " " + boatModelBk + "</td></tr>" +
-                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">HIN</td><td style=\"padding:8px 0;font-family:monospace;\">" + hinValBk + "</td></tr>" +
-                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">Contract</td><td style=\"padding:8px 0;font-weight:500;\">" + contractLabelBk + "</td></tr>" +
-                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">Enrolled</td><td style=\"padding:8px 0;\">" + enrollDateBk + "</td></tr>" +
-                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">Expires</td><td style=\"padding:8px 0;\">" + expireDateBk + "</td></tr>" +
+                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;width:120px;\">Boat</td><td style=\"padding:8px 0;font-weight:500;\">" + boatYear + " " + boatMake + " " + boatModel + "</td></tr>" +
+                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">HIN</td><td style=\"padding:8px 0;font-family:monospace;\">" + hinVal + "</td></tr>" +
+                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">Contract</td><td style=\"padding:8px 0;font-weight:500;\">" + contractLabel + "</td></tr>" +
+                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">Enrolled</td><td style=\"padding:8px 0;\">" + enrollDate + "</td></tr>" +
+                   "<tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">Expires</td><td style=\"padding:8px 0;\">" + expireDate + "</td></tr>" +
                    "<tr><td style=\"padding:8px 0;color:#999;\">Dealer</td><td style=\"padding:8px 0;font-weight:500;\">" + currentDealer.name + "</td></tr>" +
                    "</table>" +
                    "<p style=\"color:#6b8599;font-size:13px;\">Questions? <a href=\"mailto:support@whitestone-partners.com\" style=\"color:#b8963e;\">support@whitestone-partners.com</a></p>" +
@@ -2613,6 +2697,60 @@ window.addEventListener("load", function() {
                    "</div>"
         })
       }).catch(function(e) { console.log("Customer email error:", e); });
+    }
+    var dealerEmail = currentDealer.email;
+    if (dealerEmail) {
+      var dealerEmailHtml = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head>" +
+        "<body style=\"margin:0;padding:0;background:#f0f4f8;font-family:Arial,sans-serif;\">" +
+        "<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f0f4f8;padding:2rem 1rem;\">" +
+        "<tr><td align=\"center\">" +
+        "<table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;width:100%;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);\">" +
+        "<tr><td style=\"height:4px;background:linear-gradient(90deg,#b8963e,#d4ac52,#b8963e);\"></td></tr>" +
+        "<tr><td style=\"background:#0c1e2e;padding:1.5rem 2rem;\">" +
+        "<div style=\"font-family:Georgia,serif;font-size:22px;font-weight:300;color:white;letter-spacing:0.06em;\">WHITESTONE PARTNERS</div>" +
+        "<div style=\"font-size:10px;color:#b8963e;letter-spacing:0.18em;text-transform:uppercase;margin-top:4px;\">Contract Activated</div>" +
+        "</td></tr>" +
+        "<tr><td style=\"padding:1.75rem 2rem;\">" +
+        "<p style=\"font-size:15px;font-weight:600;color:#0c1e2e;margin-bottom:0.5rem;\">New contract activated at " + currentDealer.name + "</p>" +
+        "<p style=\"font-size:13.5px;color:#6b8599;margin-bottom:1.5rem;\">A new Whitestone Partners contract is now active for your customer. You can begin submitting service tickets immediately.</p>" +
+        "<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"font-size:13.5px;border-collapse:collapse;\">" +
+        "<tr style=\"border-bottom:1px solid #eef0f3;\"><td style=\"padding:9px 0;color:#6b8599;width:140px;\">Customer</td>" +
+        "<td style=\"padding:9px 0;font-weight:500;color:#0c1e2e;\">" + custFirstName + " " + custLastName + "</td></tr>" +
+        "<tr style=\"border-bottom:1px solid #eef0f3;\"><td style=\"padding:9px 0;color:#6b8599;\">Boat</td>" +
+        "<td style=\"padding:9px 0;font-weight:500;color:#0c1e2e;\">" + boatYear + " " + boatMake + " " + boatModel + "</td></tr>" +
+        "<tr style=\"border-bottom:1px solid #eef0f3;\"><td style=\"padding:9px 0;color:#6b8599;\">HIN</td>" +
+        "<td style=\"padding:9px 0;font-family:monospace;color:#0c1e2e;\">" + hinVal + "</td></tr>" +
+        "<tr style=\"border-bottom:1px solid #eef0f3;\"><td style=\"padding:9px 0;color:#6b8599;\">Contract</td>" +
+        "<td style=\"padding:9px 0;font-weight:500;color:#0c1e2e;\">" + contractLabel + "</td></tr>" +
+        "<tr style=\"border-bottom:1px solid #eef0f3;\"><td style=\"padding:9px 0;color:#6b8599;\">Activated</td>" +
+        "<td style=\"padding:9px 0;color:#0c1e2e;\">" + enrollDate + "</td></tr>" +
+        "<tr style=\"border-bottom:1px solid #eef0f3;\"><td style=\"padding:9px 0;color:#6b8599;\">Expires</td>" +
+        "<td style=\"padding:9px 0;color:#0c1e2e;\">" + expireDate + "</td></tr>" +
+        "<tr><td style=\"padding:9px 0;color:#6b8599;\">Amount Charged</td>" +
+        "<td style=\"padding:9px 0;font-weight:700;color:#b8963e;font-family:Georgia,serif;font-size:16px;\">$" + amount.toLocaleString() + "</td></tr>" +
+        "</table>" +
+        "<div style=\"margin-top:1.5rem;padding:1rem;background:#f8f5ee;border-left:3px solid #b8963e;border-radius:4px;font-size:13px;color:#3d5870;\">" +
+        "Submit service tickets through your dealer portal after each covered service to earn reimbursements." +
+        "</div>" +
+        "<div style=\"margin-top:1.5rem;\">" +
+        "<a href=\"https://whitestone-dealer-portal.vercel.app\" style=\"display:inline-block;background:#0c1e2e;color:white;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:13px;font-weight:600;\">View in Portal →</a>" +
+        "</div>" +
+        "</td></tr>" +
+        "<tr><td style=\"padding:1rem 2rem;background:#f8f9fb;border-top:1px solid #eef0f3;font-size:11px;color:#9aafbf;text-align:center;\">" +
+        "Whitestone Partners LLC · St. George, Utah · " +
+        "<a href=\"mailto:support@whitestone-partners.com\" style=\"color:#b8963e;text-decoration:none;\">support@whitestone-partners.com</a>" +
+        "</td></tr>" +
+        "<tr><td style=\"height:4px;background:linear-gradient(90deg,#b8963e,#d4ac52,#b8963e);\"></td></tr>" +
+        "</table></td></tr></table></body></html>";
+      await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to:      dealerEmail,
+          subject: "✓ Contract Activated — " + custFirstName + " " + custLastName + " · " + boatYear + " " + boatMake + " " + boatModel,
+          html:    dealerEmailHtml
+        })
+      }).catch(function(e) { console.log("Dealer email error:", e); });
     }
     await writeAuditLog(
       "contract",
@@ -2630,12 +2768,19 @@ window.addEventListener("load", function() {
     );
     if (typeof window.onboardingMarkStep === "function") await window.onboardingMarkStep("first_customer");
     closeEnrollConfirmModal();
-    document.getElementById("enroll-link-box").style.display = "block";
     document.getElementById("e-err").style.display = "none";
-    document.getElementById("enroll-link-box").scrollIntoView({ behavior: "smooth", block: "center" });
     if (typeof window.loadDashboard === "function") await window.loadDashboard();
     if (typeof window.loadCustomersTab === "function") await window.loadCustomersTab();
-    alert("✓ Enrollment complete! $" + amount.toLocaleString() + " charged successfully. Contract is now active.");
+    window.showEnrollSuccess({
+      customerName:  custFirstName + " " + custLastName,
+      boat:          boatYear + " " + boatMake + " " + boatModel,
+      contractLabel: contractLabel,
+      amount:        amount,
+      enrollDate:    enrollDate,
+      expireDate:    expireDate
+    });
+    var successEl = document.getElementById("enroll-success-screen");
+    if (successEl) successEl.scrollIntoView({ behavior: "smooth", block: "center" });
     this.disabled = false;
     this.textContent = "Confirm Enrollment";
   });
