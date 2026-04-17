@@ -680,6 +680,7 @@
                   <th>Status</th>
                   <th>Enrolled</th>
                   <th>Expires</th>
+                  <th style="text-align:right;">Actions</th>
                 </tr>
               </thead>
               <tbody id="admin-master-tbody"></tbody>
@@ -2444,5 +2445,86 @@ window.addEventListener("load", function() {
   }
 });
 </script>
+
+<!-- Cancel Contract Modal (admin) -->
+<div id="cancel-contract-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:500;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:2rem;max-width:480px;width:90%;max-height:85vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
+      <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:300;color:var(--navy);">Cancel Contract</div>
+      <button type="button" onclick="closeCancelModal()" style="background:none;border:none;font-size:20px;color:var(--light);cursor:pointer;">✕</button>
+    </div>
+    <div id="cancel-customer-info" style="background:var(--silver-bg);border-radius:8px;padding:1rem;margin-bottom:1.25rem;font-size:13.5px;"></div>
+    <div style="margin-bottom:1.25rem;">
+      <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--mid);display:block;margin-bottom:8px;">Cancellation Type</label>
+      <div style="display:flex;flex-direction:column;gap:0.5rem;" id="cancel-type-options">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:0.75rem 1rem;border:1.5px solid var(--border);border-radius:6px;transition:border-color 0.15s;">
+          <input type="radio" name="cancel-type" value="customer_within_30" style="margin-top:2px;accent-color:var(--navy);">
+          <div>
+            <div style="font-size:13.5px;font-weight:500;color:var(--navy);">Customer requested — within 30 days</div>
+            <div style="font-size:12px;color:var(--light);">Full refund minus services used</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:0.75rem 1rem;border:1.5px solid var(--border);border-radius:6px;transition:border-color 0.15s;">
+          <input type="radio" name="cancel-type" value="customer_after_30" style="margin-top:2px;accent-color:var(--navy);">
+          <div>
+            <div style="font-size:13.5px;font-weight:500;color:var(--navy);">Customer requested — after 30 days</div>
+            <div style="font-size:12px;color:var(--light);">No refund applicable</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:0.75rem 1rem;border:1.5px solid var(--border);border-radius:6px;transition:border-color 0.15s;">
+          <input type="radio" name="cancel-type" value="enrollment_error" style="margin-top:2px;accent-color:var(--navy);">
+          <div>
+            <div style="font-size:13.5px;font-weight:500;color:var(--navy);">Enrollment error</div>
+            <div style="font-size:12px;color:var(--light);">Dealer made a mistake — void the contract</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:0.75rem 1rem;border:1.5px solid var(--border);border-radius:6px;transition:border-color 0.15s;">
+          <input type="radio" name="cancel-type" value="fraud" style="margin-top:2px;accent-color:var(--red);">
+          <div>
+            <div style="font-size:13.5px;font-weight:500;color:var(--red);">Fraud / abuse</div>
+            <div style="font-size:12px;color:var(--light);">Immediate termination — no refund</div>
+          </div>
+        </label>
+      </div>
+    </div>
+    <div style="margin-bottom:1.5rem;">
+      <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--mid);display:block;margin-bottom:8px;">Reason / Notes</label>
+      <textarea id="cancel-reason-input" placeholder="Enter cancellation reason..." style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:6px;font-size:13.5px;font-family:inherit;min-height:80px;resize:vertical;outline:none;"></textarea>
+    </div>
+    <div style="background:#fff0f0;border:1px solid #ffb3b3;border-radius:6px;padding:0.85rem 1rem;margin-bottom:1.5rem;font-size:13px;color:#c0392b;">
+      ⚠ This action cannot be undone. The contract will be marked as cancelled and no further tickets can be submitted against it.
+    </div>
+    <div style="display:flex;gap:0.75rem;">
+      <button type="button" onclick="closeCancelModal()" style="flex:1;padding:11px;border:1px solid var(--border);background:white;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">Keep Contract</button>
+      <button type="button" id="cancel-confirm-btn" onclick="confirmCancelContract()" style="flex:2;padding:11px;background:var(--red);color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel Contract</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dealer Cancel Request Modal -->
+<div id="dealer-cancel-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:500;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:2rem;max-width:440px;width:90%;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:var(--navy);">Request Cancellation</div>
+      <button type="button" onclick="closeDealerCancelModal()" style="background:none;border:none;font-size:20px;color:var(--light);cursor:pointer;">✕</button>
+    </div>
+    <div id="dealer-cancel-customer-info" style="background:var(--silver-bg);border-radius:8px;padding:1rem;margin-bottom:1.25rem;font-size:13.5px;"></div>
+    <div style="font-size:13px;color:var(--mid);margin-bottom:1.25rem;line-height:1.6;">
+      Cancellation requests are reviewed by Whitestone Partners. You will be contacted within 1-2 business days.
+    </div>
+    <div style="margin-bottom:1.25rem;">
+      <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--mid);display:block;margin-bottom:8px;">Reason for Cancellation</label>
+      <textarea id="dealer-cancel-reason" placeholder="Please explain why you are requesting cancellation..." style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:6px;font-size:13.5px;font-family:inherit;min-height:80px;resize:vertical;outline:none;"></textarea>
+    </div>
+    <div style="display:flex;gap:0.75rem;">
+      <button type="button" onclick="closeDealerCancelModal()" style="flex:1;padding:10px;border:1px solid var(--border);background:white;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">Never Mind</button>
+      <button type="button" id="dealer-cancel-submit-btn" onclick="submitDealerCancelRequest()" style="flex:2;padding:10px;background:var(--navy);color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Submit Request</button>
+    </div>
+    <div id="dealer-cancel-success" style="display:none;margin-top:1rem;background:#f0f9f4;border:1px solid #a8d5b5;border-radius:6px;padding:0.85rem 1rem;font-size:13px;color:#1b5e20;text-align:center;">
+      ✓ Cancellation request submitted. We'll be in touch within 1-2 business days.
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

@@ -329,6 +329,7 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .badge-contract-active{background:#e8f5e9;color:#1b5e20;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;}
 .badge-contract-soon{background:#fff8e1;color:#e65100;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;}
 .badge-contract-expired{background:#ffebee;color:#b71c1c;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;}
+.badge-contract-cancelled{background:#eef1f4;color:#6b8599;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;border:1px solid rgba(130,160,180,0.35);}
 .btn-reenroll-sm{margin-left:0.75rem;font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--navy);background:var(--navy);color:var(--gold);cursor:pointer;font-weight:600;}
 
 .admin-master-search-card{margin:0 1.5rem 1rem;}
