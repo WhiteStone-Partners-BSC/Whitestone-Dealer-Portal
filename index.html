@@ -530,6 +530,21 @@
               <div class="admin-stat-note">Revenue − reimbursements − commissions</div>
             </div>
           </div>
+          <!-- Renewal Pipeline -->
+          <div id="renewal-pipeline-section" style="margin-bottom:1.5rem;display:none;">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+              <div>
+                <div style="font-size:13.5px;font-weight:600;color:var(--navy);">Renewal Pipeline</div>
+                <div style="font-size:12px;color:var(--light);margin-top:2px;">Contracts expiring across your dealer network.</div>
+              </div>
+              <div style="display:flex;gap:0.4rem;background:var(--silver-bg);border:1px solid var(--border);border-radius:8px;padding:3px;">
+                <button type="button" onclick="renewalSetFilter(30)" id="renewal-btn-30" class="renewal-filter-btn active">30 Days</button>
+                <button type="button" onclick="renewalSetFilter(60)" id="renewal-btn-60" class="renewal-filter-btn">60 Days</button>
+                <button type="button" onclick="renewalSetFilter(90)" id="renewal-btn-90" class="renewal-filter-btn">90 Days</button>
+              </div>
+            </div>
+            <div id="renewal-pipeline-list"></div>
+          </div>
           <div class="card admin-chart-card">
             <div class="card-title">Network Activity — Tickets This Year</div>
             <div class="admin-chart-wrap"><canvas id="admin-network-chart" height="120"></canvas></div>

@@ -975,6 +975,186 @@ function adminFormatContractContactBlock(c) {
   );
 }
 
+var renewalPipelineDays = 30;
+var renewalPipelineContracts = [];
+var RENEWAL_PIPELINE_EST_VALUE = 3325;
+
+function renewalSetFilter(days) {
+  renewalPipelineDays = days;
+  [30, 60, 90].forEach(function(d) {
+    var btn = document.getElementById("renewal-btn-" + d);
+    if (btn) btn.classList.toggle("active", d === days);
+  });
+  renewalPipelineRender();
+}
+
+function renewalPipelineRender() {
+  var now = new Date();
+  now.setHours(0, 0, 0, 0);
+  var section = document.getElementById("renewal-pipeline-section");
+  var listEl = document.getElementById("renewal-pipeline-list");
+  if (!section || !listEl) return;
+
+  var expiring = (renewalPipelineContracts || []).filter(function(c) {
+    if (!c.end_date) return false;
+    var end = new Date(c.end_date);
+    end.setHours(0, 0, 0, 0);
+    var days = Math.ceil((end - now) / 86400000);
+    return days >= 0 && days <= renewalPipelineDays;
+  });
+
+  expiring.sort(function(a, b) {
+    return new Date(a.end_date).getTime() - new Date(b.end_date).getTime();
+  });
+
+  if (!expiring.length) {
+    section.style.display = "none";
+    return;
+  }
+
+  section.style.display = "block";
+
+  function daysLeft(endDateStr) {
+    var end = new Date(endDateStr);
+    end.setHours(0, 0, 0, 0);
+    return Math.ceil((end - now) / 86400000);
+  }
+
+  var urgent = expiring.filter(function(c) {
+    return daysLeft(c.end_date) <= 14;
+  });
+  var soon = expiring.filter(function(c) {
+    var d = daysLeft(c.end_date);
+    return d > 14 && d <= 30;
+  });
+  var coming = expiring.filter(function(c) {
+    return daysLeft(c.end_date) > 30;
+  });
+
+  var comingSub =
+    renewalPipelineDays > 30 ? "Coming (31–" + renewalPipelineDays + " days)" : "Coming (31+ days — use 60/90d)";
+
+  var html = "";
+  html +=
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem;">' +
+    '<div style="background:white;border:1px solid var(--border);border-left:3px solid var(--red);border-radius:8px;padding:0.85rem 1rem;text-align:center;">' +
+    '<div style="font-family:\'Cormorant Garamond\',serif;font-size:28px;font-weight:300;color:var(--red);">' +
+    urgent.length +
+    "</div>" +
+    '<div style="font-size:11px;color:var(--light);">Urgent (≤14 days)</div>' +
+    "</div>" +
+    '<div style="background:white;border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:8px;padding:0.85rem 1rem;text-align:center;">' +
+    '<div style="font-family:\'Cormorant Garamond\',serif;font-size:28px;font-weight:300;color:var(--amber);">' +
+    soon.length +
+    "</div>" +
+    '<div style="font-size:11px;color:var(--light);">Soon (15–30 days)</div>' +
+    "</div>" +
+    '<div style="background:white;border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:8px;padding:0.85rem 1rem;text-align:center;">' +
+    '<div style="font-family:\'Cormorant Garamond\',serif;font-size:28px;font-weight:300;color:var(--blue);">' +
+    coming.length +
+    "</div>" +
+    '<div style="font-size:11px;color:var(--light);">' +
+    escHtml(comingSub) +
+    "</div>" +
+    "</div>" +
+    "</div>";
+
+  html += '<div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden;">';
+
+  expiring.forEach(function(c, i) {
+    var days = daysLeft(c.end_date);
+    var expDate = new Date(c.end_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    var isLast = i === expiring.length - 1;
+    var color;
+    var label;
+    if (days <= 14) {
+      color = "var(--red)";
+      label = days + "d";
+    } else if (days <= 30) {
+      color = "var(--amber)";
+      label = days + "d";
+    } else {
+      color = "var(--blue)";
+      label = days + "d";
+    }
+    var custName = escHtml(((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim() || "—");
+    var boatLine = escHtml(
+      [c.boat_year, c.boat_make, c.boat_model]
+        .filter(Boolean)
+        .join(" ") || "—"
+    );
+
+    html +=
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1.25rem;' +
+      (isLast ? "" : "border-bottom:1px solid var(--border);") +
+      'flex-wrap:wrap;gap:0.5rem;">' +
+      '<div style="display:flex;align-items:center;gap:0.75rem;flex:1;min-width:0;">' +
+      '<div style="width:36px;text-align:center;flex-shrink:0;">' +
+      '<div style="font-size:13px;font-weight:700;color:' +
+      color +
+      ';">' +
+      escHtml(label) +
+      "</div>" +
+      "</div>" +
+      '<div style="min-width:0;">' +
+      '<div style="font-size:13.5px;font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
+      custName +
+      "</div>" +
+      '<div style="font-size:12px;color:var(--light);margin-top:1px;">' +
+      escHtml(c.dealership_name || "—") +
+      " · " +
+      boatLine +
+      "</div>" +
+      "</div>" +
+      "</div>" +
+      '<div style="display:flex;align-items:center;gap:0.75rem;flex-shrink:0;">' +
+      '<span style="font-size:11px;font-weight:600;background:var(--silver-bg);color:var(--mid);padding:3px 10px;border-radius:20px;border:1px solid var(--border);">' +
+      escHtml(String((c.contract_type || "1yr").toUpperCase())) +
+      "</span>" +
+      '<div style="text-align:right;">' +
+      '<div style="font-size:12px;font-weight:500;color:' +
+      color +
+      ';">Exp ' +
+      escHtml(expDate) +
+      "</div>" +
+      "</div>" +
+      "</div>" +
+      "</div>";
+  });
+
+  html += "</div>";
+
+  html +=
+    '<div style="margin-top:0.75rem;text-align:right;font-size:12px;color:var(--light);">' +
+    expiring.length +
+    " contract" +
+    (expiring.length !== 1 ? "s" : "") +
+    " · Est. renewal value: <strong style=\"color:var(--navy);\">$" +
+    (expiring.length * RENEWAL_PIPELINE_EST_VALUE).toLocaleString() +
+    "</strong></div>";
+
+  listEl.innerHTML = html;
+}
+
+async function adminLoadRenewalPipeline() {
+  if (!currentDealer || !currentDealer.isAdmin) return;
+  var section = document.getElementById("renewal-pipeline-section");
+  if (!section) return;
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/contracts?status=eq.active&select=*&order=end_date.asc",
+      { headers: authHeaders() }
+    );
+    var rows = await res.json();
+    renewalPipelineContracts = res.ok && Array.isArray(rows) ? rows : [];
+  } catch (e) {
+    renewalPipelineContracts = [];
+  }
+  renewalPipelineRender();
+}
+
+window.renewalSetFilter = renewalSetFilter;
+
 var pricingModelServices = [];
 var pricingProfitChartInstance = null;
 var pricingControlsBound = false;
@@ -3027,6 +3207,7 @@ document.addEventListener("DOMContentLoaded", function() {
     if (!currentDealer || !currentDealer.isAdmin) return;
     await adminRefreshNetworkCaches();
     adminRenderDashboardOnly();
+    await adminLoadRenewalPipeline();
   }
 
   async function adminLoadDealersPanel() {
@@ -3046,6 +3227,7 @@ document.addEventListener("DOMContentLoaded", function() {
     adminRenderDashboardOnly();
     adminRenderCustomersOnly();
     adminRenderDealersOnly();
+    await adminLoadRenewalPipeline();
   }
 
   function adminShowSettingsModal() {

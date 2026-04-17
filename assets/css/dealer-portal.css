@@ -8,6 +8,27 @@
   --red-bg:#fff0f0;--red-border:#ffb3b3;--red-text:#c0392b;
   --red:#c0392b;--amber:#ba7517;
 }
+.renewal-filter-btn {
+  padding: 5px 14px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: "DM Sans", sans-serif;
+  color: var(--light);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 400;
+}
+.renewal-filter-btn.active {
+  background: var(--white);
+  color: var(--navy);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+.renewal-filter-btn:hover:not(.active) {
+  color: var(--navy);
+}
 body{font-family:"DM Sans",sans-serif;background:var(--silver-bg);color:var(--text);font-size:15px;line-height:1.7;min-height:100vh;}
 h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 
