@@ -707,6 +707,274 @@ function contractCardStatus(c) {
   return { label: "Active", cls: "badge-contract-active", sort: 0 };
 }
 
+function getEffectiveContractStatus(c) {
+  var st = contractCardStatus(c);
+  if (st.sort === 3) return "expired";
+  if (st.sort === 1) return "expiring_soon";
+  return "active";
+}
+
+var openCustomerHistories = {};
+
+async function toggleCustomerHistory(contractId, encodedHin, encodedName) {
+  var historyEl = document.getElementById("customer-history-" + contractId);
+  var arrowEl = document.getElementById("customer-arrow-" + contractId);
+  if (!historyEl) return;
+
+  var isOpen = historyEl.style.display !== "none";
+
+  if (isOpen) {
+    historyEl.style.display = "none";
+    if (arrowEl) arrowEl.innerHTML = "▼ View service history";
+    delete openCustomerHistories[contractId];
+    return;
+  }
+
+  historyEl.style.display = "block";
+  if (arrowEl) arrowEl.innerHTML = "▲ Hide service history";
+  openCustomerHistories[contractId] = true;
+
+  if (historyEl.dataset.loaded === "true") return;
+
+  var hin = decodeURIComponent(encodedHin);
+
+  if (!hin || !String(hin).trim()) {
+    historyEl.dataset.loaded = "true";
+    historyEl.innerHTML =
+      '<div style="padding:1.25rem;text-align:center;">' +
+      '<div style="font-size:13px;color:var(--light);">No hull ID on this contract.</div>' +
+      '<div style="font-size:12px;color:var(--light);margin-top:4px;">Service history is matched by HIN when tickets are submitted.</div>' +
+      "</div>";
+    return;
+  }
+
+  var res = await fetch(
+    SUPABASE_URL + "/rest/v1/tickets?hin=eq." + encodeURIComponent(hin) + "&select=*&order=created_at.desc",
+    { headers: authHeaders() }
+  );
+  var tickets = (await res.json()) || [];
+
+  historyEl.dataset.loaded = "true";
+
+  if (!tickets || tickets.length === 0) {
+    historyEl.innerHTML =
+      '<div style="padding:1.25rem;text-align:center;">' +
+      '<div style="font-size:13px;color:var(--light);">No service history yet.</div>' +
+      '<div style="font-size:12px;color:var(--light);margin-top:4px;">Tickets submitted for this customer will appear here.</div>' +
+      "</div>";
+    return;
+  }
+
+  var statusConfig = {
+    approved: { color: "#0F6E56", bg: "#f0f9f4", icon: "✓", label: "Approved" },
+    rejected: { color: "#c0392b", bg: "#fff0f0", icon: "✗", label: "Rejected" },
+    pending: { color: "#BA7517", bg: "#fffbf0", icon: "●", label: "Pending" }
+  };
+
+  historyEl.innerHTML =
+    '<div style="padding:1rem 1.25rem;">' +
+    '<div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">' +
+    '<div style="font-size:12px;color:var(--mid);">' +
+    '<strong style="color:var(--navy);">' +
+    tickets.length +
+    "</strong> total service" +
+    (tickets.length !== 1 ? "s" : "") +
+    "</div>" +
+    '<div style="font-size:12px;color:#0F6E56;">' +
+    "<strong>" +
+    tickets.filter(function(t) {
+      return t.status === "approved";
+    }).length +
+    "</strong> approved" +
+    "</div>" +
+    (tickets.filter(function(t) {
+      return t.status === "pending";
+    }).length > 0
+      ? '<div style="font-size:12px;color:#BA7517;"><strong>' +
+        tickets.filter(function(t) {
+          return t.status === "pending";
+        }).length +
+        "</strong> pending</div>"
+      : "") +
+    (tickets.filter(function(t) {
+      return t.status === "rejected";
+    }).length > 0
+      ? '<div style="font-size:12px;color:#c0392b;"><strong>' +
+        tickets.filter(function(t) {
+          return t.status === "rejected";
+        }).length +
+        "</strong> rejected</div>"
+      : "") +
+    "</div>" +
+    '<div style="position:relative;">' +
+    '<div style="position:absolute;left:15px;top:0;bottom:0;width:2px;background:var(--border);"></div>' +
+    tickets
+      .map(function(t, i) {
+        var s = (t.status || "pending").toLowerCase();
+        var cfg = statusConfig[s] || statusConfig.pending;
+        var date = new Date(t.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        var isLast = i === tickets.length - 1;
+
+        return (
+          '<div style="display:flex;gap:1rem;margin-bottom:' +
+          (isLast ? "0" : "1rem") +
+          ';position:relative;">' +
+          '<div style="width:32px;height:32px;border-radius:50%;background:' +
+          cfg.bg +
+          ";border:2px solid " +
+          cfg.color +
+          ';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:' +
+          cfg.color +
+          ';flex-shrink:0;z-index:1;">' +
+          cfg.icon +
+          "</div>" +
+          '<div style="flex:1;padding-top:4px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.25rem;">' +
+          '<div style="font-size:13.5px;font-weight:600;color:var(--navy);">' +
+          escHtml(String(t.service_type || t.services || "Service")) +
+          "</div>" +
+          '<span style="font-size:10px;font-weight:600;color:' +
+          cfg.color +
+          ";background:" +
+          cfg.bg +
+          ";padding:2px 8px;border-radius:20px;border:1px solid " +
+          cfg.color +
+          ';">' +
+          cfg.label +
+          "</span>" +
+          "</div>" +
+          '<div style="font-size:12px;color:var(--light);margin-top:2px;">' +
+          escHtml(date) +
+          (t.ticket_number ? " · " + escHtml(String(t.ticket_number)) : "") +
+          "</div>" +
+          (s === "rejected" && t.rejection_reason
+            ? '<div style="margin-top:6px;font-size:12px;color:#c0392b;background:#fff0f0;border-radius:4px;padding:5px 8px;border-left:2px solid #c0392b;">Rejected: ' +
+              escHtml(String(t.rejection_reason)) +
+              "</div>"
+            : "") +
+          "</div>" +
+          "</div>"
+        );
+      })
+      .join("") +
+    "</div>" +
+    "</div>";
+}
+
+async function adminExpandCustomer(contractId, encodedHin, encodedName) {
+  var existing = document.getElementById("admin-expand-" + contractId);
+  if (existing) {
+    existing.remove();
+    return;
+  }
+
+  var hin = decodeURIComponent(encodedHin);
+  var name = decodeURIComponent(encodedName);
+
+  var row = document.querySelector('[data-contract-id="' + String(contractId) + '"]');
+  if (!row) return;
+
+  var expandRow = document.createElement("tr");
+  expandRow.id = "admin-expand-" + contractId;
+  expandRow.className = "admin-mc-expand";
+  expandRow.innerHTML =
+    '<td colspan="8" style="padding:0;background:#fafbfc;border-bottom:2px solid var(--border);">' +
+    '<div id="admin-expand-content-' +
+    contractId +
+    '" style="padding:1.25rem;">' +
+    '<div style="color:var(--light);font-size:13px;">Loading service history...</div>' +
+    "</div>" +
+    "</td>";
+
+  row.parentNode.insertBefore(expandRow, row.nextSibling);
+
+  var contentEl = document.getElementById("admin-expand-content-" + contractId);
+  if (!contentEl) return;
+
+  var c = adminContractsCache.find(function(x) {
+    return String(x.id) === String(contractId);
+  });
+
+  if (!hin || !String(hin).trim()) {
+    contentEl.innerHTML =
+      '<div style="font-size:13px;color:var(--light);">No HIN on file — add a hull ID to the contract to see ticket history.</div>' +
+      (c ? adminFormatContractContactBlock(c) : "");
+    return;
+  }
+
+  var res = await fetch(
+    SUPABASE_URL + "/rest/v1/tickets?hin=eq." + encodeURIComponent(hin) + "&select=*&order=created_at.desc",
+    { headers: authHeaders() }
+  );
+  var tickets = (await res.json()) || [];
+
+  if (!tickets || tickets.length === 0) {
+    contentEl.innerHTML =
+      '<div style="font-size:13px;color:var(--light);">No service history for this customer yet.</div>' +
+      (c ? adminFormatContractContactBlock(c) : "");
+    return;
+  }
+
+  var statusConfig = {
+    approved: { color: "#0F6E56", label: "Approved" },
+    rejected: { color: "#c0392b", label: "Rejected" },
+    pending: { color: "#BA7517", label: "Pending" }
+  };
+
+  contentEl.innerHTML =
+    '<div style="font-size:12px;font-weight:600;color:var(--mid);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.75rem;">' +
+    escHtml(name) +
+    " — Service History</div>" +
+    '<div style="display:flex;flex-direction:column;gap:0.5rem;">' +
+    tickets
+      .map(function(t) {
+        var s = (t.status || "pending").toLowerCase();
+        var cfg = statusConfig[s] || statusConfig.pending;
+        var date = new Date(t.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        return (
+          '<div style="display:flex;align-items:center;gap:1rem;font-size:13px;">' +
+          '<span style="color:' +
+          cfg.color +
+          ';font-weight:600;min-width:70px;">' +
+          cfg.label +
+          "</span>" +
+          '<span style="color:var(--navy);font-weight:500;flex:1;">' +
+          escHtml(String(t.service_type || t.services || "Service")) +
+          "</span>" +
+          '<span style="color:var(--light);">' +
+          escHtml(date) +
+          "</span>" +
+          (t.ticket_number ? '<span style="color:var(--light);font-size:11px;">' + escHtml(String(t.ticket_number)) + "</span>" : "") +
+          "</div>"
+        );
+      })
+      .join("") +
+    "</div>" +
+    (c ? adminFormatContractContactBlock(c) : "");
+}
+
+function adminFormatContractContactBlock(c) {
+  return (
+    '<div class="admin-mc-detail-inner" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">' +
+    "<div><span>Email</span>" +
+    escHtml(c.customer_email || "—") +
+    "</div>" +
+    "<div><span>Phone</span>" +
+    escHtml(c.customer_phone || "—") +
+    "</div>" +
+    "<div><span>Engine type</span>" +
+    escHtml(c.engine_type || "—") +
+    "</div>" +
+    "<div><span>HIN</span>" +
+    escHtml(c.hin || "—") +
+    "</div>" +
+    '<div style="grid-column:1/-1;"><span>Notes</span>' +
+    escHtml(c.notes || "—") +
+    "</div>" +
+    "</div>"
+  );
+}
+
 var pricingModelServices = [];
 var pricingProfitChartInstance = null;
 var pricingControlsBound = false;
@@ -1764,17 +2032,6 @@ function renderAdminMasterTable() {
   var tbody = document.getElementById("admin-master-tbody");
   var inp = document.getElementById("admin-customer-search");
   if (!tbody) return;
-  if (tbody.dataset.clickBound !== "1") {
-    tbody.dataset.clickBound = "1";
-    tbody.addEventListener("click", function(e) {
-      var tr = e.target.closest("tr.admin-mc-summary");
-      if (!tr) return;
-      var next = tr.nextElementSibling;
-      if (next && next.classList.contains("admin-mc-detail")) {
-        next.style.display = next.style.display === "none" ? "table-row" : "none";
-      }
-    });
-  }
   if (inp && inp.dataset.bound !== "1") {
     inp.dataset.bound = "1";
     inp.addEventListener("input", function() {
@@ -1812,7 +2069,16 @@ function renderAdminMasterTable() {
     var name = ((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim() || "—";
     var boat = [c.boat_make, c.boat_model, c.boat_year].filter(Boolean).join(" ") || "—";
     var st = contractCardStatus(c);
-    html += "<tr class='admin-mc-summary'>";
+    html +=
+      "<tr class='admin-mc-summary' data-contract-id='" +
+      escHtml(String(c.id)) +
+      "' onclick=\"adminExpandCustomer('" +
+      String(c.id) +
+      "', '" +
+      encodeURIComponent(c.hin || "") +
+      "', '" +
+      encodeURIComponent((c.customer_first_name || "") + " " + (c.customer_last_name || "")) +
+      '\')" style="cursor:pointer;" onmouseover="this.style.background=\'#f8f9fb\'" onmouseout="this.style.background=\'\'">';
     html += "<td>" + escHtml(name) + "</td>";
     html += "<td>" + escHtml(c.dealership_name || "—") + "</td>";
     html += "<td>" + escHtml(boat) + "</td>";
@@ -1822,14 +2088,6 @@ function renderAdminMasterTable() {
     html += "<td>" + escHtml(formatContractDateShort(c.start_date)) + "</td>";
     html += "<td>" + escHtml(formatContractDateShort(c.end_date)) + "</td>";
     html += "</tr>";
-    html += "<tr class='admin-mc-detail' style='display:none'><td colspan='8'>";
-    html += "<div class='admin-mc-detail-inner'>";
-    html += "<div><span>Email</span>" + escHtml(c.customer_email || "—") + "</div>";
-    html += "<div><span>Phone</span>" + escHtml(c.customer_phone || "—") + "</div>";
-    html += "<div><span>Engine type</span>" + escHtml(c.engine_type || "—") + "</div>";
-    html += "<div><span>HIN</span>" + escHtml(c.hin || "—") + "</div>";
-    html += "<div style='grid-column:1/-1;'><span>Notes</span>" + escHtml(c.notes || "—") + "</div>";
-    html += "</div></td></tr>";
   });
   tbody.innerHTML = html;
 }
@@ -3255,6 +3513,13 @@ document.addEventListener("DOMContentLoaded", function() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  window.prefilEnroll = function(contractId) {
+    var c = dealerContractsCache.find(function(x) {
+      return String(x.id) === String(contractId);
+    });
+    prefillEnrollFromContract(c);
+  };
+
   function renderCustomerCards() {
     var box = document.getElementById("customers-container");
     var qs = document.getElementById("customer-search");
@@ -3272,36 +3537,88 @@ document.addEventListener("DOMContentLoaded", function() {
     if (list.length === 0) {
       if (!dealerContractsCache.length) {
         box.innerHTML =
-          "<div class='renewals-empty'>No customers enrolled yet. Use the Enroll Customer tab to add your first customer.</div>";
+          '<div style="text-align:center;padding:2rem;color:var(--light);">No customers enrolled yet. Use the Enroll Customer tab to add your first customer.</div>';
       } else {
         box.innerHTML = "<div class='renewals-empty'>No customers match your search.</div>";
       }
       return;
     }
+    var order = { active: 0, expiring_soon: 1, expired: 2 };
+    list.sort(function(a, b) {
+      return (order[getEffectiveContractStatus(a)] || 0) - (order[getEffectiveContractStatus(b)] || 0);
+    });
     var html = "";
     list.forEach(function(c) {
-      var name = ((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim() || "Customer";
-      var boat = [c.boat_make, c.boat_model, c.boat_year].filter(Boolean).join(" ") || "—";
-      var st = contractCardStatus(c);
-      var enrolled = formatContractDateShort(c.start_date);
-      var expires = formatContractDateShort(c.end_date);
-      var ctype = String(c.contract_type || "—");
-      html += "<div class='customer-card' data-contract-id='" + escHtml(String(c.id)) + "'>";
-      html += "<div class='customer-card-name'>" + escHtml(name) + " <span class='" + st.cls + "'>" + escHtml(st.label) + "</span></div>";
-      html += "<div class='customer-card-meta'>";
-      html += "<div class='customer-card-row'><strong>Boat</strong> · " + escHtml(boat) + "</div>";
-      html += "<div class='customer-card-row'><strong>HIN</strong> · " + escHtml(normalizeHin(c.hin || "")) + "</div>";
-      html += "<div class='customer-card-row'><strong>Contract</strong> · " + escHtml(ctype) + "</div>";
-      html += "<div class='customer-card-row'><strong>Enrolled</strong> · " + escHtml(enrolled) + "</div>";
-      html += "<div class='customer-card-row'><strong>Expires</strong> · " + escHtml(expires) + "</div>";
-      html += "</div>";
-      if (st.sort === 3) {
-        html +=
-          "<button type='button' class='btn-reenroll-sm' data-contract-id='" +
-          escHtml(String(c.id)) +
-          "'>Re-enroll</button>";
-      }
-      html += "</div>";
+      var status = getEffectiveContractStatus(c);
+      var statusColor = status === "active" ? "#0F6E56" : status === "expiring_soon" ? "#BA7517" : "#c0392b";
+      var statusLabel = status === "active" ? "Active" : status === "expiring_soon" ? "Expiring Soon" : "Expired";
+      var daysLeft = c.end_date ? Math.max(0, Math.ceil((new Date(c.end_date) - new Date()) / 86400000)) : null;
+      var fname = c.customer_first_name || "";
+      var lname = c.customer_last_name || "";
+      var fullName = (fname + " " + lname).trim() || "Customer";
+      html +=
+        '<div class="customer-card" id="customer-card-' +
+        escHtml(String(c.id)) +
+        '" style="border:1px solid var(--border);border-radius:10px;margin-bottom:0.75rem;overflow:hidden;border-left:3px solid ' +
+        statusColor +
+        ';">' +
+        '<div onclick="toggleCustomerHistory(\'' +
+        String(c.id) +
+        "', '" +
+        encodeURIComponent(c.hin || "") +
+        "', '" +
+        encodeURIComponent(fname + " " + lname) +
+        '\')" ' +
+        'style="padding:1.25rem;cursor:pointer;background:white;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">' +
+        "<div>" +
+        '<div style="font-size:16px;font-weight:600;color:var(--navy);">' +
+        escHtml(fullName) +
+        "</div>" +
+        '<div style="font-size:13px;color:var(--light);margin-top:2px;">' +
+        escHtml([c.boat_year, c.boat_make, c.boat_model].filter(Boolean).join(" ") || "—") +
+        "</div>" +
+        '<div style="font-size:12px;color:var(--light);margin-top:2px;font-family:monospace;">HIN: ' +
+        escHtml(c.hin ? normalizeHin(c.hin) : "—") +
+        "</div>" +
+        "</div>" +
+        '<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px;">' +
+        '<span style="background:' +
+        statusColor +
+        ';color:white;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;">' +
+        statusLabel +
+        "</span>" +
+        '<div style="font-size:11px;color:var(--light);">' +
+        (daysLeft !== null ? (status === "expired" ? "Expired" : daysLeft + " days left") : "") +
+        "</div>" +
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-top:4px;font-size:11px;color:var(--light);">' +
+        '<div><strong style="display:block;color:var(--mid);">' +
+        String((c.contract_type || "1yr").toUpperCase()) +
+        "</strong>Contract</div>" +
+        '<div><strong style="display:block;color:var(--mid);">' +
+        escHtml(formatContractDateShort(c.start_date)) +
+        "</strong>Enrolled</div>" +
+        '<div><strong style="display:block;color:var(--mid);">' +
+        escHtml(formatContractDateShort(c.end_date)) +
+        "</strong>Expires</div>" +
+        "</div>" +
+        "</div>" +
+        "</div>" +
+        '<div id="customer-arrow-' +
+        escHtml(String(c.id)) +
+        '" style="text-align:center;padding:4px;background:var(--silver-bg);border-top:1px solid var(--border);font-size:11px;color:var(--light);">▼ View service history</div>' +
+        '<div id="customer-history-' +
+        escHtml(String(c.id)) +
+        '" style="display:none;border-top:1px solid var(--border);background:#fafbfc;">' +
+        '<div style="padding:1rem 1.25rem;text-align:center;color:var(--light);font-size:13px;">Loading service history...</div>' +
+        "</div>" +
+        (status === "expired"
+          ? '<div style="padding:0.75rem 1.25rem;background:white;border-top:1px solid var(--border);">' +
+            '<button type="button" onclick="event.stopPropagation(); window.prefilEnroll(\'' +
+            String(c.id) +
+            '\')" style="background:var(--gold);color:var(--navy);border:none;padding:7px 18px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Re-enroll</button>' +
+            "</div>"
+          : "") +
+        "</div>";
     });
     box.innerHTML = html;
   }
