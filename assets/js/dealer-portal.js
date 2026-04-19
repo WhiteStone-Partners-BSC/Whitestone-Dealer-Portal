@@ -3608,6 +3608,215 @@ document.addEventListener("DOMContentLoaded", function() {
     btn.textContent = "Send Reset Link";
   });
 
+  async function adminLoadDashboard() {
+    if (!currentDealer || !currentDealer.isAdmin) return;
+    var hdr = authHeaders();
+    var contracts = [];
+    var pendingTix = [];
+    var reimbs = [];
+    var logs = [];
+    var pendingApps = [];
+    try {
+      var responses = await Promise.all([
+        fetch(SUPABASE_URL + "/rest/v1/contracts?select=id,status,end_date,retail_price,contract_type,dealership_name,created_at", { headers: hdr }),
+        fetch(SUPABASE_URL + "/rest/v1/tickets?status=eq.pending&select=id", { headers: hdr }),
+        fetch(SUPABASE_URL + "/rest/v1/reimbursements?select=id,amount,status,created_at", { headers: hdr }),
+        fetch(SUPABASE_URL + "/rest/v1/audit_log?select=*&order=created_at.desc&limit=5", { headers: hdr }),
+        fetch(SUPABASE_URL + "/rest/v1/dealer_applications?status=eq.pending&select=id,dealership_name,created_at", { headers: hdr })
+      ]);
+      for (var ri = 0; ri < responses.length; ri++) {
+        var res = responses[ri];
+        var rows = [];
+        if (res && res.ok) {
+          try {
+            rows = await res.json();
+          } catch (je) {}
+        }
+        if (!Array.isArray(rows)) rows = [];
+        if (ri === 0) contracts = rows;
+        else if (ri === 1) pendingTix = rows;
+        else if (ri === 2) reimbs = rows;
+        else if (ri === 3) logs = rows;
+        else pendingApps = rows;
+      }
+    } catch (e) {
+      console.error("adminLoadDashboard", e);
+    }
+
+    var active = contracts.filter(function(c) {
+      return String(c.status || "").toLowerCase() === "active";
+    });
+    var now = new Date();
+    var expiring = contracts.filter(function(c) {
+      if (!c.end_date || String(c.status || "").toLowerCase() !== "active") return false;
+      var days = Math.ceil((new Date(c.end_date) - now) / 86400000);
+      return days >= 0 && days <= 30;
+    });
+
+    var monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    var monthContracts = contracts.filter(function(c) {
+      return c.created_at && new Date(c.created_at) >= monthStart;
+    });
+    var monthRevenue = monthContracts.reduce(function(a, c) {
+      return a + (Number(c.retail_price) || 0);
+    }, 0);
+
+    var elAC = document.getElementById("stat-active-contracts");
+    var elACS = document.getElementById("stat-active-contracts-sub");
+    var elRev = document.getElementById("stat-revenue");
+    var elPT = document.getElementById("stat-pending-tickets");
+    var elEx = document.getElementById("stat-expiring");
+    if (elAC) elAC.textContent = String(active.length);
+    if (elACS) elACS.textContent = active.length === 1 ? "1 active contract" : active.length + " active contracts";
+    if (elRev) elRev.textContent = "$" + Math.round(monthRevenue).toLocaleString();
+    if (elPT) elPT.textContent = String(pendingTix.length);
+    if (elEx) elEx.textContent = String(expiring.length);
+
+    if (elPT) elPT.style.color = pendingTix.length > 0 ? "var(--red)" : "var(--green-text)";
+    if (elEx) elEx.style.color = expiring.length > 0 ? "var(--red)" : "var(--green-text)";
+
+    var actionItems = [];
+    if (pendingTix.length > 0) {
+      actionItems.push({
+        color: "var(--amber)",
+        icon: "\uD83D\uDCCB",
+        text: pendingTix.length + " ticket" + (pendingTix.length !== 1 ? "s" : "") + " waiting for review",
+        action: "Claims",
+        panel: "claims"
+      });
+    }
+    if (pendingApps.length > 0) {
+      actionItems.push({
+        color: "var(--blue)",
+        icon: "\uD83E\uDD1D",
+        text: pendingApps.length + " dealer application" + (pendingApps.length !== 1 ? "s" : "") + " waiting for review",
+        action: "Review",
+        panel: "dealers"
+      });
+    }
+    if (expiring.length > 0) {
+      actionItems.push({
+        color: "var(--red)",
+        icon: "\u23F0",
+        text: expiring.length + " contract" + (expiring.length !== 1 ? "s" : "") + " expiring within 30 days",
+        action: "View",
+        panel: "customers"
+      });
+    }
+    var outstanding = reimbs.filter(function(r) {
+      var s = String(r.status || "").toLowerCase();
+      return s === "approved" || s === "pending";
+    });
+    if (outstanding.length > 0) {
+      var outTotal = outstanding.reduce(function(a, r) {
+        return a + (Number(r.amount) || 150);
+      }, 0);
+      actionItems.push({
+        color: "var(--amber)",
+        icon: "\uD83D\uDCB0",
+        text: "$" + Math.round(outTotal).toLocaleString() + " in reimbursements owed to dealers",
+        action: "Pay",
+        panel: "claims"
+      });
+    }
+
+    var actionSection = document.getElementById("admin-action-section");
+    var actionList = document.getElementById("admin-action-items");
+    if (actionSection && actionList) {
+      if (actionItems.length === 0) {
+        actionSection.style.display = "none";
+      } else {
+        actionSection.style.display = "block";
+        actionList.innerHTML = actionItems
+          .map(function(item) {
+            return (
+              '<div style="display:flex;align-items:center;justify-content:space-between;background:white;border:1px solid var(--border);border-left:3px solid ' +
+              item.color +
+              ';border-radius:8px;padding:0.85rem 1.25rem;gap:1rem;">' +
+              '<div style="display:flex;align-items:center;gap:0.75rem;">' +
+              '<span style="font-size:16px;">' +
+              item.icon +
+              "</span>" +
+              '<span style="font-size:13.5px;color:var(--navy);">' +
+              escHtml(item.text) +
+              "</span>" +
+              "</div>" +
+              '<button type="button" onclick="window.adminShowPanel(\'' +
+              item.panel +
+              '\')" ' +
+              'style="background:var(--navy);color:white;border:none;padding:6px 16px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">' +
+              escHtml(item.action) +
+              " \u2192" +
+              "</button>" +
+              "</div>"
+            );
+          })
+          .join("");
+      }
+    }
+
+    var feedEl = document.getElementById("admin-activity-feed-clean");
+    if (!feedEl) return;
+
+    if (!logs || logs.length === 0) {
+      feedEl.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--light);font-size:13px;">No activity yet.</div>';
+      return;
+    }
+
+    var actionConfig = {
+      ticket_submitted: { icon: "\uD83D\uDCCB", color: "var(--blue)", label: "Ticket submitted" },
+      ticket_approved: { icon: "\u2713", color: "var(--green-text)", label: "Ticket approved" },
+      ticket_rejected: { icon: "\u2717", color: "var(--red)", label: "Ticket rejected" },
+      reimbursement_paid: { icon: "\uD83D\uDCB0", color: "var(--green-text)", label: "Reimbursement paid" },
+      customer_enrolled: { icon: "\u2693", color: "var(--gold)", label: "Customer enrolled" },
+      application_approved: { icon: "\uD83E\uDD1D", color: "var(--green-text)", label: "Dealer approved" },
+      application_declined: { icon: "\u2717", color: "var(--red)", label: "Application declined" },
+      pricing_confirmed: { icon: "\u2713", color: "var(--green-text)", label: "Pricing confirmed" },
+      contract_cancelled: { icon: "\u2717", color: "var(--red)", label: "Contract cancelled" }
+    };
+
+    feedEl.innerHTML = logs
+      .map(function(l, i) {
+        var cfg =
+          actionConfig[l.action] || {
+            icon: "\u25CF",
+            color: "var(--light)",
+            label: String(l.action || "activity").replace(/_/g, " ")
+          };
+        var dateStr = new Date(l.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        var timeStr = new Date(l.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+        var isLast = i === logs.length - 1;
+        var dealerPart = l.dealer_name ? '<span style="font-weight:400;color:var(--light);"> \u2014 ' + escHtml(l.dealer_name) + "</span>" : "";
+        var custLine = l.customer_name
+          ? '<div style="font-size:12px;color:var(--light);">' + escHtml(l.customer_name) + "</div>"
+          : "";
+        return (
+          '<div style="display:flex;align-items:center;gap:0.85rem;padding:0.75rem 0;' +
+          (isLast ? "" : "border-bottom:1px solid var(--border);") +
+          '">' +
+          '<div style="width:28px;height:28px;border-radius:50%;background:' +
+          cfg.color +
+          ';color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">' +
+          cfg.icon +
+          "</div>" +
+          '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:13.5px;font-weight:500;color:var(--navy);">' +
+          escHtml(cfg.label) +
+          dealerPart +
+          "</div>" +
+          custLine +
+          "</div>" +
+          '<div style="font-size:11px;color:var(--light);text-align:right;flex-shrink:0;">' +
+          escHtml(dateStr) +
+          "<br>" +
+          escHtml(timeStr) +
+          "</div>" +
+          "</div>"
+        );
+      })
+      .join("");
+  }
+
   async function adminRefreshNetworkCaches() {
     if (!currentDealer || !currentDealer.isAdmin) return false;
     var loading = document.getElementById("admin-dashboard-loading");
@@ -3676,13 +3885,6 @@ document.addEventListener("DOMContentLoaded", function() {
     loadAdminHinConflicts();
   }
 
-  async function adminLoadDashboardPanel() {
-    if (!currentDealer || !currentDealer.isAdmin) return;
-    await adminRefreshNetworkCaches();
-    adminRenderDashboardOnly();
-    await adminLoadRenewalPipeline();
-  }
-
   async function adminLoadDealersPanel() {
     if (!currentDealer || !currentDealer.isAdmin) return;
     await adminRefreshNetworkCaches();
@@ -3696,11 +3898,7 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 
   async function adminLoadNetworkDashboard() {
-    await adminRefreshNetworkCaches();
-    adminRenderDashboardOnly();
-    adminRenderCustomersOnly();
-    adminRenderDealersOnly();
-    await adminLoadRenewalPipeline();
+    await adminLoadDashboard();
   }
 
   function adminShowSettingsModal() {
@@ -3729,7 +3927,9 @@ document.addEventListener("DOMContentLoaded", function() {
     if (el) el.style.display = "block";
     switch (panel) {
       case "dashboard":
-        adminLoadDashboardPanel();
+        adminLoadDashboard().catch(function(e) {
+          console.error(e);
+        });
         break;
       case "dealers":
         adminLoadDealersPanel();
@@ -3754,6 +3954,9 @@ document.addEventListener("DOMContentLoaded", function() {
         break;
     }
   }
+
+  window.adminShowPanel = adminShowPanel;
+  window.adminLoadDashboard = adminLoadDashboard;
 
   async function doLogin() {
     var email = document.getElementById("login-email").value.trim();

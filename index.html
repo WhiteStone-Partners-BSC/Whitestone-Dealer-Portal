@@ -6,6 +6,13 @@
 <title>Whitestone Partners — Dealer Portal</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/dealer-portal.css">
+<style>
+@media (max-width: 600px) {
+  #admin-stat-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+</style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://js.stripe.com/v3/"></script>
 </head>
@@ -606,121 +613,46 @@
   <div class="admin-content" id="admin-content">
 
     <div id="admin-panel-dashboard" class="admin-panel" style="display:block;">
-      <div class="admin-panel-shell">
-        <div class="admin-cc-banner">
-          <span class="admin-cc-lock" aria-hidden="true">🔐</span>
-          <span class="admin-cc-title">WHITESTONE PARTNERS — NETWORK COMMAND CENTER</span>
+
+      <!-- STAT CARDS -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;" id="admin-stat-grid">
+        <div class="card" style="text-align:center;padding:1.25rem;">
+          <div style="font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:8px;">Active Contracts</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;color:var(--navy);line-height:1;" id="stat-active-contracts">—</div>
+          <div style="font-size:11px;color:var(--light);margin-top:4px;" id="stat-active-contracts-sub">across all dealers</div>
         </div>
-        <div id="admin-dashboard-loading" class="admin-dashboard-loading">Loading network data…</div>
-        <div id="admin-dashboard-content" style="display:none;">
-          <div class="admin-stat-grid">
-            <div class="stat-card admin-stat-card">
-              <div class="admin-stat-label">Total contracts enrolled</div>
-              <div class="admin-stat-value" id="admin-stat-contracts">—</div>
-              <div class="admin-stat-note">Active contracts (Supabase)</div>
-            </div>
-            <div class="stat-card admin-stat-card">
-              <div class="admin-stat-label">Network revenue generated</div>
-              <div class="admin-stat-value" id="admin-stat-revenue">—</div>
-              <div class="admin-stat-note">Sum of retail_price on active contracts</div>
-            </div>
-            <div class="stat-card admin-stat-card">
-              <div class="admin-stat-label">Total reimbursements paid</div>
-              <div class="admin-stat-value" id="admin-stat-reimb">—</div>
-              <div class="admin-stat-note">Sum of paid reimbursement rows</div>
-            </div>
-            <div class="stat-card admin-stat-card">
-              <div class="admin-stat-label">WP net margin (est.)</div>
-              <div class="admin-stat-value" id="admin-stat-margin">—</div>
-              <div class="admin-stat-note">Revenue − reimbursements − commissions</div>
-            </div>
-          </div>
-          <!-- Renewal Pipeline -->
-          <div id="renewal-pipeline-section" style="margin-bottom:1.5rem;display:none;">
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
-              <div>
-                <div style="font-size:13.5px;font-weight:600;color:var(--navy);">Renewal Pipeline</div>
-                <div style="font-size:12px;color:var(--light);margin-top:2px;">Contracts expiring across your dealer network.</div>
-              </div>
-              <div style="display:flex;gap:0.4rem;background:var(--silver-bg);border:1px solid var(--border);border-radius:8px;padding:3px;">
-                <button type="button" onclick="renewalSetFilter(30)" id="renewal-btn-30" class="renewal-filter-btn active">30 Days</button>
-                <button type="button" onclick="renewalSetFilter(60)" id="renewal-btn-60" class="renewal-filter-btn">60 Days</button>
-                <button type="button" onclick="renewalSetFilter(90)" id="renewal-btn-90" class="renewal-filter-btn">90 Days</button>
-              </div>
-            </div>
-            <div id="renewal-pipeline-list"></div>
-          </div>
-          <div class="card admin-chart-card">
-            <div class="card-title">Network Activity — Tickets This Year</div>
-            <div class="admin-chart-wrap"><canvas id="admin-network-chart" height="120"></canvas></div>
-          </div>
-          <div class="card" style="margin-bottom:1.5rem;">
-            <div class="card-title">Live Activity Feed</div>
-            <div class="card-sub">Last 25 actions across the entire network.</div>
-            <div id="activity-feed-admin"></div>
-          </div>
-          <div class="card" style="margin-bottom:1.5rem;">
-            <div class="card-title">Recent Pricing Changes</div>
-            <div class="card-sub">Last 20 pricing-related changes across dealerships.</div>
-            <div id="admin-pricing-feed"></div>
-          </div>
-          <div class="card admin-leaderboard-card">
-            <div class="card-title">Dealer leaderboard</div>
-            <div class="card-sub">Ranked by tickets submitted (network-wide).</div>
-            <div class="table-scroll">
-              <table class="dealer-table admin-leaderboard-table">
-                <thead>
-                  <tr>
-                    <th>Rank</th>
-                    <th>Dealership</th>
-                    <th>Tickets</th>
-                    <th>Est. contracts</th>
-                    <th>Est. reimbursements</th>
-                    <th>Last activity</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody id="admin-leaderboard-body"></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="admin-flags-row">
-            <div class="card admin-flag-card admin-flag-needs">
-              <div class="card-title">Needs follow up</div>
-              <p class="card-sub">No tickets in the last 30 days.</p>
-              <div id="admin-followup-list" class="admin-pill-list"></div>
-            </div>
-            <div class="card admin-flag-card admin-flag-good">
-              <div class="card-title">Performing well</div>
-              <p class="card-sub">3+ tickets this calendar month.</p>
-              <div id="admin-performing-list" class="admin-pill-list"></div>
-            </div>
-          </div>
-          <div class="card admin-renewals-network-card">
-            <div class="card-title">Renewals due across network</div>
-            <div class="card-sub">Contracts with end_date in the next 90 days.</div>
-            <div id="admin-renewals-body" class="admin-renewals-network-body"></div>
-          </div>
-          <div class="card admin-financial-card">
-            <div class="card-title">Financial health indicator</div>
-            <div class="admin-financial-inner">
-              <div class="admin-financial-row">
-                <span class="admin-financial-label">Estimated claims rate</span>
-                <strong id="admin-health-claims">—</strong>
-              </div>
-              <div class="admin-health-bar-track">
-                <div class="admin-health-bar-fill" id="admin-health-bar"></div>
-              </div>
-              <p class="admin-financial-hint">Services completed ÷ (contracts × 10 possible services per contract).</p>
-              <div id="admin-health-warning" class="admin-breakeven-banner" style="display:none;">Claims rate approaching breakeven — monitor closely</div>
-              <div class="admin-financial-row admin-projected-row">
-                <span class="admin-financial-label">Projected monthly reimbursements (pace)</span>
-                <strong id="admin-health-projected">—</strong>
-              </div>
-            </div>
-          </div>
+        <div class="card" style="text-align:center;padding:1.25rem;">
+          <div style="font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:8px;">Revenue This Month</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;color:var(--gold);line-height:1;" id="stat-revenue">—</div>
+          <div style="font-size:11px;color:var(--light);margin-top:4px;" id="stat-revenue-sub">wholesale collected</div>
+        </div>
+        <div class="card" style="text-align:center;padding:1.25rem;">
+          <div style="font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:8px;">Tickets Pending</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;color:var(--amber);line-height:1;" id="stat-pending-tickets">—</div>
+          <div style="font-size:11px;color:var(--light);margin-top:4px;">awaiting review</div>
+        </div>
+        <div class="card" style="text-align:center;padding:1.25rem;">
+          <div style="font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:8px;">Expiring Soon</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;color:var(--red);line-height:1;" id="stat-expiring">—</div>
+          <div style="font-size:11px;color:var(--light);margin-top:4px;">within 30 days</div>
         </div>
       </div>
+
+      <!-- ACTION REQUIRED — only shows when something needs attention -->
+      <div id="admin-action-section" style="display:none;margin-bottom:1.5rem;">
+        <div style="font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--red);margin-bottom:0.75rem;">Action Required</div>
+        <div id="admin-action-items" style="display:flex;flex-direction:column;gap:0.6rem;"></div>
+      </div>
+
+      <!-- ACTIVITY FEED — last 5 -->
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+          <div style="font-size:13px;font-weight:600;color:var(--navy);">Recent Activity</div>
+          <div style="font-size:11px;color:var(--light);">Last 5 actions</div>
+        </div>
+        <div id="admin-activity-feed-clean"></div>
+      </div>
+
     </div>
 
     <div id="admin-panel-dealers" class="admin-panel" style="display:none;">
