@@ -1,12 +1,12 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
-  --navy:#0c1e2e;--navy2:#132d47;--blue:#1a5276;
-  --silver:#8fa5b8;--silver-bg:#f0f4f8;--silver-light:#dce6ee;
-  --white:#fff;--text:#0c1e2e;--mid:#3d5870;--light:#6b8599;
-  --border:rgba(130,160,180,0.18);--gold:#b8963e;--gold2:#d4ac52;
-  --green:#e8f5e9;--green-border:#a8d5b5;--green-text:#1b5e20;
+  --white:#ffffff;--off-white:#f8f9fb;--silver-bg:#f0f4f8;
+  --navy:#0c1e2e;--navy2:#162840;--text:#0c1e2e;
+  --mid:#4a6278;--light:#6b8599;--silver:#8fa5b8;--silver-light:#dce6ee;
+  --border:#e4eaf0;--gold:#b8963e;--gold2:#d4ac52;--blue:#1a5276;
+  --green:#0F6E56;--green-bg:#e8f5e9;--green-border:#a8d5b5;--green-text:#1b5e20;
   --red-bg:#fff0f0;--red-border:#ffb3b3;--red-text:#c0392b;
-  --red:#c0392b;--amber:#ba7517;
+  --red:#c0392b;--amber:#BA7517;
 }
 .renewal-filter-btn {
   padding: 5px 14px;
@@ -106,7 +106,7 @@ body{font-family:"DM Sans",sans-serif;background:var(--silver-bg);color:var(--te
 h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 
 /* LOGIN */
-#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--navy);padding:2rem;}
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--silver-bg);padding:2rem;}
 .login-card{background:var(--white);border-radius:12px;padding:3rem;width:100%;max-width:420px;text-align:center;}
 .login-card img{height:60px;width:auto;margin-bottom:1.5rem;}
 .login-card h2{font-size:28px;font-weight:300;color:var(--navy);margin-bottom:0.35rem;}
@@ -130,7 +130,7 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .portal-tabs{background:var(--white);border-bottom:1px solid var(--border);display:flex;padding:0 2.5rem;overflow-x:auto;}
 .tab{padding:1rem 1.25rem;font-size:13px;color:var(--light);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;white-space:nowrap;}
 .tab:hover{color:var(--navy);}
-.tab.active{color:var(--navy);border-bottom-color:var(--gold);font-weight:500;}
+.tab.active{color:var(--navy);border-bottom-color:var(--navy);font-weight:500;}
 .tab.admin-tab{color:var(--gold);}
 .tab.admin-tab.active{border-bottom-color:var(--gold);}
 .portal-content{padding:2.5rem;max-width:960px;}
@@ -138,7 +138,8 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .tab-panel.active{display:block;}
 
 /* CARDS */
-.card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:2rem;margin-bottom:1.5rem;}
+.card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:2rem;margin-bottom:1.5rem;box-shadow:0 1px 4px rgba(12,30,46,0.06),0 2px 8px rgba(12,30,46,0.04);transition:box-shadow 0.2s ease;}
+.card:hover{box-shadow:0 2px 8px rgba(12,30,46,0.1),0 4px 16px rgba(12,30,46,0.06);}
 .card-title{font-family:"Cormorant Garamond",serif;font-size:28px;font-weight:300;color:var(--navy);margin-bottom:0.35rem;}
 .card-sub{font-size:13px;color:var(--light);margin-bottom:1.75rem;line-height:1.7;}
 .download-card{background:var(--navy);border-radius:10px;padding:1.75rem 2rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;}
@@ -164,7 +165,7 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .sub-btn:hover{background:var(--blue);}
 .sub-btn:disabled{background:var(--silver);cursor:not-allowed;}
 .sub-btn-full{width:100%;}
-.ok{display:none;background:var(--green);border:1px solid var(--green-border);border-radius:8px;padding:1.5rem;margin-top:1rem;text-align:center;}
+.ok{display:none;background:var(--green-bg);border:1px solid var(--green-border);border-radius:8px;padding:1.5rem;margin-top:1rem;text-align:center;}
 .ok h3{font-family:"Cormorant Garamond",serif;font-size:22px;color:var(--green-text);margin-bottom:0.35rem;}
 .ok p{font-size:13px;color:#2e7d32;}
 .err{display:none;background:var(--red-bg);border:1px solid var(--red-border);border-radius:8px;padding:1.25rem;margin-top:1rem;font-size:13px;color:var(--red-text);}
@@ -250,7 +251,7 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .stat-card.gold-accent{border-color:rgba(184,150,62,0.35);box-shadow:0 0 0 1px rgba(184,150,62,0.08);}
 .stat-card-label{font-size:10px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);margin-bottom:0.5rem;}
 .stat-card-value{font-family:"Cormorant Garamond",serif;font-size:2rem;font-weight:400;color:var(--navy);line-height:1.1;}
-.stat-card-value.stat-earnings-value{color:var(--gold);font-family:"DM Sans",sans-serif;font-weight:600;font-size:1.85rem;display:flex;align-items:baseline;gap:4px;}
+.stat-card-value.stat-earnings-value{color:var(--navy);font-family:"DM Sans",sans-serif;font-weight:600;font-size:1.85rem;display:flex;align-items:baseline;gap:4px;}
 .stat-earnings-value .earn-arrow{font-size:0.75em;opacity:0.75;line-height:1;}
 .stat-card-hint{font-size:11px;color:var(--light);margin-top:auto;padding-top:0.65rem;line-height:1.45;}
 .earn-arrow{font-size:0.9em;opacity:0.9;}
@@ -299,7 +300,7 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .admin-pill{padding:0.65rem 0.85rem;border-radius:8px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;}
 .admin-pill-warn{background:#fff5f5;border:1px solid #f5c4c4;color:var(--navy);}
 .admin-pill-warn span{font-size:11px;color:var(--red-text);}
-.admin-pill-good{background:var(--green);border:1px solid var(--green-border);}
+.admin-pill-good{background:var(--green-bg);border:1px solid var(--green-border);}
 .admin-pill-empty{font-size:12px;color:var(--light);padding:0.5rem 0;}
 .table-scroll{overflow-x:auto;}
 .admin-leaderboard-table{font-size:12px;}
@@ -467,12 +468,12 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .dealer-sidebar-logo .dealer-tier{font-size:11px;color:var(--gold);letter-spacing:0.06em;text-transform:uppercase;}
 .sidebar-nav-item{display:block;padding:11px 1.25rem;font-size:13.5px;font-weight:400;color:rgba(200,220,235,0.6);cursor:pointer;transition:all 0.15s;border-left:3px solid transparent;text-decoration:none;background:none;border-top:none;border-right:none;border-bottom:none;width:100%;text-align:left;font-family:"DM Sans",sans-serif;}
 .sidebar-nav-item:hover{color:var(--white);background:rgba(255,255,255,0.04);}
-.sidebar-nav-item.active{color:var(--white);background:rgba(184,150,62,0.08);border-left-color:var(--gold);font-weight:500;}
+.sidebar-nav-item.active{color:var(--white);background:rgba(255,255,255,0.06);border-left-color:var(--gold);font-weight:500;}
 .sidebar-section-label{font-size:9.5px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:rgba(143,165,184,0.3);padding:1rem 1.25rem 0.4rem;}
 .dealer-sidebar-footer{margin-top:auto;padding:1rem 1.25rem;border-top:1px solid rgba(143,165,184,0.08);}
 .sidebar-logout-btn{font-size:12.5px;color:rgba(200,220,235,0.4);cursor:pointer;background:none;border:none;font-family:"DM Sans",sans-serif;padding:0;transition:color 0.15s;}
 .sidebar-logout-btn:hover{color:rgba(200,220,235,0.8);}
-.dealer-main-content{flex:1;padding:2rem;overflow-y:auto;background:var(--silver-bg);max-width:none;}
+.dealer-main-content{flex:1;padding:2rem;overflow-y:auto;background:var(--silver-bg);max-width:none;display:flex;flex-direction:column;}
 @media(max-width:768px){
   .dealer-layout{flex-direction:column;}
   .dealer-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;padding:0.5rem;border-right:none;border-bottom:1px solid rgba(143,165,184,0.1);}
@@ -629,3 +630,66 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .fin-nav-item:last-child{border-bottom:none;}
 .fin-nav-item:hover{background:var(--silver-bg);color:var(--navy);}
 .fin-nav-item.active{border-left-color:var(--gold);color:var(--navy);font-weight:600;background:#fffbf0;}
+
+/* Hover polish + card lift (60-30-10 refresh) */
+a[style*="background:var(--gold)"],
+button[style*="background:var(--gold)"],
+.btn-gold,
+.dl-btn{
+  transition:background 0.2s ease,transform 0.15s ease,box-shadow 0.2s ease;
+}
+a[style*="background:var(--gold)"]:hover,
+button[style*="background:var(--gold)"]:hover,
+.btn-gold:hover,
+.dl-btn:hover{
+  background:#c9a44a !important;
+  transform:translateY(-1px);
+  box-shadow:0 4px 12px rgba(184,150,62,0.35);
+}
+a[style*="background:var(--navy)"],
+button[style*="background:var(--navy)"],
+.btn-navy,
+.sub-btn,
+.btn-add,
+.qa-btn{
+  transition:background 0.2s ease,transform 0.15s ease,box-shadow 0.2s ease;
+}
+.sub-btn:hover,.btn-add:hover,.qa-btn:hover{
+  transform:translateY(-1px);
+}
+a[style*="border:1.5px solid"],
+button[style*="border:1.5px solid"]{
+  transition:all 0.2s ease;
+}
+a[style*="border:1.5px solid"]:hover,
+button[style*="border:1.5px solid"]:hover{
+  background:var(--silver-bg) !important;
+  border-color:var(--navy) !important;
+}
+.dealer-nav-item,
+.admin-nav-item,
+.sidebar-nav-item{
+  transition:color 0.15s ease,background 0.15s ease,border-color 0.15s ease;
+}
+.customer-card{
+  transition:background 0.15s ease,box-shadow 0.2s ease;
+}
+.customer-card:hover{
+  background:var(--off-white) !important;
+  box-shadow:0 2px 8px rgba(12,30,46,0.08);
+}
+#admin-stat-grid .card,
+#dashboard-stats-grid .stat-card,
+.stats-grid .stat-card{
+  box-shadow:0 2px 8px rgba(12,30,46,0.06);
+  transition:box-shadow 0.2s ease,transform 0.2s ease;
+}
+#admin-stat-grid .card:hover,
+#dashboard-stats-grid .stat-card:hover,
+.stats-grid .stat-card:hover{
+  box-shadow:0 4px 16px rgba(12,30,46,0.1);
+  transform:translateY(-2px);
+}
+#login-screen div[style*="border-radius:12px"]{
+  box-shadow:0 4px 32px rgba(12,30,46,0.1) !important;
+}

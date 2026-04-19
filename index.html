@@ -19,15 +19,17 @@
 <body>
 
 <!-- LOGIN -->
-<div id="login-screen">
-  <div class="login-card">
+<div id="login-screen" style="min-height:100vh;background:var(--silver-bg);display:flex;align-items:center;justify-content:center;padding:2rem;">
+  <div style="width:100%;max-width:400px;">
 
-    <div style="text-align:center;margin-bottom:2rem;">
-      <img src="assets/images/logo.png" style="height:56px;" alt="Whitestone Partners">
+    <div style="text-align:center;margin-bottom:2.5rem;">
+      <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:28px;font-weight:300;color:var(--navy);letter-spacing:0.08em;text-transform:uppercase;">Whitestone Partners</div>
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold);margin-top:6px;">Dealer Portal</div>
+      <div style="width:40px;height:1px;background:var(--gold);margin:12px auto 0;"></div>
     </div>
 
-    <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;color:var(--navy);margin-bottom:0.25rem;">Dealer Portal</div>
-    <div style="font-size:13px;color:var(--light);margin-bottom:2rem;">Sign in to your account</div>
+    <div style="background:var(--white);border-radius:12px;padding:2rem;box-shadow:0 2px 16px rgba(12,30,46,0.08);border:1px solid var(--border);">
+      <div style="font-size:18px;font-weight:600;color:var(--navy);margin-bottom:1.5rem;">Sign in to your account</div>
 
     <div id="login-form-wrap">
       <div class="fg">
@@ -55,6 +57,11 @@
       <div id="reset-ok" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--green);text-align:center;padding:8px;background:#f0f9f4;border-radius:6px;border:1px solid #a8d5b5;">Reset link sent! Check your email.</div>
       <div id="reset-err" style="display:none;margin-top:0.75rem;font-size:13px;color:var(--red);text-align:center;padding:8px;background:#fff0f0;border-radius:6px;border:1px solid #ffb3b3;"></div>
       <button id="back-to-login-btn" style="background:none;border:none;font-size:12.5px;color:var(--blue);cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:0.75rem;display:block;">&larr; Back to sign in</button>
+    </div>
+
+      <div style="margin-top:1.25rem;text-align:center;font-size:12px;color:var(--light);">
+        🔒 Secure dealer portal &nbsp;·&nbsp; <a href="mailto:support@whitestone-partners.com" style="color:var(--gold);text-decoration:none;">Get help</a>
+      </div>
     </div>
 
   </div>
@@ -87,85 +94,30 @@
       <button type="button" class="sidebar-nav-item" data-panel="resources">Resources</button>
       <button type="button" class="sidebar-nav-item" data-panel="faq">FAQ &amp; Contact</button>
       <button type="button" class="sidebar-nav-item" data-panel="support">Support</button>
+      <button type="button" class="sidebar-nav-item" id="dealer-settings-btn" data-panel="settings">Settings</button>
       <div class="dealer-sidebar-footer">
         <button type="button" class="sidebar-logout-btn" id="sidebar-logout">Sign out</button>
       </div>
     </div>
     <div class="dealer-main-content" id="dealer-main-content">
 
+    <div id="onboarding-reminder-bar" style="display:none;width:100%;background:var(--navy);border-bottom:2px solid var(--gold);padding:10px 1.5rem;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;transform:translateY(-100%);opacity:0;transition:transform 0.45s ease,opacity 0.45s ease;">
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <span style="font-size:16px;">👋</span>
+        <div>
+          <span style="font-size:13.5px;font-weight:500;color:white;">Finish setting up your account</span>
+          <span style="font-size:12.5px;color:rgba(200,220,235,0.6);margin-left:8px;">Go to Settings → Getting Started to complete your setup.</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <button type="button" onclick="dealerOpenSettings();closeOnboardingReminder();" style="background:var(--gold);color:var(--navy);border:none;padding:6px 16px;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">Go to Settings</button>
+        <button type="button" onclick="closeOnboardingReminder()" style="background:none;border:none;color:rgba(200,220,235,0.5);font-size:18px;cursor:pointer;padding:0;line-height:1;">✕</button>
+      </div>
+    </div>
+
     <!-- DASHBOARD -->
     <div class="tab-panel active" id="panel-dashboard">
-      <div id="onboarding-checklist" style="display:none;margin-bottom:1.5rem;">
-        <div style="background:var(--navy2);border-radius:12px;padding:1.5rem;position:relative;overflow:hidden;">
-          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#b8963e,#d4ac52,#b8963e);"></div>
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.25rem;">
-            <div>
-              <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:var(--white);">Getting Started</div>
-              <div style="font-size:12px;color:rgba(200,220,235,0.5);margin-top:2px;">Complete these steps to activate your dealership.</div>
-            </div>
-            <div id="onboarding-progress-text" style="font-size:12px;font-weight:600;color:var(--gold);text-align:right;white-space:nowrap;"></div>
-          </div>
-          <div style="height:4px;background:rgba(255,255,255,0.08);border-radius:2px;margin-bottom:1.25rem;overflow:hidden;">
-            <div id="onboarding-progress-bar" style="height:100%;background:var(--gold);border-radius:2px;transition:width 0.4s ease;width:0%;"></div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:0.6rem;" id="onboarding-items">
-            <div class="onboarding-item" id="ob-item-portal" data-step="portal_access">
-              <div class="ob-check ob-done" id="ob-check-portal">✓</div>
-              <div class="ob-content">
-                <div class="ob-label">Portal access activated</div>
-                <div class="ob-sub">You're logged in and ready to go</div>
-              </div>
-            </div>
-            <div class="onboarding-item" id="ob-item-payment" data-step="payment_method">
-              <div class="ob-check" id="ob-check-payment">○</div>
-              <div class="ob-content">
-                <div class="ob-label">Save your payment method</div>
-                <div class="ob-sub">Required to enroll customers</div>
-              </div>
-              <button type="button" onclick="window.switchTab('enroll');setTimeout(function(){var b=document.getElementById('stripe-setup-btn');if(b)b.click();},300);" class="ob-action" id="ob-action-payment">Set Up →</button>
-            </div>
-            <div class="onboarding-item" id="ob-item-agreement" data-step="dealer_agreement">
-              <div class="ob-check" id="ob-check-agreement">○</div>
-              <div class="ob-content">
-                <div class="ob-label">Download your dealer agreement</div>
-                <div class="ob-sub">Review and keep for your records</div>
-              </div>
-              <button type="button" onclick="window.switchTab('resources');if(typeof window.onboardingMarkStep==='function')window.onboardingMarkStep('dealer_agreement');" class="ob-action" id="ob-action-agreement">View →</button>
-            </div>
-            <div class="onboarding-item" id="ob-item-customer" data-step="first_customer">
-              <div class="ob-check" id="ob-check-customer">○</div>
-              <div class="ob-content">
-                <div class="ob-label">Enroll your first customer</div>
-                <div class="ob-sub">Get your first contract active</div>
-              </div>
-              <button type="button" onclick="window.switchTab('enroll');" class="ob-action" id="ob-action-customer">Enroll →</button>
-            </div>
-            <div class="onboarding-item" id="ob-item-ticket" data-step="first_ticket">
-              <div class="ob-check" id="ob-check-ticket">○</div>
-              <div class="ob-content">
-                <div class="ob-label">Submit your first service ticket</div>
-                <div class="ob-sub">Start earning reimbursements</div>
-              </div>
-              <button type="button" onclick="window.switchTab('ticket');" class="ob-action" id="ob-action-ticket">Submit →</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="card tier-badge-card" id="tier-card">
-        <div class="tier-badge-inner">
-          <div class="tier-icon-wrap" id="tier-icon-wrap" aria-hidden="true"><span class="tier-icon" id="tier-icon">◆</span></div>
-          <div class="tier-copy">
-            <p class="tier-label">Your partner tier</p>
-            <h2 class="tier-title" id="tier-title">—</h2>
-            <p class="tier-subtitle" id="tier-subtitle"></p>
-            <div class="tier-progress-wrap" id="tier-progress-wrap">
-              <div class="tier-progress-track"><div class="tier-progress-fill" id="tier-progress-fill"></div></div>
-              <p class="tier-progress-label" id="tier-progress-label"></p>
-            </div>
-            <p class="tier-platinum-msg" id="tier-platinum-msg" style="display:none;"></p>
-          </div>
-        </div>
-      </div>
+      <div id="tier-indicator" style="display:none;"></div>
 
       <div class="dashboard-period-bar">
         <span class="dashboard-period-label">Stats period</span>
@@ -186,11 +138,10 @@
           <div class="stat-card-value" id="stat-customers">—</div>
           <div class="stat-card-hint">Unique customers (contracts) from your tickets</div>
         </div>
-        <div class="stat-card gold-accent" id="stat-earnings-card">
+        <div class="stat-card" id="stat-earnings-card">
           <div class="stat-card-label">Est. reimbursements</div>
-          <div class="stat-card-value stat-earnings-value"><span id="stat-earnings">$0</span><span class="earn-arrow" aria-hidden="true">↑</span></div>
+          <div class="stat-card-value stat-earnings-value"><span id="stat-earnings">$0</span></div>
           <div class="stat-card-hint" id="stat-earnings-hint">~$150 avg per ticket (approved + pending)</div>
-          <div class="sparkline" id="earnings-sparkline" aria-hidden="true"></div>
         </div>
       </div>
 
@@ -1067,6 +1018,12 @@
           <div style="font-size:14px;font-weight:600;color:var(--white);letter-spacing:0.04em;">Settings</div>
           <button type="button" id="settings-modal-close" style="background:none;border:none;color:rgba(200,220,235,0.6);font-size:18px;cursor:pointer;">✕</button>
         </div>
+        <div id="settings-onboarding-wrap" style="display:none;padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);">
+          <div id="settings-onboarding" style="margin-bottom:0;padding-bottom:0;border-bottom:none;">
+            <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:0.75rem;">Getting Started</div>
+            <div id="settings-onboarding-steps" style="display:flex;flex-direction:column;gap:0.5rem;font-size:13px;"></div>
+          </div>
+        </div>
         <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);">
           <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);margin-bottom:0.85rem;">Documents</div>
           <div style="display:flex;flex-direction:column;gap:0.6rem;">
@@ -1136,13 +1093,9 @@
             </div>
           </div>
         </div>
-        <div style="padding:1.25rem 1.5rem;">
+        <div id="settings-platform-section" style="padding:1.25rem 1.5rem;">
           <div style="font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);margin-bottom:0.85rem;">Platform</div>
           <div style="display:flex;flex-direction:column;gap:0.5rem;font-size:12.5px;color:var(--mid);">
-            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
-              <span>Supabase Project</span>
-              <span style="color:var(--navy);font-weight:500;">WhiteStone-Partners-BSC</span>
-            </div>
             <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
               <span>Portal Version</span>
               <span style="color:var(--navy);font-weight:500;">2.0</span>

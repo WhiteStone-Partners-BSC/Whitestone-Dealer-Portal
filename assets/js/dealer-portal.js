@@ -1443,17 +1443,160 @@ var onboardingSteps = {
 var onboardingCompletionInProgress = false;
 
 var ONBOARDING_STEP_ROWS = [
-  { key: "portal_access", itemId: "ob-item-portal", checkId: "ob-check-portal", actionId: null },
-  { key: "payment_method", itemId: "ob-item-payment", checkId: "ob-check-payment", actionId: "ob-action-payment" },
-  { key: "dealer_agreement", itemId: "ob-item-agreement", checkId: "ob-check-agreement", actionId: "ob-action-agreement" },
-  { key: "first_customer", itemId: "ob-item-customer", checkId: "ob-check-customer", actionId: "ob-action-customer" },
-  { key: "first_ticket", itemId: "ob-item-ticket", checkId: "ob-check-ticket", actionId: "ob-action-ticket" }
+  { key: "portal_access", label: "Portal access activated", sub: "You're logged in and ready to go", actionHtml: null },
+  {
+    key: "payment_method",
+    label: "Save your payment method",
+    sub: "Required to enroll customers",
+    actionHtml:
+      "<button type='button' onclick=\"window.switchTab('enroll');setTimeout(function(){var b=document.getElementById('stripe-setup-btn');if(b)b.click();},300);\" style='background:rgba(12,30,46,0.06);color:var(--navy);border:1px solid var(--border);padding:5px 12px;border-radius:5px;font-size:11.5px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;'>Set Up →</button>"
+  },
+  {
+    key: "dealer_agreement",
+    label: "Download your dealer agreement",
+    sub: "Review and keep for your records",
+    actionHtml:
+      "<button type='button' onclick=\"window.switchTab('resources');if(typeof window.onboardingMarkStep==='function')window.onboardingMarkStep('dealer_agreement');\" style='background:rgba(12,30,46,0.06);color:var(--navy);border:1px solid var(--border);padding:5px 12px;border-radius:5px;font-size:11.5px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;'>View →</button>"
+  },
+  {
+    key: "first_customer",
+    label: "Enroll your first customer",
+    sub: "Get your first contract active",
+    actionHtml:
+      "<button type='button' onclick=\"window.switchTab('enroll');\" style='background:rgba(12,30,46,0.06);color:var(--navy);border:1px solid var(--border);padding:5px 12px;border-radius:5px;font-size:11.5px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;'>Enroll →</button>"
+  },
+  {
+    key: "first_ticket",
+    label: "Submit your first service ticket",
+    sub: "Start earning reimbursements",
+    actionHtml:
+      "<button type='button' onclick=\"window.switchTab('ticket');\" style='background:rgba(12,30,46,0.06);color:var(--navy);border:1px solid var(--border);padding:5px 12px;border-radius:5px;font-size:11.5px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;'>Submit →</button>"
+  }
 ];
+
+function showOnboardingReminder() {
+  if (!currentDealer || currentDealer.isAdmin) return;
+  var bar = document.getElementById("onboarding-reminder-bar");
+  if (!bar) return;
+  bar.style.display = "flex";
+  requestAnimationFrame(function() {
+    bar.style.transform = "translateY(0)";
+    bar.style.opacity = "1";
+  });
+}
+
+function closeOnboardingReminder() {
+  var bar = document.getElementById("onboarding-reminder-bar");
+  if (!bar) return;
+  bar.style.transform = "translateY(-100%)";
+  bar.style.opacity = "0";
+  setTimeout(function() {
+    bar.style.display = "none";
+  }, 400);
+}
+
+window.closeOnboardingReminder = closeOnboardingReminder;
+
+async function checkOnboardingStatus() {
+  if (!currentDealer || currentDealer.isAdmin) return;
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(String(currentDealer.id)) + "&select=onboarding_completed",
+      { headers: authHeaders() }
+    );
+    var records = (await res.json()) || [];
+    var dealer = records[0] || {};
+    if (!dealer.onboarding_completed) {
+      showOnboardingReminder();
+    }
+  } catch (e) {}
+}
+
+window.checkOnboardingStatus = checkOnboardingStatus;
+
+function dealerOpenSettings() {
+  var modal = document.getElementById("settings-modal");
+  if (!modal) return;
+  var ow = document.getElementById("settings-onboarding-wrap");
+  var ps = document.getElementById("settings-platform-section");
+  if (currentDealer && !currentDealer.isAdmin) {
+    if (ow) ow.style.display = "block";
+    if (ps) ps.style.display = "none";
+    renderSettingsOnboardingSteps();
+  } else {
+    if (ow) ow.style.display = "none";
+    if (ps) ps.style.display = "block";
+  }
+  modal.style.display = "flex";
+}
+
+window.dealerOpenSettings = dealerOpenSettings;
+
+async function loadTierIndicator() {
+  if (!currentDealer || currentDealer.isAdmin) return;
+
+  var res = await fetch(
+    SUPABASE_URL + "/rest/v1/contracts?dealership_name=eq." + encodeURIComponent(currentDealer.name) + "&status=eq.active&select=id",
+    { headers: authHeaders() }
+  );
+  var contracts = (await res.json()) || [];
+  var count = contracts.length;
+
+  if (count < 5) {
+    var hideEl = document.getElementById("tier-indicator");
+    if (hideEl) {
+      hideEl.style.display = "none";
+      hideEl.innerHTML = "";
+    }
+    return;
+  }
+
+  var tier,
+    color,
+    pct;
+  if (count >= 20) {
+    tier = "Gold";
+    color = "#b8963e";
+    pct = 100;
+  } else if (count >= 10) {
+    tier = "Silver";
+    color = "#6b8599";
+    pct = Math.round(((count - 10) / 10) * 100);
+  } else {
+    tier = "Bronze";
+    color = "#a0522d";
+    pct = Math.round(((count - 5) / 5) * 100);
+  }
+
+  var el = document.getElementById("tier-indicator");
+  if (!el) return;
+
+  el.style.display = "block";
+  el.innerHTML =
+    "<div style=\"display:flex;align-items:center;gap:0.75rem;padding:0.6rem 1rem;background:white;border:1px solid var(--border);border-radius:8px;margin-bottom:1rem;\">" +
+    '<div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--light);">Tier</div>' +
+    '<div style="font-size:13px;font-weight:700;color:' +
+    color +
+    ';">' +
+    tier +
+    "</div>" +
+    '<div style="flex:1;height:6px;background:var(--silver-bg);border-radius:3px;overflow:hidden;">' +
+    '<div style="height:100%;width:' +
+    pct +
+    '%;background:' +
+    color +
+    ';border-radius:3px;transition:width 0.6s ease;"></div>' +
+    "</div>" +
+    '<div style="font-size:11px;color:var(--light);">' +
+    count +
+    " customers</div>" +
+    "</div>";
+}
+
+window.loadTierIndicator = loadTierIndicator;
 
 async function loadOnboardingChecklist() {
   if (!currentDealer || currentDealer.isAdmin) return;
-  var checklistEl = document.getElementById("onboarding-checklist");
-  if (!checklistEl) return;
 
   try {
     var res = await fetch(
@@ -1464,7 +1607,8 @@ async function loadOnboardingChecklist() {
     var dealer = Array.isArray(records) && records[0] ? records[0] : {};
 
     if (dealer.onboarding_completed) {
-      checklistEl.style.display = "none";
+      var wrapDone = document.getElementById("settings-onboarding-wrap");
+      if (wrapDone) wrapDone.style.display = "none";
       return;
     }
 
@@ -1507,60 +1651,41 @@ async function loadOnboardingChecklist() {
     var tickets = await ticketsRes.json();
     if (Array.isArray(tickets) && tickets.length > 0) onboardingSteps.first_ticket = true;
 
-    renderOnboardingChecklist();
+    renderSettingsOnboardingSteps();
   } catch (e) {
-    checklistEl.style.display = "none";
+    var wrapErr = document.getElementById("settings-onboarding-wrap");
+    if (wrapErr) wrapErr.style.display = "none";
   }
 }
 
-function renderOnboardingChecklist() {
-  var checklistEl = document.getElementById("onboarding-checklist");
-  if (!checklistEl || !currentDealer || currentDealer.isAdmin) return;
+function renderSettingsOnboardingSteps() {
+  var el = document.getElementById("settings-onboarding-steps");
+  if (!el || !currentDealer || currentDealer.isAdmin) return;
 
   var completedCount = 0;
   var total = ONBOARDING_STEP_ROWS.length;
+  var html = "";
 
   ONBOARDING_STEP_ROWS.forEach(function(row) {
     var done = !!onboardingSteps[row.key];
     if (done) completedCount++;
-    var itemEl = document.getElementById(row.itemId);
-    var checkEl = document.getElementById(row.checkId);
-    var actionEl = row.actionId ? document.getElementById(row.actionId) : null;
-
-    if (itemEl) {
-      if (done) itemEl.classList.add("ob-completed");
-      else itemEl.classList.remove("ob-completed");
-    }
-    if (checkEl) {
-      if (done) {
-        checkEl.classList.add("ob-done");
-        checkEl.textContent = "✓";
-      } else {
-        checkEl.classList.remove("ob-done");
-        checkEl.textContent = "○";
-      }
-    }
-    if (actionEl) {
-      if (done) actionEl.classList.add("ob-done-btn");
-      else actionEl.classList.remove("ob-done-btn");
-    }
+    html +=
+      "<div style=\"display:flex;align-items:center;gap:0.65rem;padding:0.65rem 0;border-bottom:1px solid var(--border);opacity:" +
+      (done ? "0.55" : "1") +
+      ';">';
+    html += "<span style=\"font-size:14px;width:22px;text-align:center;color:" + (done ? "#0F6E56" : "var(--light)") + ';">' + (done ? "✓" : "○") + "</span>";
+    html += "<div style=\"flex:1;min-width:0;\"><div style=\"font-weight:500;color:var(--navy);\">" + escHtml(row.label) + "</div>";
+    if (row.sub) html += "<div style=\"font-size:11.5px;color:var(--light);margin-top:2px;\">" + escHtml(row.sub) + "</div>";
+    html += "</div>";
+    if (row.actionHtml && !done) html += "<div style=\"flex-shrink:0;\">" + row.actionHtml + "</div>";
+    html += "</div>";
   });
 
-  checklistEl.style.opacity = "1";
-  var pct = Math.round((completedCount / total) * 100);
-  var barEl = document.getElementById("onboarding-progress-bar");
-  var textEl = document.getElementById("onboarding-progress-text");
-  if (barEl) barEl.style.width = pct + "%";
-  if (textEl) textEl.textContent = completedCount + " of " + total + " complete";
+  el.innerHTML = html;
 
   if (completedCount === total) {
-    checklistEl.style.display = "block";
-    checklistEl.style.opacity = "1";
     if (!onboardingCompletionInProgress) onboardingMarkComplete();
-    return;
   }
-
-  checklistEl.style.display = "block";
 }
 
 async function onboardingMarkStep(step) {
@@ -1573,18 +1698,12 @@ async function onboardingMarkStep(step) {
       body: JSON.stringify({ onboarding_steps: onboardingSteps })
     });
   } catch (e) {}
-  renderOnboardingChecklist();
+  renderSettingsOnboardingSteps();
 }
 
 async function onboardingMarkComplete() {
   if (onboardingCompletionInProgress) return;
   onboardingCompletionInProgress = true;
-  var checklistEl = document.getElementById("onboarding-checklist");
-  var progressText = document.getElementById("onboarding-progress-text");
-  var barEl = document.getElementById("onboarding-progress-bar");
-
-  if (progressText) progressText.textContent = "🎉 All done!";
-  if (barEl) barEl.style.width = "100%";
 
   try {
     await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(String(currentDealer.id)), {
@@ -1597,18 +1716,10 @@ async function onboardingMarkComplete() {
     });
   } catch (e) {}
 
-  setTimeout(function() {
-    if (checklistEl) {
-      checklistEl.style.transition = "opacity 0.8s ease";
-      checklistEl.style.opacity = "0";
-      setTimeout(function() {
-        if (checklistEl) checklistEl.style.display = "none";
-        onboardingCompletionInProgress = false;
-      }, 800);
-    } else {
-      onboardingCompletionInProgress = false;
-    }
-  }, 2000);
+  closeOnboardingReminder();
+  onboardingCompletionInProgress = false;
+  var wrap = document.getElementById("settings-onboarding-wrap");
+  if (wrap) wrap.style.display = "none";
 }
 
 window.loadOnboardingChecklist = loadOnboardingChecklist;
@@ -3527,6 +3638,7 @@ document.addEventListener("DOMContentLoaded", function() {
       var sbd = document.querySelector('.sidebar-nav-item[data-panel="dashboard"]');
       if (sbd) sbd.classList.add("active");
       window.switchTab("dashboard");
+      if (typeof checkOnboardingStatus === "function") checkOnboardingStatus();
     }
   }
 
@@ -3904,6 +4016,10 @@ document.addEventListener("DOMContentLoaded", function() {
   function adminShowSettingsModal() {
     var modal = document.getElementById("settings-modal");
     if (!modal) return;
+    var ow = document.getElementById("settings-onboarding-wrap");
+    var ps = document.getElementById("settings-platform-section");
+    if (ow) ow.style.display = "none";
+    if (ps) ps.style.display = "block";
     modal.style.display = "flex";
   }
 
@@ -4019,6 +4135,10 @@ document.addEventListener("DOMContentLoaded", function() {
 
   function switchTab(name) {
     if (currentDealer && currentDealer.isAdmin) return;
+    if (name === "settings") {
+      dealerOpenSettings();
+      return;
+    }
     document.querySelectorAll("#dealer-main-content .tab-panel").forEach(function(p) {
       p.classList.remove("active");
     });
@@ -4136,39 +4256,9 @@ document.addEventListener("DOMContentLoaded", function() {
       earnHint.textContent = "~$150 avg per ticket (approved + pending)";
     }
     animateEarningsTo(earnings, earnEl);
-    renderSparkline(filtered);
   }
 
-  function renderTierUI() {
-    var contracts = dealerContractCount > 0 ? dealerContractCount : countUniqueCustomers(allTickets);
-    var meta = getTierMeta(contracts);
-    var titleEl = document.getElementById("tier-title");
-    var subEl = document.getElementById("tier-subtitle");
-    var iconWrap = document.getElementById("tier-icon-wrap");
-    var iconEl = document.getElementById("tier-icon");
-    var progWrap = document.getElementById("tier-progress-wrap");
-    var progFill = document.getElementById("tier-progress-fill");
-    var progLabel = document.getElementById("tier-progress-label");
-    var platMsg = document.getElementById("tier-platinum-msg");
-    if (!titleEl) return;
-    titleEl.textContent = meta.title;
-    if (subEl) subEl.textContent = contracts + " enrolled customer" + (contracts === 1 ? "" : "s") + " on file";
-    if (iconWrap) iconWrap.style.borderColor = meta.color;
-    if (iconEl) iconEl.style.color = meta.color;
-    var st = getTierProgressState(contracts);
-    if (st.platinum) {
-      if (progWrap) progWrap.style.display = "none";
-      if (platMsg) {
-        platMsg.style.display = "block";
-        platMsg.textContent = "You've reached the highest tier. Thank you for your outstanding partnership with Whitestone Partners.";
-      }
-    } else {
-      if (progWrap) progWrap.style.display = "block";
-      if (platMsg) platMsg.style.display = "none";
-      if (progFill) progFill.style.width = Math.max(0, Math.min(100, st.pct)) + "%";
-      if (progLabel) progLabel.textContent = st.need + " more contract" + (st.need === 1 ? "" : "s") + " to " + st.nextName;
-    }
-  }
+  function renderTierUI() {}
 
   function renderRenewalsUI() {
     var el = document.getElementById("renewals-container");
@@ -4241,16 +4331,15 @@ document.addEventListener("DOMContentLoaded", function() {
           });
         }
       }
-      renderTierUI();
       updateDashboardStats();
       renderRenewalsUI();
       if (currentDealer && !currentDealer.isAdmin) updateSidebarInfo();
       if (currentDealer && !currentDealer.isAdmin && typeof loadOnboardingChecklist === "function") loadOnboardingChecklist();
+      if (currentDealer && !currentDealer.isAdmin && typeof loadTierIndicator === "function") loadTierIndicator();
     } catch (e) {
       allTickets = [];
       dealerContractCount = 0;
       renewalContractsDealer = [];
-      renderTierUI();
       updateDashboardStats();
       renewalsEl.innerHTML = "<div class='renewals-empty'>Could not load data. Please try again.</div>";
       if (currentDealer && !currentDealer.isAdmin) updateSidebarInfo();
@@ -4263,7 +4352,7 @@ document.addEventListener("DOMContentLoaded", function() {
     if (nameEl && currentDealer) nameEl.textContent = currentDealer.name;
     if (tierEl && currentDealer) {
       var contracts = dealerContractCount > 0 ? dealerContractCount : countUniqueCustomers(allTickets || []);
-      tierEl.textContent = getTierMeta(contracts).title;
+      tierEl.textContent = contracts >= 5 ? getTierMeta(contracts).title : "—";
     }
   }
 
@@ -4297,6 +4386,10 @@ document.addEventListener("DOMContentLoaded", function() {
   document.querySelectorAll(".sidebar-nav-item").forEach(function(btn) {
     btn.addEventListener("click", function() {
       var panel = this.getAttribute("data-panel");
+      if (panel === "settings") {
+        dealerOpenSettings();
+        return;
+      }
       document.querySelectorAll(".sidebar-nav-item").forEach(function(b) {
         b.classList.remove("active");
       });
