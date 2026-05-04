@@ -23,6 +23,9 @@ var dealerContractCount = 0;
 var renewalContractsDealer = [];
 var adminContractsCache = [];
 var dealerContractsCache = [];
+var dealerContractsPricingRow = null;
+var servicesUsedByHin = {};
+var currentCancellationFilter = "pending";
 
 var currentFinPeriod = "month";
 var currentFinSection = "overview";
@@ -615,7 +618,10 @@ async function verifyHINForEnrollment(hin, firstName, lastName, dealerName) {
     );
     var existing = await res.json();
     if (!existing || existing.length === 0) return { allowed: true };
-    var active = existing.filter(function(c) { return c.status === "active"; });
+    var active = existing.filter(function(c) {
+      var s = String(c.status || "").toLowerCase();
+      return s === "active" || s === "cancellation_pending";
+    });
     var existingName = (existing[0].customer_first_name + " " + existing[0].customer_last_name).toLowerCase().trim();
     var newName = (firstName + " " + lastName).toLowerCase().trim();
     var sameCustomer = existingName === newName;
@@ -650,6 +656,16 @@ async function verifyHINForTicket(hin) {
       return String(c.status || "").toLowerCase() === "active";
     });
     if (active.length === 0) {
+      var pendingCancel = contracts.find(function(c) {
+        return String(c.status || "").toLowerCase() === "cancellation_pending";
+      });
+      if (pendingCancel) {
+        return {
+          valid: false,
+          message:
+            "A cancellation is pending review for this contract. No new service tickets can be submitted until the request is resolved. Contact Whitestone Partners at support@whitestone-partners.com if you have questions."
+        };
+      }
       var cancelled = contracts.find(function(c) {
         return String(c.status || "").toLowerCase() === "cancelled";
       });
@@ -705,6 +721,400 @@ async function writeAuditLog(entityType, entityId, action, oldValue, newValue, d
   } catch (e) {}
 }
 
+function resolveWholesaleForContract(c, pricingRow) {
+  var w = parseFloat(c && c.wholesale_price);
+  if (!isNaN(w) && w > 0) return w;
+  var s = parseFloat(c && c.stripe_charge_amount);
+  if (!isNaN(s) && s > 0) return s;
+  if (!pricingRow) return 0;
+  var t = String((c && c.contract_type) || "1yr").toLowerCase();
+  if (t === "2yr") return parseFloat(pricingRow.contract_retail_2yr) || 0;
+  if (t === "3yr") return parseFloat(pricingRow.contract_retail_3yr) || 0;
+  return parseFloat(pricingRow.contract_retail_1yr) || 0;
+}
+
+function formatUsd(n) {
+  var x = Number(n);
+  if (isNaN(x)) return "—";
+  return "$" + x.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+// ── CANCELLATION SYSTEM ──────────────────────────────────
+
+var cancellationData = {};
+
+function openCancellationModal(contractId, customerName, retailPrice, wholesalePrice, startDate, contractType) {
+  var start = new Date(startDate);
+  var today = new Date();
+  var daysElapsed = Math.floor((today - start) / (1000 * 60 * 60 * 24));
+  if (isNaN(daysElapsed)) daysElapsed = 0;
+  var totalDays = contractType === "3yr" ? 1095 : contractType === "2yr" ? 730 : 365;
+  var daysRemaining = Math.max(0, totalDays - daysElapsed);
+  var graceApplies = daysElapsed <= 30;
+
+  var servicesUsed = 0;
+  var btnPre = document.querySelector('.cancel-contract-btn[data-contract-id="' + String(contractId) + '"]');
+  if (btnPre) {
+    var su = parseFloat(btnPre.getAttribute("data-services-used") || "0");
+    if (!isNaN(su)) servicesUsed = su;
+  }
+  if (!servicesUsed) {
+    document.querySelectorAll('[data-contract-id="' + String(contractId) + '"]').forEach(function(el) {
+      var amt = parseFloat(el.getAttribute("data-reimbursement") || 0);
+      if (!isNaN(amt)) servicesUsed += amt;
+    });
+  }
+
+  var retailNum = parseFloat(retailPrice) || 0;
+  var prorateRatio = daysRemaining / totalDays;
+  var customerRefund = Math.max(0, (retailNum - servicesUsed) * prorateRatio);
+  var wpWholesale = parseFloat(wholesalePrice) || 0;
+  var wpRefundShare =
+    retailNum > 0 ? Math.max(0, (wpWholesale - servicesUsed * (wpWholesale / retailNum)) * prorateRatio) : 0;
+  var dealerRefundShare = Math.max(0, customerRefund - wpRefundShare);
+  var dealerFee = graceApplies ? 0 : 100;
+
+  cancellationData = {
+    contractId: contractId,
+    customerName: customerName,
+    retailPrice: retailNum,
+    wholesalePrice: wpWholesale,
+    startDate: startDate,
+    contractType: contractType,
+    daysElapsed: daysElapsed,
+    daysRemaining: daysRemaining,
+    totalDays: totalDays,
+    graceApplies: graceApplies,
+    servicesUsed: servicesUsed,
+    customerRefund: customerRefund,
+    wpRefundShare: wpRefundShare,
+    dealerRefundShare: dealerRefundShare,
+    dealerFee: dealerFee
+  };
+
+  document.getElementById("cm-customer-name").textContent = customerName || "—";
+  document.getElementById("cm-contract-type").textContent = String(contractType || "1yr").toUpperCase() + " Contract";
+  document.getElementById("cm-retail-price").textContent = "$" + Number(retailPrice).toLocaleString();
+  document.getElementById("cm-days-elapsed").textContent = daysElapsed + " of " + totalDays + " days";
+  document.getElementById("cm-calc-retail").textContent = "$" + Number(retailPrice).toLocaleString();
+  document.getElementById("cm-calc-used").textContent = "-$" + servicesUsed.toFixed(2);
+  document.getElementById("cm-calc-prorate").textContent = Math.round(prorateRatio * 100) + "% of contract remaining";
+  document.getElementById("cm-calc-total").textContent = "$" + customerRefund.toFixed(2);
+  document.getElementById("cm-calc-wp-share").textContent = "$" + wpRefundShare.toFixed(2);
+  document.getElementById("cm-calc-dealer-share").textContent = "$" + dealerRefundShare.toFixed(2);
+
+  document.getElementById("cm-grace-badge").style.display = graceApplies ? "block" : "none";
+  document.getElementById("cm-fee-badge").style.display = graceApplies ? "none" : "block";
+  document.getElementById("cm-calc-fee-row").style.display = graceApplies ? "none" : "flex";
+
+  document.getElementById("cm-reason").value = "";
+  document.getElementById("cm-notes").value = "";
+
+  document.getElementById("cancellation-modal").style.display = "flex";
+}
+
+function closeCancellationModal() {
+  var m = document.getElementById("cancellation-modal");
+  if (m) m.style.display = "none";
+  cancellationData = {};
+}
+
+async function submitCancellationRequest() {
+  var reason = document.getElementById("cm-reason").value;
+  if (!reason) {
+    alert("Please select a reason for cancellation.");
+    return;
+  }
+  if (!cancellationData.contractId) return;
+
+  var btn = document.getElementById("cm-submit-btn");
+  btn.disabled = true;
+  btn.textContent = "Submitting...";
+
+  try {
+    var payload = {
+      contract_id: cancellationData.contractId,
+      dealer_id: currentDealer.id,
+      customer_name: cancellationData.customerName,
+      dealership_name: currentDealer.name,
+      contract_type: cancellationData.contractType,
+      retail_price: cancellationData.retailPrice,
+      wholesale_price: cancellationData.wholesalePrice,
+      dealer_margin: cancellationData.retailPrice - cancellationData.wholesalePrice,
+      contract_start_date: cancellationData.startDate,
+      days_elapsed: cancellationData.daysElapsed,
+      days_remaining: cancellationData.daysRemaining,
+      total_contract_days: cancellationData.totalDays,
+      grace_period_applies: cancellationData.graceApplies,
+      services_used_value: cancellationData.servicesUsed,
+      customer_refund_amount: cancellationData.customerRefund,
+      whitestone_refund_amount: cancellationData.wpRefundShare,
+      dealer_refund_amount: cancellationData.dealerRefundShare,
+      dealer_fee: cancellationData.dealerFee,
+      dealer_fee_waived: cancellationData.graceApplies,
+      dealer_fee_reason: cancellationData.graceApplies ? "Within 30-day grace period" : null,
+      reason: reason,
+      reason_notes: document.getElementById("cm-notes").value,
+      status: "pending"
+    };
+
+    var res = await fetch(SUPABASE_URL + "/rest/v1/cancellations", {
+      method: "POST",
+      headers: authHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error("Failed to submit");
+
+    await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + encodeURIComponent(String(cancellationData.contractId)), {
+      method: "PATCH",
+      headers: authHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ status: "cancellation_pending" })
+    });
+
+    await writeAuditLog(
+      "cancellation",
+      cancellationData.contractId,
+      "cancellation_requested",
+      null,
+      { reason: reason, customer: cancellationData.customerName },
+      currentDealer.name,
+      null,
+      "Cancellation requested for " + cancellationData.customerName
+    );
+
+    closeCancellationModal();
+    alert("Cancellation request submitted. Whitestone Partners will review and be in touch within 1-2 business days.");
+
+    if (typeof loadCustomersTab === "function") loadCustomersTab();
+  } catch (e) {
+    alert("Could not submit request. Please try again or contact support@whitestone-partners.com");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Submit Cancellation Request";
+  }
+}
+
+function setCancellationFilter(statusFilter) {
+  currentCancellationFilter = statusFilter || "pending";
+  var map = { pending: "can-filter-pending", approved: "can-filter-approved", processed: "can-filter-processed", all: "can-filter-all" };
+  Object.keys(map).forEach(function(k) {
+    var el = document.getElementById(map[k]);
+    if (!el) return;
+    if (k === currentCancellationFilter) {
+      el.classList.remove("btn-inactive");
+      el.style.background = "var(--gold)";
+      el.style.color = "var(--navy)";
+    } else {
+      if (!el.classList.contains("btn-inactive")) el.classList.add("btn-inactive");
+      el.style.background = "var(--silver-bg)";
+      el.style.color = "var(--mid)";
+    }
+  });
+  loadCancellations(currentCancellationFilter);
+}
+
+async function loadCancellations(statusFilter) {
+  if (!currentDealer || !currentDealer.isAdmin) return;
+  statusFilter = statusFilter || currentCancellationFilter || "pending";
+  currentCancellationFilter = statusFilter;
+  var listEl = document.getElementById("cancellations-list");
+  var loadEl = document.getElementById("cancellations-loading");
+  if (loadEl) loadEl.style.display = "block";
+  if (listEl) listEl.innerHTML = "";
+
+  var url = SUPABASE_URL + "/rest/v1/cancellations?order=created_at.desc";
+  if (statusFilter !== "all") url += "&status=eq." + encodeURIComponent(statusFilter);
+
+  var res = await fetch(url, { headers: authHeaders() });
+  var rows = await res.json();
+
+  if (loadEl) loadEl.style.display = "none";
+  if (!listEl) return;
+
+  if (!res.ok) {
+    listEl.innerHTML =
+      "<div style=\"text-align:center;padding:3rem;color:var(--light);font-size:13px;\">Could not load cancellations.</div>";
+    return;
+  }
+
+  if (!rows || rows.length === 0) {
+    listEl.innerHTML =
+      "<div style=\"text-align:center;padding:3rem;color:var(--light);font-size:13px;\">No " +
+      escHtml(String(statusFilter)) +
+      " cancellation requests.</div>";
+    return;
+  }
+
+  listEl.innerHTML = rows
+    .map(function(c) {
+      var statusColor =
+        c.status === "pending" ? "#f59e0b" : c.status === "approved" ? "#1b5e20" : c.status === "processed" ? "#1565c0" : "#666";
+      var graceTag = c.grace_period_applies
+        ? "<span style=\"background:#e8f5e9;color:#1b5e20;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;\">GRACE PERIOD</span>"
+        : "";
+      var reasonDisp = escHtml(String(c.reason || "—").replace(/_/g, " "));
+      var notesDisp = c.reason_notes ? " — " + escHtml(String(c.reason_notes)) : "";
+      var cid = c.id ? String(c.id) : "";
+      var ctId = c.contract_id ? String(c.contract_id) : "";
+      var pendingActions =
+        c.status === "pending"
+          ? "<div style=\"display:flex;gap:0.75rem;flex-wrap:wrap;\">" +
+            "<button type=\"button\" class=\"btn-cancel-approve\" data-cancellation-id=\"" +
+            escHtml(cid) +
+            "\" data-contract-id=\"" +
+            escHtml(ctId) +
+            "\" style=\"background:#1b5e20;color:white;border:none;padding:8px 20px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;\">Approve</button>" +
+            "<button type=\"button\" class=\"btn-cancel-deny\" data-cancellation-id=\"" +
+            escHtml(cid) +
+            "\" data-contract-id=\"" +
+            escHtml(ctId) +
+            "\" style=\"background:transparent;border:1px solid var(--border);color:var(--mid);padding:8px 20px;border-radius:6px;font-size:12px;cursor:pointer;\">Deny</button>" +
+            "<button type=\"button\" class=\"btn-cancel-note\" data-cancellation-id=\"" +
+            escHtml(cid) +
+            "\" style=\"background:transparent;border:1px solid var(--border);color:var(--mid);padding:8px 20px;border-radius:6px;font-size:12px;cursor:pointer;\">Add Note</button>" +
+            "</div>"
+          : "";
+      return (
+        "<div class=\"card\" style=\"margin-bottom:1rem;\">" +
+        "<div style=\"display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1rem;\">" +
+        "<div>" +
+        "<div style=\"font-size:15px;font-weight:600;color:var(--navy);margin-bottom:4px;\">" +
+        escHtml(c.customer_name || "—") +
+        " " +
+        graceTag +
+        "</div>" +
+        "<div style=\"font-size:12px;color:var(--light);\">" +
+        escHtml(c.dealership_name || "—") +
+        " · " +
+        escHtml(String((c.contract_type || "—")).toUpperCase()) +
+        " · Requested " +
+        new Date(c.created_at).toLocaleDateString() +
+        "</div>" +
+        "</div>" +
+        "<span style=\"font-size:11px;font-weight:700;padding:4px 12px;border-radius:12px;background:" +
+        statusColor +
+        "20;color:" +
+        statusColor +
+        ";\">" +
+        escHtml(String(c.status || "").toUpperCase()) +
+        "</span>" +
+        "</div>" +
+        "<div style=\"display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1rem;\">" +
+        "<div><div style=\"font-size:10px;color:var(--light);\">Customer Refund</div><div style=\"font-size:16px;font-weight:600;color:var(--navy);\">$" +
+        Number(c.customer_refund_amount || 0).toFixed(2) +
+        "</div></div>" +
+        "<div><div style=\"font-size:10px;color:var(--light);\">WP Covers</div><div style=\"font-size:16px;font-weight:600;color:#1565c0;\">$" +
+        Number(c.whitestone_refund_amount || 0).toFixed(2) +
+        "</div></div>" +
+        "<div><div style=\"font-size:10px;color:var(--light);\">Dealer Covers</div><div style=\"font-size:16px;font-weight:600;color:#c0392b;\">$" +
+        Number(c.dealer_refund_amount || 0).toFixed(2) +
+        "</div></div>" +
+        "<div><div style=\"font-size:10px;color:var(--light);\">Dealer Fee</div><div style=\"font-size:16px;font-weight:600;color:" +
+        (c.dealer_fee_waived ? "#1b5e20" : "#f59e0b") +
+        ";\">" +
+        (c.dealer_fee_waived ? "Waived" : "$100") +
+        "</div></div>" +
+        "</div>" +
+        "<div style=\"margin-bottom:1rem;font-size:13px;color:var(--mid);\"><strong>Reason:</strong> " +
+        reasonDisp +
+        notesDisp +
+        "</div>" +
+        (c.admin_notes
+          ? "<div style=\"margin-bottom:1rem;font-size:12px;color:var(--mid);\"><strong>Admin note:</strong> " +
+            escHtml(String(c.admin_notes)) +
+            "</div>"
+          : "") +
+        pendingActions +
+        "</div>"
+      );
+    })
+    .join("");
+}
+
+async function approveCancellation(cancellationId, contractId) {
+  if (!currentDealer || !currentDealer.isAdmin) return;
+  if (!confirm("Approve this cancellation? This will mark the contract as cancelled.")) return;
+
+  try {
+    await fetch(SUPABASE_URL + "/rest/v1/cancellations?id=eq." + encodeURIComponent(cancellationId), {
+      method: "PATCH",
+      headers: authHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ status: "approved", approved_by: "admin", approved_at: new Date().toISOString() })
+    });
+
+    if (contractId) {
+      await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + encodeURIComponent(contractId), {
+        method: "PATCH",
+        headers: authHeaders({ Prefer: "return=minimal" }),
+        body: JSON.stringify({
+          status: "cancelled",
+          cancelled_at: new Date().toISOString(),
+          cancellation_id: cancellationId
+        })
+      });
+    }
+
+    await writeAuditLog("cancellation", cancellationId, "cancellation_approved", null, { approved_by: "admin" }, "admin", null, "Cancellation approved");
+    loadCancellations(currentCancellationFilter);
+  } catch (e) {
+    alert("Could not approve cancellation. Please try again.");
+  }
+}
+
+async function denyCancellation(cancellationId, contractId) {
+  if (!currentDealer || !currentDealer.isAdmin) return;
+  var reason = prompt("Reason for denial:");
+  if (!reason) return;
+
+  try {
+    await fetch(SUPABASE_URL + "/rest/v1/cancellations?id=eq." + encodeURIComponent(cancellationId), {
+      method: "PATCH",
+      headers: authHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ status: "denied", notes: reason })
+    });
+
+    if (contractId) {
+      await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + encodeURIComponent(contractId), {
+        method: "PATCH",
+        headers: authHeaders({ Prefer: "return=minimal" }),
+        body: JSON.stringify({ status: "active" })
+      });
+    }
+
+    await writeAuditLog("cancellation", cancellationId, "cancellation_denied", null, { reason: reason }, "admin", null, "Cancellation denied");
+    loadCancellations(currentCancellationFilter);
+  } catch (e) {
+    alert("Could not deny cancellation. Please try again.");
+  }
+}
+
+async function addCancellationNote(cancellationId) {
+  if (!currentDealer || !currentDealer.isAdmin) return;
+  var note = prompt("Add a note to this cancellation:");
+  if (!note) return;
+  try {
+    await fetch(SUPABASE_URL + "/rest/v1/cancellations?id=eq." + encodeURIComponent(cancellationId), {
+      method: "PATCH",
+      headers: authHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ admin_notes: note })
+    });
+    await writeAuditLog("cancellation", cancellationId, "cancellation_note_added", null, { note: note }, "admin", null, null);
+    loadCancellations(currentCancellationFilter);
+  } catch (e) {
+    alert("Could not save note. Please try again.");
+  }
+}
+
+window.openCancellationModal = openCancellationModal;
+window.closeCancellationModal = closeCancellationModal;
+window.submitCancellationRequest = submitCancellationRequest;
+window.loadCancellations = loadCancellations;
+window.setCancellationFilter = setCancellationFilter;
+window.approveCancellation = approveCancellation;
+window.denyCancellation = denyCancellation;
+window.addCancellationNote = addCancellationNote;
+
 async function verifyCustomerContract(firstName, lastName, hin, dealerName) {
   return verifyHINForTicket(hin);
 }
@@ -716,6 +1126,7 @@ function contractCardStatus(c) {
   var now = new Date();
   now.setHours(0, 0, 0, 0);
   if (st === "cancelled") return { label: "Cancelled", cls: "badge-contract-cancelled", sort: 4 };
+  if (st === "cancellation_pending") return { label: "Cancellation Pending", cls: "badge-contract-soon", sort: 2 };
   if (st !== "active") return { label: "Expired", cls: "badge-contract-expired", sort: 3 };
   if (!end) return { label: "Active", cls: "badge-contract-active", sort: 0 };
   var days = Math.round((end - now) / 86400000);
@@ -725,7 +1136,9 @@ function contractCardStatus(c) {
 }
 
 function getEffectiveContractStatus(c) {
-  if (String(c.status || "").toLowerCase() === "cancelled") return "cancelled";
+  var raw = String(c.status || "").toLowerCase();
+  if (raw === "cancelled") return "cancelled";
+  if (raw === "cancellation_pending") return "cancellation_pending";
   var st = contractCardStatus(c);
   if (st.sort === 3) return "expired";
   if (st.sort === 1) return "expiring_soon";
@@ -833,8 +1246,15 @@ async function toggleCustomerHistory(contractId, encodedHin, encodedName) {
         var date = new Date(t.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
         var isLast = i === tickets.length - 1;
 
+        var reimbAmt = 0;
+        if (s === "approved") reimbAmt = parseFloat(t.reimbursement_amount) || 0;
+
         return (
-          '<div style="display:flex;gap:1rem;margin-bottom:' +
+          '<div data-contract-id="' +
+          escHtml(String(contractId)) +
+          '" data-reimbursement="' +
+          reimbAmt +
+          '" style="display:flex;gap:1rem;margin-bottom:' +
           (isLast ? "0" : "1rem") +
           ';position:relative;">' +
           '<div style="width:32px;height:32px;border-radius:50%;background:' +
@@ -1281,143 +1701,6 @@ async function confirmCancelContract() {
   }
 }
 
-function openDealerCancelModal(contract) {
-  if (!contract) return;
-  cancelContractData = contract;
-  var info = document.getElementById("dealer-cancel-customer-info");
-  if (info) {
-    info.innerHTML =
-      '<div style="font-weight:600;color:var(--navy);margin-bottom:4px;">' +
-      escHtml(((contract.customer_first_name || "") + " " + (contract.customer_last_name || "")).trim() || "—") +
-      "</div>" +
-      '<div style="font-size:12px;color:var(--mid);">' +
-      escHtml([contract.boat_year, contract.boat_make, contract.boat_model].filter(Boolean).join(" ") || "—") +
-      "</div>" +
-      '<div style="font-size:12px;color:var(--mid);">' +
-      escHtml(String((contract.contract_type || "1yr").toUpperCase())) +
-      " Contract · Expires: " +
-      escHtml(formatDate(contract.end_date)) +
-      "</div>";
-  }
-  var reasonEl = document.getElementById("dealer-cancel-reason");
-  if (reasonEl) reasonEl.value = "";
-  var okEl = document.getElementById("dealer-cancel-success");
-  if (okEl) okEl.style.display = "none";
-  var subBtn = document.getElementById("dealer-cancel-submit-btn");
-  if (subBtn) subBtn.style.display = "block";
-  var modal = document.getElementById("dealer-cancel-modal");
-  if (modal) modal.style.display = "flex";
-}
-
-function closeDealerCancelModal() {
-  var modal = document.getElementById("dealer-cancel-modal");
-  if (modal) modal.style.display = "none";
-  cancelContractData = null;
-}
-
-async function submitDealerCancelRequest() {
-  var reasonEl = document.getElementById("dealer-cancel-reason");
-  var reason = reasonEl ? reasonEl.value.trim() : "";
-  if (!reason) {
-    alert("Please enter a reason for your cancellation request.");
-    return;
-  }
-  if (!cancelContractData || !currentDealer) return;
-
-  var btn = document.getElementById("dealer-cancel-submit-btn");
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Submitting...";
-  }
-
-  var message =
-    "CANCELLATION REQUEST\n\n" +
-    "Contract ID: " +
-    String(cancelContractData.id) +
-    "\n" +
-    "Customer: " +
-    (cancelContractData.customer_first_name || "") +
-    " " +
-    (cancelContractData.customer_last_name || "") +
-    "\n" +
-    "Boat: " +
-    [cancelContractData.boat_year, cancelContractData.boat_make, cancelContractData.boat_model].filter(Boolean).join(" ") +
-    "\n" +
-    "HIN: " +
-    (cancelContractData.hin || "—") +
-    "\n" +
-    "Contract: " +
-    String((cancelContractData.contract_type || "1yr").toUpperCase()) +
-    "\n" +
-    "Enrolled: " +
-    formatDate(cancelContractData.start_date) +
-    "\n\n" +
-    "Reason: " +
-    reason;
-
-  try {
-    var res = await fetch(SUPABASE_URL + "/rest/v1/dealer_messages", {
-      method: "POST",
-      headers: authHeaders({ Prefer: "return=minimal" }),
-      body: JSON.stringify({
-        dealer_id: currentDealer.id,
-        dealership_name: currentDealer.name,
-        request_type: "Cancellation Request",
-        message: message,
-        status: "new"
-      })
-    });
-    if (!res.ok) throw new Error();
-
-    if (typeof sendResendEmail === "function") {
-      await sendResendEmail(
-        "🚫 Cancellation Request — " + currentDealer.name,
-        '<!DOCTYPE html><html><body style="font-family:DM Sans,sans-serif;background:#f0f4f8;margin:0;padding:2rem;">' +
-          '<div style="max-width:560px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">' +
-          '<div style="background:#0c1e2e;padding:1.5rem 2rem;border-bottom:3px solid #b8963e;">' +
-          '<div style="font-family:Georgia,serif;font-size:20px;font-weight:300;color:white;">Whitestone Partners</div>' +
-          '<div style="font-size:11px;color:#b8963e;letter-spacing:0.12em;text-transform:uppercase;margin-top:2px;">Cancellation Request</div>' +
-          "</div>" +
-          '<div style="padding:1.5rem 2rem;">' +
-          '<p style="font-size:15px;font-weight:600;color:#0c1e2e;">A dealer submitted a cancellation request.</p>' +
-          "<table style=\"width:100%;border-collapse:collapse;font-size:13.5px;\">" +
-          '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;width:140px;">Dealer</td><td style="padding:8px 0;font-weight:500;">' +
-          escHtml(currentDealer.name) +
-          "</td></tr>" +
-          '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;">Customer</td><td style="padding:8px 0;">' +
-          escHtml(
-            ((cancelContractData.customer_first_name || "") + " " + (cancelContractData.customer_last_name || "")).trim() || "—"
-          ) +
-          "</td></tr>" +
-          '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;">Boat</td><td style="padding:8px 0;">' +
-          escHtml(
-            [cancelContractData.boat_year, cancelContractData.boat_make, cancelContractData.boat_model].filter(Boolean).join(" ") || "—"
-          ) +
-          "</td></tr>" +
-          '<tr><td style="padding:8px 0;color:#6b8599;vertical-align:top;">Reason</td><td style="padding:8px 0;">' +
-          escHtml(reason) +
-          "</td></tr>" +
-          "</table>" +
-          '<div style="margin-top:1.25rem;"><a href="https://whitestone-dealer-portal.vercel.app" style="display:inline-block;background:#0c1e2e;color:white;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:13px;font-weight:600;">Review in Portal →</a></div>' +
-          "</div>" +
-          '<div style="padding:1rem 2rem;background:#f8f9fb;border-top:1px solid #eef0f3;font-size:11px;color:#9aafbf;">support@whitestone-partners.com · Whitestone Partners LLC</div>' +
-          "</div></body></html>"
-      );
-    }
-
-    var okEl = document.getElementById("dealer-cancel-success");
-    if (okEl) okEl.style.display = "block";
-    if (btn) btn.style.display = "none";
-  } catch (e) {
-    alert("Could not submit your request. Please try again or email support@whitestone-partners.com.");
-  }
-
-  if (btn) {
-    btn.disabled = false;
-    btn.textContent = "Submit Request";
-  }
-}
-
 async function adminLoadAllCustomers() {
   var rows = await adminFetchAllContracts();
   adminContractsCache = rows;
@@ -1427,9 +1710,6 @@ async function adminLoadAllCustomers() {
 window.openCancelModal = openCancelModal;
 window.closeCancelModal = closeCancelModal;
 window.confirmCancelContract = confirmCancelContract;
-window.openDealerCancelModal = openDealerCancelModal;
-window.closeDealerCancelModal = closeDealerCancelModal;
-window.submitDealerCancelRequest = submitDealerCancelRequest;
 window.adminLoadAllCustomers = adminLoadAllCustomers;
 
 var onboardingSteps = {
@@ -4056,6 +4336,9 @@ document.addEventListener("DOMContentLoaded", function() {
       case "claims":
         claimsLoadTab();
         break;
+      case "cancellations":
+        setCancellationFilter(currentCancellationFilter || "pending");
+        break;
       case "financials":
         window.financialsShowSection("overview");
         window.financialsLoad();
@@ -4495,7 +4778,7 @@ document.addEventListener("DOMContentLoaded", function() {
       }
       return;
     }
-    var statusOrder = { active: 0, expiring_soon: 1, expired: 2, cancelled: 3 };
+    var statusOrder = { active: 0, expiring_soon: 1, cancellation_pending: 2, expired: 3, cancelled: 4 };
     list.sort(function(a, b) {
       var sa = getEffectiveContractStatus(a);
       var sb = getEffectiveContractStatus(b);
@@ -4511,21 +4794,87 @@ document.addEventListener("DOMContentLoaded", function() {
           ? "#0F6E56"
           : status === "expiring_soon"
             ? "#BA7517"
-            : status === "cancelled"
-              ? "#6b8599"
-              : "#c0392b";
+            : status === "cancellation_pending"
+              ? "#7e57c2"
+              : status === "cancelled"
+                ? "#6b8599"
+                : "#c0392b";
       var statusLabel =
         status === "active"
           ? "Active"
           : status === "expiring_soon"
             ? "Expiring Soon"
-            : status === "cancelled"
-              ? "Cancelled"
-              : "Expired";
+            : status === "cancellation_pending"
+              ? "Cancellation Pending"
+              : status === "cancelled"
+                ? "Cancelled"
+                : "Expired";
       var daysLeft = c.end_date ? Math.max(0, Math.ceil((new Date(c.end_date) - new Date()) / 86400000)) : null;
       var fname = c.customer_first_name || "";
       var lname = c.customer_last_name || "";
       var fullName = (fname + " " + lname).trim() || "Customer";
+      var hinKey = normalizeHin(c.hin || "");
+      var svcUsed = Object.prototype.hasOwnProperty.call(servicesUsedByHin, hinKey) ? servicesUsedByHin[hinKey] : 0;
+      var wholesale = resolveWholesaleForContract(c, dealerContractsPricingRow);
+      var retail = parseFloat(c.retail_price) || 0;
+      var margin = retail - wholesale;
+      var remaining = Math.max(0, retail - svcUsed);
+      var showContractPricing = status !== "cancelled" && status !== "expired";
+      var stLow = String(c.status || "").toLowerCase();
+      var showRequestBtn =
+        stLow === "active" && status !== "expired" && status !== "cancelled" && status !== "cancellation_pending";
+      var pricingBlock = "";
+      if (showContractPricing) {
+        pricingBlock =
+          '<details style="border-top:1px solid var(--border);background:white;">' +
+          '<summary style="padding:0.65rem 1.25rem;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--mid);list-style:none;">Contract pricing summary</summary>' +
+          '<div class="contract-pricing-summary" style="margin:0 1.25rem 1rem;padding:1rem;background:var(--silver-bg);border-radius:8px;border:1px solid var(--border);">' +
+          '<div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--mid);margin-bottom:0.75rem;">Contract Pricing Summary</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">' +
+          '<div><div style="font-size:10px;color:var(--light);margin-bottom:2px;">Customer Paid You</div>' +
+          '<div style="font-size:16px;font-weight:600;color:var(--navy);" class="cps-retail">' +
+          formatUsd(retail) +
+          "</div></div>" +
+          '<div><div style="font-size:10px;color:var(--light);margin-bottom:2px;">You Paid Whitestone</div>' +
+          '<div style="font-size:16px;font-weight:600;color:var(--navy);" class="cps-wholesale">' +
+          formatUsd(wholesale) +
+          "</div></div>" +
+          '<div><div style="font-size:10px;color:var(--light);margin-bottom:2px;">Your Margin</div>' +
+          '<div style="font-size:16px;font-weight:600;color:#1b5e20;" class="cps-margin">' +
+          formatUsd(margin) +
+          "</div></div>" +
+          '<div><div style="font-size:10px;color:var(--light);margin-bottom:2px;">Services Used</div>' +
+          '<div style="font-size:16px;font-weight:600;color:var(--mid);" class="cps-used">' +
+          formatUsd(svcUsed) +
+          "</div></div>" +
+          "</div>" +
+          '<div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);">' +
+          '<div style="font-size:10px;color:var(--light);margin-bottom:2px;">Remaining Contract Value</div>' +
+          '<div style="font-size:18px;font-weight:600;color:var(--gold);" class="cps-remaining">' +
+          formatUsd(remaining) +
+          "</div></div></div></details>";
+      }
+      var cancelBtnBlock = "";
+      if (showRequestBtn) {
+        cancelBtnBlock =
+          '<div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">' +
+          '<button type="button" class="cancel-contract-btn" data-contract-id="' +
+          escHtml(String(c.id)) +
+          '" data-customer-name="' +
+          escHtml(fullName) +
+          '" data-retail-price="' +
+          retail +
+          '" data-wholesale-price="' +
+          wholesale +
+          '" data-start-date="' +
+          escHtml(String(c.start_date || "")) +
+          '" data-contract-type="' +
+          escHtml(String(c.contract_type || "1yr")) +
+          '" data-services-used="' +
+          svcUsed +
+          "\" style=\"background:transparent;border:1px solid #e0c0c0;color:#c0392b;padding:6px 14px;border-radius:4px;font-size:11px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;\">" +
+          "Request Cancellation</button></div>";
+      }
       html +=
         '<div class="customer-card" id="customer-card-' +
         escHtml(String(c.id)) +
@@ -4587,13 +4936,8 @@ document.addEventListener("DOMContentLoaded", function() {
         '" style="display:none;border-top:1px solid var(--border);background:#fafbfc;">' +
         '<div style="padding:1rem 1.25rem;text-align:center;color:var(--light);font-size:13px;">Loading service history...</div>' +
         "</div>" +
-        (String(c.status || "").toLowerCase() === "active"
-          ? '<div style="padding:0.6rem 1.25rem;background:var(--silver-bg);border-top:1px solid var(--border);text-align:right;">' +
-            '<button type="button" class="dealer-request-cancel-btn" data-contract-id="' +
-            escHtml(String(c.id)) +
-            '" style="font-size:11.5px;color:var(--light);background:none;border:none;cursor:pointer;font-family:inherit;text-decoration:underline;">Request cancellation</button>' +
-            "</div>"
-          : "") +
+        pricingBlock +
+        cancelBtnBlock +
         (status === "expired"
           ? '<div style="padding:0.75rem 1.25rem;background:white;border-top:1px solid var(--border);">' +
             '<button type="button" onclick="event.stopPropagation(); window.prefilEnroll(\'' +
@@ -4619,15 +4963,50 @@ document.addEventListener("DOMContentLoaded", function() {
     var box = document.getElementById("customers-container");
     if (!box || !currentDealer) return;
     box.innerHTML = "<div class='customers-loading'>Loading customers…</div>";
+    servicesUsedByHin = {};
+    dealerContractsPricingRow = null;
     try {
-      var url =
-        SUPABASE_URL +
-        "/rest/v1/contracts?dealership_name=eq." +
-        encodeURIComponent(currentDealer.name) +
-        "&select=*&order=created_at.desc";
-      var res = await fetch(url, { headers: supabaseHeaders() });
+      var encName = encodeURIComponent(currentDealer.name);
+      var encId = encodeURIComponent(String(currentDealer.id));
+      var contractsUrl = SUPABASE_URL + "/rest/v1/contracts?dealership_name=eq." + encName + "&select=*&order=created_at.desc";
+      var pricingUrl = SUPABASE_URL + "/rest/v1/dealer_pricing?dealer_id=eq." + encId + "&select=*&limit=1";
+      var ticketsUrl = SUPABASE_URL + "/rest/v1/tickets?dealership_name=eq." + encName + "&select=id,hin,status";
+      var reimbUrl = SUPABASE_URL + "/rest/v1/reimbursements?dealership_name=eq." + encName + "&select=ticket_id,amount,status";
+
+      var res = await fetch(contractsUrl, { headers: supabaseHeaders() });
       var rows = await res.json();
       if (!res.ok) throw new Error();
+
+      var prRes = await fetch(pricingUrl, { headers: supabaseHeaders() });
+      var prRows = await prRes.json();
+      if (prRes.ok && Array.isArray(prRows) && prRows.length) dealerContractsPricingRow = prRows[0];
+
+      var tRes = await fetch(ticketsUrl, { headers: supabaseHeaders() });
+      var tickets = (tRes.ok && (await tRes.json())) || [];
+      var rRes = await fetch(reimbUrl, { headers: supabaseHeaders() });
+      var reimbs = (rRes.ok && (await rRes.json())) || [];
+
+      var ticketById = {};
+      if (Array.isArray(tickets)) {
+        tickets.forEach(function(t) {
+          ticketById[String(t.id)] = t;
+        });
+      }
+      if (Array.isArray(reimbs)) {
+        reimbs.forEach(function(r) {
+          var t = ticketById[String(r.ticket_id)];
+          if (!t || !t.hin) return;
+          var ts = String(t.status || "").toLowerCase();
+          if (ts !== "approved") return;
+          var rs = String(r.status || "").toLowerCase();
+          if (rs === "rejected") return;
+          var hin = normalizeHin(t.hin);
+          var amt = parseFloat(r.amount);
+          if (isNaN(amt)) amt = 150;
+          servicesUsedByHin[hin] = (servicesUsedByHin[hin] || 0) + amt;
+        });
+      }
+
       dealerContractsCache = Array.isArray(rows) ? rows : [];
       dealerContractsCache.sort(function(a, b) {
         var sa = contractCardStatus(a).sort;
@@ -4644,6 +5023,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
   window.loadDashboard = loadDashboard;
   window.loadCustomersTab = loadCustomersTab;
+  window.loadDealerContracts = loadCustomersTab;
 
   document.getElementById("customers-container").addEventListener("click", function(e) {
     var reBtn = e.target.closest(".btn-reenroll-sm");
@@ -4655,14 +5035,17 @@ document.addEventListener("DOMContentLoaded", function() {
       prefillEnrollFromContract(c);
       return;
     }
-    var cancelReq = e.target.closest(".dealer-request-cancel-btn");
-    if (cancelReq) {
+    var cancelBtn = e.target.closest(".cancel-contract-btn");
+    if (cancelBtn) {
       e.stopPropagation();
-      var id2 = cancelReq.getAttribute("data-contract-id");
-      var c2 = dealerContractsCache.find(function(x) {
-        return String(x.id) === String(id2);
-      });
-      if (c2) openDealerCancelModal(c2);
+      openCancellationModal(
+        cancelBtn.getAttribute("data-contract-id"),
+        cancelBtn.getAttribute("data-customer-name"),
+        cancelBtn.getAttribute("data-retail-price"),
+        cancelBtn.getAttribute("data-wholesale-price"),
+        cancelBtn.getAttribute("data-start-date"),
+        cancelBtn.getAttribute("data-contract-type")
+      );
     }
   });
 
@@ -4689,11 +5072,35 @@ document.addEventListener("DOMContentLoaded", function() {
       if (e.target === cancelModalEl) closeCancelModal();
     });
   }
-  var dealerCancelModalEl = document.getElementById("dealer-cancel-modal");
-  if (dealerCancelModalEl && dealerCancelModalEl.dataset.backdropBound !== "1") {
-    dealerCancelModalEl.dataset.backdropBound = "1";
-    dealerCancelModalEl.addEventListener("click", function(e) {
-      if (e.target === dealerCancelModalEl) closeDealerCancelModal();
+  var cancellationModalEl = document.getElementById("cancellation-modal");
+  if (cancellationModalEl && cancellationModalEl.dataset.backdropBound !== "1") {
+    cancellationModalEl.dataset.backdropBound = "1";
+    cancellationModalEl.addEventListener("click", function(e) {
+      if (e.target === cancellationModalEl) closeCancellationModal();
+    });
+  }
+
+  var adminCancellationsPanel = document.getElementById("admin-panel-cancellations");
+  if (adminCancellationsPanel && adminCancellationsPanel.dataset.actionsBound !== "1") {
+    adminCancellationsPanel.dataset.actionsBound = "1";
+    adminCancellationsPanel.addEventListener("click", function(e) {
+      var ap = e.target.closest(".btn-cancel-approve");
+      if (ap) {
+        e.preventDefault();
+        approveCancellation(ap.getAttribute("data-cancellation-id"), ap.getAttribute("data-contract-id"));
+        return;
+      }
+      var dn = e.target.closest(".btn-cancel-deny");
+      if (dn) {
+        e.preventDefault();
+        denyCancellation(dn.getAttribute("data-cancellation-id"), dn.getAttribute("data-contract-id"));
+        return;
+      }
+      var nt = e.target.closest(".btn-cancel-note");
+      if (nt) {
+        e.preventDefault();
+        addCancellationNote(nt.getAttribute("data-cancellation-id"));
+      }
     });
   }
 

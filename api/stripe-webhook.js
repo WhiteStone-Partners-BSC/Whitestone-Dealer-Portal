@@ -80,11 +80,18 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
           'Prefer': 'return=minimal'
         },
-        body: JSON.stringify({
-          status: 'active',
-          stripe_payment_id: pi.id,
-          paid_at: new Date().toISOString()
-        })
+        body: JSON.stringify(
+          Object.assign(
+            {
+              status: 'active',
+              stripe_payment_id: pi.id,
+              paid_at: new Date().toISOString()
+            },
+            typeof pi.amount_received === 'number'
+              ? { stripe_charge_amount: pi.amount_received / 100, wholesale_price: pi.amount_received / 100 }
+              : {}
+          )
+        )
       });
 
       if (patchRes.ok) {

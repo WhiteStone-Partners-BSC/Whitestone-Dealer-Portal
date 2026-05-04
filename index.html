@@ -545,6 +545,7 @@
       </button>
       <button type="button" class="admin-nav-item" data-admin-panel="customers">Customers</button>
       <button type="button" class="admin-nav-item" data-admin-panel="claims">Claims</button>
+      <button type="button" class="admin-nav-item" data-admin-panel="cancellations">Cancellations</button>
       <button type="button" class="admin-nav-item" data-admin-panel="financials">Financials</button>
       <button type="button" class="admin-nav-item" data-admin-panel="pricing">Pricing</button>
       <button type="button" class="admin-nav-item" data-admin-panel="messages">
@@ -705,6 +706,27 @@
         </div>
       </div>
     </div>
+    </div>
+
+    <div id="admin-panel-cancellations" class="admin-panel" style="display:none;">
+      <div class="admin-panel-shell">
+        <div class="card" style="margin-bottom:1.25rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+            <div>
+              <div class="card-title">Cancellation Requests</div>
+              <div class="card-sub">Review and process dealer cancellation requests.</div>
+            </div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <button type="button" onclick="setCancellationFilter('pending')" id="can-filter-pending" class="btn-sm" style="background:var(--gold);color:var(--navy);">Pending</button>
+              <button type="button" onclick="setCancellationFilter('approved')" id="can-filter-approved" class="btn-sm btn-inactive" style="background:var(--silver-bg);color:var(--mid);">Approved</button>
+              <button type="button" onclick="setCancellationFilter('processed')" id="can-filter-processed" class="btn-sm btn-inactive" style="background:var(--silver-bg);color:var(--mid);">Processed</button>
+              <button type="button" onclick="setCancellationFilter('all')" id="can-filter-all" class="btn-sm btn-inactive" style="background:var(--silver-bg);color:var(--mid);">All</button>
+            </div>
+          </div>
+        </div>
+        <div id="cancellations-loading" style="text-align:center;padding:3rem;color:var(--light);font-size:13px;">Loading...</div>
+        <div id="cancellations-list"></div>
+      </div>
     </div>
 
     <div id="admin-panel-messages" class="admin-panel" style="display:none;">
@@ -2540,7 +2562,9 @@ window.addEventListener("load", function() {
       body: JSON.stringify({
         status: "active",
         stripe_payment_id: chargeResult.paymentIntentId,
-        paid_at: new Date().toISOString()
+        paid_at: new Date().toISOString(),
+        wholesale_price: amount,
+        stripe_charge_amount: amount
       })
     });
     var custEmail     = document.getElementById("e-email") ? document.getElementById("e-email").value.trim() : "";
@@ -2733,28 +2757,116 @@ window.addEventListener("load", function() {
   </div>
 </div>
 
-<!-- Dealer Cancel Request Modal -->
-<div id="dealer-cancel-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:500;align-items:center;justify-content:center;">
-  <div style="background:white;border-radius:12px;padding:2rem;max-width:440px;width:90%;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
-      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:var(--navy);">Request Cancellation</div>
-      <button type="button" onclick="closeDealerCancelModal()" style="background:none;border:none;font-size:20px;color:var(--light);cursor:pointer;">✕</button>
+<!-- CANCELLATION REQUEST MODAL -->
+<div id="cancellation-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:2000;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:2rem;max-width:520px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.2);">
+
+    <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:300;color:var(--navy);margin-bottom:0.25rem;">Request Cancellation</div>
+    <div style="font-size:12px;color:var(--light);margin-bottom:1.5rem;">This request will be reviewed by Whitestone Partners.</div>
+
+    <!-- Contract summary -->
+    <div style="background:var(--silver-bg);border-radius:8px;padding:1rem;margin-bottom:1.25rem;border:1px solid var(--border);">
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);margin-bottom:0.75rem;">Contract Summary</div>
+      <div style="display:flex;flex-direction:column;gap:0.4rem;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--light);">Customer</span>
+          <span style="font-weight:500;color:var(--navy);" id="cm-customer-name">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--light);">Contract Type</span>
+          <span style="font-weight:500;color:var(--navy);" id="cm-contract-type">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--light);">Customer Paid You</span>
+          <span style="font-weight:500;color:var(--navy);" id="cm-retail-price">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--light);">Days Into Contract</span>
+          <span style="font-weight:500;color:var(--navy);" id="cm-days-elapsed">—</span>
+        </div>
+        <div id="cm-grace-badge" style="display:none;margin-top:0.4rem;padding:6px 10px;background:#e8f5e9;border-radius:4px;font-size:11px;font-weight:600;color:#1b5e20;">
+          ✓ Within 30-day grace period — dealer fee waived
+        </div>
+        <div id="cm-fee-badge" style="display:none;margin-top:0.4rem;padding:6px 10px;background:#fff5e0;border-radius:4px;font-size:11px;font-weight:600;color:#7a4f00;">
+          ⚠ $100 dealer cancellation fee applies
+        </div>
+      </div>
     </div>
-    <div id="dealer-cancel-customer-info" style="background:var(--silver-bg);border-radius:8px;padding:1rem;margin-bottom:1.25rem;font-size:13.5px;"></div>
-    <div style="font-size:13px;color:var(--mid);margin-bottom:1.25rem;line-height:1.6;">
-      Cancellation requests are reviewed by Whitestone Partners. You will be contacted within 1-2 business days.
+
+    <!-- Estimated refund breakdown -->
+    <div style="background:var(--silver-bg);border-radius:8px;padding:1rem;margin-bottom:1.25rem;border:1px solid var(--border);">
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);margin-bottom:0.75rem;">Estimated Refund Breakdown</div>
+      <div style="display:flex;flex-direction:column;gap:0.4rem;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--light);">Original retail price</span>
+          <span id="cm-calc-retail">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--light);">Services used to date</span>
+          <span id="cm-calc-used" style="color:#c0392b;">— </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--light);">Pro-rated (time remaining)</span>
+          <span id="cm-calc-prorate">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding-top:0.5rem;border-top:1px solid var(--border);">
+          <span style="font-weight:600;color:var(--navy);">Estimated customer refund</span>
+          <span style="font-weight:700;color:var(--navy);" id="cm-calc-total">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:0.25rem;">
+          <span style="color:var(--light);">Whitestone Partners covers</span>
+          <span style="color:var(--mid);" id="cm-calc-wp-share">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--light);">Your portion to refund</span>
+          <span style="color:#c0392b;font-weight:600;" id="cm-calc-dealer-share">—</span>
+        </div>
+        <div id="cm-calc-fee-row" style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--light);">Dealer cancellation fee</span>
+          <span style="color:#c0392b;font-weight:600;">-$100</span>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--light);margin-top:0.75rem;font-style:italic;">
+        * Final amounts confirmed by Whitestone Partners upon approval.
+        Numbers shown are estimates based on current data.
+      </div>
     </div>
-    <div style="margin-bottom:1.25rem;">
-      <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--mid);display:block;margin-bottom:8px;">Reason for Cancellation</label>
-      <textarea id="dealer-cancel-reason" placeholder="Please explain why you are requesting cancellation..." style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:6px;font-size:13.5px;font-family:inherit;min-height:80px;resize:vertical;outline:none;"></textarea>
+
+    <!-- Reason -->
+    <div class="fg" style="margin-bottom:1rem;">
+      <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--light);">Reason for Cancellation *</label>
+      <select id="cm-reason" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;color:var(--navy);background:white;outline:none;">
+        <option value="">Select a reason</option>
+        <option value="customer_request">Customer Request</option>
+        <option value="sold_boat">Customer Sold Their Boat</option>
+        <option value="financial">Financial Hardship</option>
+        <option value="other">Other</option>
+      </select>
     </div>
+
+    <div class="fg" style="margin-bottom:1.5rem;">
+      <label style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--light);">Additional Notes</label>
+      <textarea id="cm-notes" rows="3" placeholder="Any additional context..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;color:var(--navy);resize:vertical;outline:none;box-sizing:border-box;"></textarea>
+    </div>
+
+    <!-- Acknowledgement -->
+    <div style="background:#fff5e0;border:1px solid #ffe082;border-radius:6px;padding:0.85rem;margin-bottom:1.25rem;font-size:12px;color:#7a4f00;line-height:1.5;">
+      By submitting this request you acknowledge that:<br>
+      • The customer refund amount is estimated and subject to final review<br>
+      • Your portion of the refund is your responsibility<br>
+      • A $100 dealer fee applies unless within the 30-day grace period<br>
+      • Whitestone Partners will review and approve this request
+    </div>
+
     <div style="display:flex;gap:0.75rem;">
-      <button type="button" onclick="closeDealerCancelModal()" style="flex:1;padding:10px;border:1px solid var(--border);background:white;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">Never Mind</button>
-      <button type="button" id="dealer-cancel-submit-btn" onclick="submitDealerCancelRequest()" style="flex:2;padding:10px;background:var(--navy);color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Submit Request</button>
+      <button type="button" onclick="closeCancellationModal()" style="flex:1;background:transparent;border:1px solid var(--border);color:var(--mid);padding:11px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;">
+        Cancel
+      </button>
+      <button type="button" id="cm-submit-btn" onclick="submitCancellationRequest()" style="flex:2;background:#c0392b;color:white;border:none;padding:11px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">
+        Submit Cancellation Request
+      </button>
     </div>
-    <div id="dealer-cancel-success" style="display:none;margin-top:1rem;background:#f0f9f4;border:1px solid #a8d5b5;border-radius:6px;padding:0.85rem 1rem;font-size:13px;color:#1b5e20;text-align:center;">
-      ✓ Cancellation request submitted. We'll be in touch within 1-2 business days.
-    </div>
+
   </div>
 </div>
 
