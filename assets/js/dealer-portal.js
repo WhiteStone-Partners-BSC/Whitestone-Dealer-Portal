@@ -3070,44 +3070,296 @@ function formatDate(ds) {
   return formatContractDateShort(ds);
 }
 
-function renderAdminMasterTable() {
-  var tbody = document.getElementById("admin-master-tbody");
-  var inp = document.getElementById("admin-customer-search");
-  if (!tbody) return;
-  if (inp && inp.dataset.bound !== "1") {
-    inp.dataset.bound = "1";
-    inp.addEventListener("input", function() {
-      renderAdminMasterTable();
+function getRecentCustomerSearches() {
+  try {
+    var stored = localStorage.getItem("ws_recent_customer_searches");
+    return stored ? JSON.parse(stored) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveRecentCustomerSearch(query) {
+  if (!query || query.length < 2) return;
+  try {
+    var recent = getRecentCustomerSearches();
+    recent = recent.filter(function(r) {
+      return r.toLowerCase() !== query.toLowerCase();
     });
+    recent.unshift(query);
+    recent = recent.slice(0, 3);
+    localStorage.setItem("ws_recent_customer_searches", JSON.stringify(recent));
+  } catch (e) {}
+}
+
+function getRecentAdminSearches() {
+  try {
+    var stored = localStorage.getItem("ws_recent_admin_searches");
+    return stored ? JSON.parse(stored) : [];
+  } catch (e) {
+    return [];
   }
-  var q = (inp && inp.value ? inp.value : "").toLowerCase().trim();
-  var rows = adminContractsCache.filter(function(c) {
-    if (!q) return true;
-    var blob = [
-      c.customer_first_name,
-      c.customer_last_name,
-      c.customer_email,
-      c.customer_phone,
-      c.boat_make,
-      c.boat_model,
-      c.boat_year,
-      c.hin,
-      c.dealership_name,
-      c.engine_type,
-      c.notes
-    ]
-      .map(function(x) {
-        return String(x || "").toLowerCase();
-      })
-      .join(" ");
-    return blob.indexOf(q) !== -1;
+}
+
+function saveRecentAdminSearch(query) {
+  if (!query || query.length < 2) return;
+  try {
+    var recent = getRecentAdminSearches();
+    recent = recent.filter(function(r) {
+      return r.toLowerCase() !== query.toLowerCase();
+    });
+    recent.unshift(query);
+    recent = recent.slice(0, 3);
+    localStorage.setItem("ws_recent_admin_searches", JSON.stringify(recent));
+  } catch (e) {}
+}
+
+function bindCancelBtns() {}
+
+function dealerContractsMatchingRecentQuery(contracts, rq) {
+  rq = String(rq || "")
+    .toLowerCase()
+    .trim();
+  if (!rq) return null;
+  for (var i = 0; i < contracts.length; i++) {
+    var c = contracts[i];
+    var name = ((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim().toLowerCase();
+    var boat = ((c.boat_year || "") + " " + (c.boat_make || "") + " " + (c.boat_model || "")).trim().toLowerCase();
+    var hin = (c.hin || "").toLowerCase();
+    if (name.indexOf(rq) !== -1 || boat.indexOf(rq) !== -1 || hin.indexOf(rq) !== -1 || rq.indexOf(name) !== -1) {
+      return c;
+    }
+  }
+  return null;
+}
+
+function dealerRecentContractsFromSearches(contracts, recent) {
+  var out = [];
+  var seen = {};
+  if (!Array.isArray(recent) || !Array.isArray(contracts)) return out;
+  recent.forEach(function(r) {
+    if (out.length >= 3) return;
+    var c = dealerContractsMatchingRecentQuery(contracts, r);
+    if (!c) return;
+    var id = String(c.id);
+    if (seen[id]) return;
+    seen[id] = true;
+    out.push(c);
   });
-  if (rows.length === 0) {
-    tbody.innerHTML = "<tr><td colspan='9' style='text-align:center;padding:1rem;color:var(--light);'>No contracts match your search.</td></tr>";
-    return;
+  return out;
+}
+
+function adminContractsMatchingRecentQuery(all, rq) {
+  rq = String(rq || "")
+    .toLowerCase()
+    .trim();
+  if (!rq) return null;
+  for (var i = 0; i < all.length; i++) {
+    var c = all[i];
+    var name = ((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim().toLowerCase();
+    var dealer = (c.dealership_name || "").toLowerCase();
+    var boat = ((c.boat_make || "") + " " + (c.boat_model || "")).toLowerCase();
+    var hin = (c.hin || "").toLowerCase();
+    if (name.indexOf(rq) !== -1 || dealer.indexOf(rq) !== -1 || boat.indexOf(rq) !== -1 || hin.indexOf(rq) !== -1) {
+      return c;
+    }
   }
+  return null;
+}
+
+function adminRecentContractsFromSearches(all, recentAdmin) {
+  var out = [];
+  var seen = {};
+  if (!Array.isArray(recentAdmin) || !Array.isArray(all)) return out;
+  recentAdmin.forEach(function(r) {
+    if (out.length >= 3) return;
+    var c = adminContractsMatchingRecentQuery(all, r);
+    if (!c) return;
+    var id = String(c.id);
+    if (seen[id]) return;
+    seen[id] = true;
+    out.push(c);
+  });
+  return out;
+}
+
+function buildCustomerCardsHtml(list) {
+  var contracts = Array.isArray(list) ? list.slice() : [];
+  var statusOrder = { active: 0, expiring_soon: 1, cancellation_pending: 2, expired: 3, cancelled: 4 };
+  contracts.sort(function(a, b) {
+    var sa = getEffectiveContractStatus(a);
+    var sb = getEffectiveContractStatus(b);
+    var ra = Object.prototype.hasOwnProperty.call(statusOrder, sa) ? statusOrder[sa] : 99;
+    var rb = Object.prototype.hasOwnProperty.call(statusOrder, sb) ? statusOrder[sb] : 99;
+    return ra - rb;
+  });
   var html = "";
-  rows.forEach(function(c) {
+  contracts.forEach(function(c) {
+    var status = getEffectiveContractStatus(c);
+    var statusColor =
+      status === "active"
+        ? "#0F6E56"
+        : status === "expiring_soon"
+          ? "#BA7517"
+          : status === "cancellation_pending"
+            ? "#7e57c2"
+            : status === "cancelled"
+              ? "#6b8599"
+              : "#c0392b";
+    var statusLabel =
+      status === "active"
+        ? "Active"
+        : status === "expiring_soon"
+          ? "Expiring Soon"
+          : status === "cancellation_pending"
+            ? "Cancellation Pending"
+            : status === "cancelled"
+              ? "Cancelled"
+              : "Expired";
+    var daysLeft = c.end_date ? Math.max(0, Math.ceil((new Date(c.end_date) - new Date()) / 86400000)) : null;
+    var fname = c.customer_first_name || "";
+    var lname = c.customer_last_name || "";
+    var fullName = (fname + " " + lname).trim() || "Customer";
+    var hinKey = normalizeHin(c.hin || "");
+    var svcUsed = Object.prototype.hasOwnProperty.call(servicesUsedByHin, hinKey) ? servicesUsedByHin[hinKey] : 0;
+    var wholesale = resolveWholesaleForContract(c, dealerContractsPricingRow);
+    var retail = parseFloat(c.retail_price) || 0;
+    var margin = retail - wholesale;
+    var remaining = Math.max(0, retail - svcUsed);
+    var showContractPricing = status !== "cancelled" && status !== "expired";
+    var stLow = String(c.status || "").toLowerCase();
+    var showRequestBtn =
+      stLow === "active" && status !== "expired" && status !== "cancelled" && status !== "cancellation_pending";
+    var pricingBlock = "";
+    if (showContractPricing) {
+      pricingBlock =
+        '<details style="border-top:1px solid var(--border);background:white;">' +
+        '<summary style="padding:0.65rem 1.25rem;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--mid);list-style:none;">Contract pricing summary</summary>' +
+        '<div class="contract-pricing-summary" style="margin:0 1.25rem 1rem;padding:1rem;background:var(--silver-bg);border-radius:8px;border:1px solid var(--border);">' +
+        '<div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--mid);margin-bottom:0.75rem;">Contract Pricing Summary</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">' +
+        '<div><div style="font-size:10px;color:var(--light);margin-bottom:2px;">Customer Paid You</div>' +
+        '<div style="font-size:16px;font-weight:600;color:var(--navy);" class="cps-retail">' +
+        formatUsd(retail) +
+        "</div></div>" +
+        '<div><div style="font-size:10px;color:var(--light);margin-bottom:2px;">You Paid Whitestone</div>' +
+        '<div style="font-size:16px;font-weight:600;color:var(--navy);" class="cps-wholesale">' +
+        formatUsd(wholesale) +
+        "</div></div>" +
+        '<div><div style="font-size:10px;color:var(--light);margin-bottom:2px;">Your Margin</div>' +
+        '<div style="font-size:16px;font-weight:600;color:#1b5e20;" class="cps-margin">' +
+        formatUsd(margin) +
+        "</div></div>" +
+        '<div><div style="font-size:10px;color:var(--light);margin-bottom:2px;">Services Used</div>' +
+        '<div style="font-size:16px;font-weight:600;color:var(--mid);" class="cps-used">' +
+        formatUsd(svcUsed) +
+        "</div></div>" +
+        "</div>" +
+        '<div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);">' +
+        '<div style="font-size:10px;color:var(--light);margin-bottom:2px;">Remaining Contract Value</div>' +
+        '<div style="font-size:18px;font-weight:600;color:var(--gold);" class="cps-remaining">' +
+        formatUsd(remaining) +
+        "</div></div></div></details>";
+    }
+    var cancelBtnBlock = "";
+    if (showRequestBtn) {
+      cancelBtnBlock =
+        '<div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">' +
+        '<button type="button" class="cancel-contract-btn" data-contract-id="' +
+        escHtml(String(c.id)) +
+        '" data-customer-name="' +
+        escHtml(fullName) +
+        '" data-retail-price="' +
+        retail +
+        '" data-wholesale-price="' +
+        wholesale +
+        '" data-start-date="' +
+        escHtml(String(c.start_date || "")) +
+        '" data-contract-type="' +
+        escHtml(String(c.contract_type || "1yr")) +
+        '" data-services-used="' +
+        svcUsed +
+        "\" style=\"background:transparent;border:1px solid #e0c0c0;color:#c0392b;padding:6px 14px;border-radius:4px;font-size:11px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;\">" +
+        "Request Cancellation</button></div>";
+    }
+    html +=
+      '<div class="customer-card" id="customer-card-' +
+      escHtml(String(c.id)) +
+      '" style="border:1px solid var(--border);border-radius:10px;margin-bottom:0.75rem;overflow:hidden;border-left:3px solid ' +
+      statusColor +
+      ';">' +
+      '<div onclick="toggleCustomerHistory(\'' +
+      String(c.id) +
+      "', '" +
+      encodeURIComponent(c.hin || "") +
+      "', '" +
+      encodeURIComponent(fname + " " + lname) +
+      '\')" ' +
+      'style="padding:1.25rem;cursor:pointer;background:white;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">' +
+      "<div>" +
+      '<div style="font-size:16px;font-weight:600;color:var(--navy);">' +
+      escHtml(fullName) +
+      "</div>" +
+      '<div style="font-size:13px;color:var(--light);margin-top:2px;">' +
+      escHtml([c.boat_year, c.boat_make, c.boat_model].filter(Boolean).join(" ") || "—") +
+      "</div>" +
+      '<div style="font-size:12px;color:var(--light);margin-top:2px;font-family:monospace;">HIN: ' +
+      escHtml(c.hin ? normalizeHin(c.hin) : "—") +
+      "</div>" +
+      "</div>" +
+      '<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px;">' +
+      '<span style="background:' +
+      statusColor +
+      ';color:white;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;">' +
+      statusLabel +
+      "</span>" +
+      '<div style="font-size:11px;color:var(--light);">' +
+      (status === "cancelled"
+        ? "Cancelled"
+        : daysLeft !== null
+          ? status === "expired"
+            ? "Expired"
+            : daysLeft + " days left"
+          : "") +
+      "</div>" +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-top:4px;font-size:11px;color:var(--light);">' +
+      '<div><strong style="display:block;color:var(--mid);">' +
+      String((c.contract_type || "1yr").toUpperCase()) +
+      "</strong>Contract</div>" +
+      '<div><strong style="display:block;color:var(--mid);">' +
+      escHtml(formatContractDateShort(c.start_date)) +
+      "</strong>Enrolled</div>" +
+      '<div><strong style="display:block;color:var(--mid);">' +
+      escHtml(formatContractDateShort(c.end_date)) +
+      "</strong>Expires</div>" +
+      "</div>" +
+      "</div>" +
+      "</div>" +
+      '<div id="customer-arrow-' +
+      escHtml(String(c.id)) +
+      '" style="text-align:center;padding:4px;background:var(--silver-bg);border-top:1px solid var(--border);font-size:11px;color:var(--light);">▼ View service history</div>' +
+      '<div id="customer-history-' +
+      escHtml(String(c.id)) +
+      '" style="display:none;border-top:1px solid var(--border);background:#fafbfc;">' +
+      '<div style="padding:1rem 1.25rem;text-align:center;color:var(--light);font-size:13px;">Loading service history...</div>' +
+      "</div>" +
+      pricingBlock +
+      cancelBtnBlock +
+      (status === "expired"
+        ? '<div style="padding:0.75rem 1.25rem;background:white;border-top:1px solid var(--border);">' +
+          '<button type="button" onclick="event.stopPropagation(); window.prefilEnroll(\'' +
+          String(c.id) +
+          '\')" style="background:var(--gold);color:var(--navy);border:none;padding:7px 18px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Re-enroll</button>' +
+          "</div>"
+        : "") +
+      "</div>";
+  });
+  return html;
+}
+
+function renderAdminContractRows(tbody, contracts, append) {
+  var html = "";
+  contracts.forEach(function(c) {
     var name = ((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim() || "—";
     var boat = [c.boat_make, c.boat_model, c.boat_year].filter(Boolean).join(" ") || "—";
     var st = contractCardStatus(c);
@@ -3140,7 +3392,77 @@ function renderAdminMasterTable() {
       "</td>";
     html += "</tr>";
   });
-  tbody.innerHTML = html;
+  if (append) {
+    tbody.insertAdjacentHTML("beforeend", html);
+  } else {
+    tbody.innerHTML = html;
+  }
+}
+
+function renderAdminMasterTable() {
+  var tbody = document.getElementById("admin-master-tbody");
+  var inp = document.getElementById("admin-customer-search");
+  if (!tbody) return;
+
+  if (inp && inp.dataset.bound !== "1") {
+    inp.dataset.bound = "1";
+    inp.addEventListener("input", function() {
+      renderAdminMasterTable();
+    });
+  }
+
+  var q = (inp && inp.value ? inp.value.trim().toLowerCase() : "");
+  var all = adminContractsCache || [];
+
+  if (all.length === 0) {
+    tbody.innerHTML =
+      "<tr><td colspan='9' style='text-align:center;padding:2rem;font-size:13px;color:var(--light);'>No contracts loaded yet.</td></tr>";
+    return;
+  }
+
+  if (!q) {
+    var recentAdmin = getRecentAdminSearches();
+    if (recentAdmin.length === 0) {
+      tbody.innerHTML =
+        "<tr><td colspan='9' style='text-align:center;padding:2rem;font-size:13px;color:var(--light);'>" +
+        "Type a customer name, HIN, or dealership to search." +
+        "</td></tr>";
+      return;
+    }
+    var recentRows = adminRecentContractsFromSearches(all, recentAdmin);
+    if (recentRows.length === 0) {
+      tbody.innerHTML =
+        "<tr><td colspan='9' style='text-align:center;padding:2rem;font-size:13px;color:var(--light);'>" +
+        "Type a customer name, HIN, or dealership to search." +
+        "</td></tr>";
+      return;
+    }
+    tbody.innerHTML =
+      "<tr><td colspan='9' style='padding:0.5rem 0.75rem;background:var(--silver-bg);font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);'>Recent Searches</td></tr>";
+    renderAdminContractRows(tbody, recentRows, true);
+    return;
+  }
+
+  var filtered = all.filter(function(c) {
+    var name = ((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim().toLowerCase();
+    var dealer = (c.dealership_name || "").toLowerCase();
+    var boat = ((c.boat_make || "") + " " + (c.boat_model || "")).toLowerCase();
+    var hin = (c.hin || "").toLowerCase();
+    return name.indexOf(q) !== -1 || dealer.indexOf(q) !== -1 || boat.indexOf(q) !== -1 || hin.indexOf(q) !== -1;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML =
+      "<tr><td colspan='9' style='text-align:center;padding:2rem;font-size:13px;color:var(--light);'>No results for \"" +
+      escHtml(q) +
+      "\"</td></tr>";
+    return;
+  }
+
+  saveRecentAdminSearch(q);
+
+  tbody.innerHTML = "";
+  renderAdminContractRows(tbody, filtered, false);
 }
 
 async function loadAdminHinConflicts() {
@@ -4764,197 +5086,61 @@ document.addEventListener("DOMContentLoaded", function() {
 
   function renderCustomerCards() {
     var box = document.getElementById("customers-container");
-    var qs = document.getElementById("customer-search");
     if (!box) return;
-    var q = (qs && qs.value ? qs.value : "").toLowerCase().trim();
-    var list = dealerContractsCache.filter(function(c) {
-      if (!q) return true;
-      var blob = [c.customer_first_name, c.customer_last_name, c.boat_make, c.boat_model, c.hin, c.boat_year]
-        .map(function(x) {
-          return String(x || "").toLowerCase();
-        })
-        .join(" ");
-      return blob.indexOf(q) !== -1;
-    });
-    if (list.length === 0) {
-      if (!dealerContractsCache.length) {
-        box.innerHTML =
-          '<div style="text-align:center;padding:2rem;color:var(--light);">No customers enrolled yet. Use the Enroll Customer tab to add your first customer.</div>';
-      } else {
-        box.innerHTML = "<div class='renewals-empty'>No customers match your search.</div>";
-      }
+    var qs = document.getElementById("customer-search");
+    var q = (qs && qs.value ? qs.value.trim().toLowerCase() : "");
+    var contracts = dealerContractsCache || [];
+
+    if (contracts.length === 0) {
+      box.innerHTML =
+        '<div style="text-align:center;padding:2rem;color:var(--light);">No customers enrolled yet. Use the Enroll Customer tab to add your first customer.</div>';
       return;
     }
-    var statusOrder = { active: 0, expiring_soon: 1, cancellation_pending: 2, expired: 3, cancelled: 4 };
-    list.sort(function(a, b) {
-      var sa = getEffectiveContractStatus(a);
-      var sb = getEffectiveContractStatus(b);
-      var ra = Object.prototype.hasOwnProperty.call(statusOrder, sa) ? statusOrder[sa] : 99;
-      var rb = Object.prototype.hasOwnProperty.call(statusOrder, sb) ? statusOrder[sb] : 99;
-      return ra - rb;
-    });
-    var html = "";
-    list.forEach(function(c) {
-      var status = getEffectiveContractStatus(c);
-      var statusColor =
-        status === "active"
-          ? "#0F6E56"
-          : status === "expiring_soon"
-            ? "#BA7517"
-            : status === "cancellation_pending"
-              ? "#7e57c2"
-              : status === "cancelled"
-                ? "#6b8599"
-                : "#c0392b";
-      var statusLabel =
-        status === "active"
-          ? "Active"
-          : status === "expiring_soon"
-            ? "Expiring Soon"
-            : status === "cancellation_pending"
-              ? "Cancellation Pending"
-              : status === "cancelled"
-                ? "Cancelled"
-                : "Expired";
-      var daysLeft = c.end_date ? Math.max(0, Math.ceil((new Date(c.end_date) - new Date()) / 86400000)) : null;
-      var fname = c.customer_first_name || "";
-      var lname = c.customer_last_name || "";
-      var fullName = (fname + " " + lname).trim() || "Customer";
-      var hinKey = normalizeHin(c.hin || "");
-      var svcUsed = Object.prototype.hasOwnProperty.call(servicesUsedByHin, hinKey) ? servicesUsedByHin[hinKey] : 0;
-      var wholesale = resolveWholesaleForContract(c, dealerContractsPricingRow);
-      var retail = parseFloat(c.retail_price) || 0;
-      var margin = retail - wholesale;
-      var remaining = Math.max(0, retail - svcUsed);
-      var showContractPricing = status !== "cancelled" && status !== "expired";
-      var stLow = String(c.status || "").toLowerCase();
-      var showRequestBtn =
-        stLow === "active" && status !== "expired" && status !== "cancelled" && status !== "cancellation_pending";
-      var pricingBlock = "";
-      if (showContractPricing) {
-        pricingBlock =
-          '<details style="border-top:1px solid var(--border);background:white;">' +
-          '<summary style="padding:0.65rem 1.25rem;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--mid);list-style:none;">Contract pricing summary</summary>' +
-          '<div class="contract-pricing-summary" style="margin:0 1.25rem 1rem;padding:1rem;background:var(--silver-bg);border-radius:8px;border:1px solid var(--border);">' +
-          '<div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--mid);margin-bottom:0.75rem;">Contract Pricing Summary</div>' +
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">' +
-          '<div><div style="font-size:10px;color:var(--light);margin-bottom:2px;">Customer Paid You</div>' +
-          '<div style="font-size:16px;font-weight:600;color:var(--navy);" class="cps-retail">' +
-          formatUsd(retail) +
-          "</div></div>" +
-          '<div><div style="font-size:10px;color:var(--light);margin-bottom:2px;">You Paid Whitestone</div>' +
-          '<div style="font-size:16px;font-weight:600;color:var(--navy);" class="cps-wholesale">' +
-          formatUsd(wholesale) +
-          "</div></div>" +
-          '<div><div style="font-size:10px;color:var(--light);margin-bottom:2px;">Your Margin</div>' +
-          '<div style="font-size:16px;font-weight:600;color:#1b5e20;" class="cps-margin">' +
-          formatUsd(margin) +
-          "</div></div>" +
-          '<div><div style="font-size:10px;color:var(--light);margin-bottom:2px;">Services Used</div>' +
-          '<div style="font-size:16px;font-weight:600;color:var(--mid);" class="cps-used">' +
-          formatUsd(svcUsed) +
-          "</div></div>" +
-          "</div>" +
-          '<div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);">' +
-          '<div style="font-size:10px;color:var(--light);margin-bottom:2px;">Remaining Contract Value</div>' +
-          '<div style="font-size:18px;font-weight:600;color:var(--gold);" class="cps-remaining">' +
-          formatUsd(remaining) +
-          "</div></div></div></details>";
+
+    if (!q) {
+      var recent = getRecentCustomerSearches();
+      if (recent.length === 0) {
+        box.innerHTML =
+          '<div style="text-align:center;padding:2.5rem 1rem;">' +
+          '<div style="font-size:13px;color:var(--light);margin-bottom:0.5rem;">Search for a customer above to get started.</div>' +
+          '<div style="font-size:11px;color:var(--light);opacity:0.6;">Search by name, boat make, model, or HIN.</div>' +
+          "</div>";
+        return;
       }
-      var cancelBtnBlock = "";
-      if (showRequestBtn) {
-        cancelBtnBlock =
-          '<div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">' +
-          '<button type="button" class="cancel-contract-btn" data-contract-id="' +
-          escHtml(String(c.id)) +
-          '" data-customer-name="' +
-          escHtml(fullName) +
-          '" data-retail-price="' +
-          retail +
-          '" data-wholesale-price="' +
-          wholesale +
-          '" data-start-date="' +
-          escHtml(String(c.start_date || "")) +
-          '" data-contract-type="' +
-          escHtml(String(c.contract_type || "1yr")) +
-          '" data-services-used="' +
-          svcUsed +
-          "\" style=\"background:transparent;border:1px solid #e0c0c0;color:#c0392b;padding:6px 14px;border-radius:4px;font-size:11px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;\">" +
-          "Request Cancellation</button></div>";
+      var recentContracts = dealerRecentContractsFromSearches(contracts, recent);
+      if (recentContracts.length === 0) {
+        box.innerHTML =
+          '<div style="text-align:center;padding:2.5rem 1rem;">' +
+          '<div style="font-size:13px;color:var(--light);">Search for a customer to get started.</div>' +
+          "</div>";
+        return;
       }
-      html +=
-        '<div class="customer-card" id="customer-card-' +
-        escHtml(String(c.id)) +
-        '" style="border:1px solid var(--border);border-radius:10px;margin-bottom:0.75rem;overflow:hidden;border-left:3px solid ' +
-        statusColor +
-        ';">' +
-        '<div onclick="toggleCustomerHistory(\'' +
-        String(c.id) +
-        "', '" +
-        encodeURIComponent(c.hin || "") +
-        "', '" +
-        encodeURIComponent(fname + " " + lname) +
-        '\')" ' +
-        'style="padding:1.25rem;cursor:pointer;background:white;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">' +
-        "<div>" +
-        '<div style="font-size:16px;font-weight:600;color:var(--navy);">' +
-        escHtml(fullName) +
-        "</div>" +
-        '<div style="font-size:13px;color:var(--light);margin-top:2px;">' +
-        escHtml([c.boat_year, c.boat_make, c.boat_model].filter(Boolean).join(" ") || "—") +
-        "</div>" +
-        '<div style="font-size:12px;color:var(--light);margin-top:2px;font-family:monospace;">HIN: ' +
-        escHtml(c.hin ? normalizeHin(c.hin) : "—") +
-        "</div>" +
-        "</div>" +
-        '<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px;">' +
-        '<span style="background:' +
-        statusColor +
-        ';color:white;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;">' +
-        statusLabel +
-        "</span>" +
-        '<div style="font-size:11px;color:var(--light);">' +
-        (status === "cancelled"
-          ? "Cancelled"
-          : daysLeft !== null
-            ? status === "expired"
-              ? "Expired"
-              : daysLeft + " days left"
-            : "") +
-        "</div>" +
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-top:4px;font-size:11px;color:var(--light);">' +
-        '<div><strong style="display:block;color:var(--mid);">' +
-        String((c.contract_type || "1yr").toUpperCase()) +
-        "</strong>Contract</div>" +
-        '<div><strong style="display:block;color:var(--mid);">' +
-        escHtml(formatContractDateShort(c.start_date)) +
-        "</strong>Enrolled</div>" +
-        '<div><strong style="display:block;color:var(--mid);">' +
-        escHtml(formatContractDateShort(c.end_date)) +
-        "</strong>Expires</div>" +
-        "</div>" +
-        "</div>" +
-        "</div>" +
-        '<div id="customer-arrow-' +
-        escHtml(String(c.id)) +
-        '" style="text-align:center;padding:4px;background:var(--silver-bg);border-top:1px solid var(--border);font-size:11px;color:var(--light);">▼ View service history</div>' +
-        '<div id="customer-history-' +
-        escHtml(String(c.id)) +
-        '" style="display:none;border-top:1px solid var(--border);background:#fafbfc;">' +
-        '<div style="padding:1rem 1.25rem;text-align:center;color:var(--light);font-size:13px;">Loading service history...</div>' +
-        "</div>" +
-        pricingBlock +
-        cancelBtnBlock +
-        (status === "expired"
-          ? '<div style="padding:0.75rem 1.25rem;background:white;border-top:1px solid var(--border);">' +
-            '<button type="button" onclick="event.stopPropagation(); window.prefilEnroll(\'' +
-            String(c.id) +
-            '\')" style="background:var(--gold);color:var(--navy);border:none;padding:7px 18px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Re-enroll</button>' +
-            "</div>"
-          : "") +
-        "</div>";
+      var recentHtml =
+        '<div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:0.75rem;padding:0 0.25rem;">Recent Searches</div>';
+      box.innerHTML = recentHtml + buildCustomerCardsHtml(recentContracts);
+      bindCancelBtns();
+      return;
+    }
+
+    var filtered = contracts.filter(function(c) {
+      var name = ((c.customer_first_name || "") + " " + (c.customer_last_name || "")).trim().toLowerCase();
+      var boat = ((c.boat_year || "") + " " + (c.boat_make || "") + " " + (c.boat_model || "")).trim().toLowerCase();
+      var hin = (c.hin || "").toLowerCase();
+      return name.indexOf(q) !== -1 || boat.indexOf(q) !== -1 || hin.indexOf(q) !== -1;
     });
-    box.innerHTML = html;
+
+    if (filtered.length === 0) {
+      box.innerHTML =
+        '<div style="text-align:center;padding:2rem;font-size:13px;color:var(--light);">No customers found matching "' +
+        escHtml(q) +
+        '"</div>';
+      return;
+    }
+
+    saveRecentCustomerSearch(q);
+
+    box.innerHTML = buildCustomerCardsHtml(filtered);
+    bindCancelBtns();
   }
 
   function bindCustomerSearchOnce() {
