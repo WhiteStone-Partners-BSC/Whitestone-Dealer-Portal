@@ -743,7 +743,7 @@ function formatUsd(n) {
 
 var cancellationData = {};
 
-function openCancellationModal(contractId, customerName, retailPrice, wholesalePrice, startDate, contractType) {
+async function openCancellationModal(contractId, customerName, retailPrice, wholesalePrice, startDate, contractType) {
   var start = new Date(startDate);
   var today = new Date();
   var daysElapsed = Math.floor((today - start) / (1000 * 60 * 60 * 24));
@@ -753,15 +753,17 @@ function openCancellationModal(contractId, customerName, retailPrice, wholesaleP
   var graceApplies = daysElapsed <= 30;
 
   var servicesUsed = 0;
-  var btnPre = document.querySelector('.cancel-contract-btn[data-contract-id="' + String(contractId) + '"]');
-  if (btnPre) {
-    var su = parseFloat(btnPre.getAttribute("data-services-used") || "0");
-    if (!isNaN(su)) servicesUsed = su;
-  }
-  if (!servicesUsed) {
-    document.querySelectorAll('[data-contract-id="' + String(contractId) + '"]').forEach(function(el) {
-      var amt = parseFloat(el.getAttribute("data-reimbursement") || 0);
-      if (!isNaN(amt)) servicesUsed += amt;
+  var ticketRes = await fetch(
+    SUPABASE_URL +
+      "/rest/v1/tickets?contract_id=eq." +
+      encodeURIComponent(String(contractId)) +
+      "&status=eq.approved&select=reimbursement_amount",
+    { headers: authHeaders() }
+  );
+  var tickets = await ticketRes.json();
+  if (Array.isArray(tickets)) {
+    tickets.forEach(function(t) {
+      servicesUsed += parseFloat(t.reimbursement_amount || 0);
     });
   }
 
@@ -769,6 +771,11 @@ function openCancellationModal(contractId, customerName, retailPrice, wholesaleP
   var prorateRatio = daysRemaining / totalDays;
   var customerRefund = Math.max(0, (retailNum - servicesUsed) * prorateRatio);
   var wpWholesale = parseFloat(wholesalePrice) || 0;
+  if (!wpWholesale || wpWholesale < 100) {
+    var wholesaleRates = { "1yr": 3325, "2yr": 6650, "3yr": 9975 };
+    var ctKey = String(contractType || "1yr").toLowerCase();
+    wpWholesale = wholesaleRates[ctKey] || 3325;
+  }
   var wpRefundShare =
     retailNum > 0 ? Math.max(0, (wpWholesale - servicesUsed * (wpWholesale / retailNum)) * prorateRatio) : 0;
   var dealerRefundShare = Math.max(0, customerRefund - wpRefundShare);
