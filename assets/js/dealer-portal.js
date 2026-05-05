@@ -266,9 +266,12 @@ async function loadReimbursementHistory() {
     { headers: authHeaders() }
   );
   var reimbs = (await res.json()) || [];
+  var chargebacksHtml = await loadDealerChargebacks();
 
   if (!reimbs || reimbs.length === 0) {
-    el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--light);font-size:13px;">No reimbursements yet.</div>';
+    el.innerHTML =
+      chargebacksHtml +
+      '<div style="text-align:center;padding:1.5rem;color:var(--light);font-size:13px;">No reimbursements yet.</div>';
     var badgeEmpty = document.getElementById("reimb-total-badge");
     if (badgeEmpty) badgeEmpty.textContent = "$0";
     return;
@@ -359,7 +362,52 @@ async function loadReimbursementHistory() {
     })
     .join("");
 
-  el.innerHTML = summaryHtml + rowsHtml;
+  el.innerHTML = chargebacksHtml + summaryHtml + rowsHtml;
+}
+
+async function loadDealerChargebacks() {
+  if (!currentDealer || !currentDealer.id) return "";
+  var r = await fetch(
+    SUPABASE_URL +
+      "/rest/v1/cancellations?dealer_id=eq." +
+      encodeURIComponent(currentDealer.id) +
+      "&status=eq.approved&chargeback_applied=eq.false&select=*",
+    { headers: authHeaders() }
+  );
+  var rows = await r.json();
+  if (!rows || rows.length === 0) return "";
+
+  var total = rows.reduce(function(sum, c) {
+    return sum + (Number(c.dealer_refund_amount || 0) + Number(c.dealer_fee || 0));
+  }, 0);
+
+  return (
+    '<div style="background:#fff5f5;border:1px solid #ffcdd2;border-radius:8px;padding:1rem;margin-bottom:1.25rem;">' +
+    '<div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#c0392b;margin-bottom:0.5rem;">⚠ Pending Chargebacks</div>' +
+    '<div style="font-size:13px;color:var(--navy);margin-bottom:0.5rem;">' +
+    rows.length +
+    " approved cancellation" +
+    (rows.length > 1 ? "s" : "") +
+    " — total chargeback pending: <strong>$" +
+    total.toFixed(2) +
+    "</strong></div>" +
+    '<div style="font-size:11px;color:var(--light);">This amount will be deducted from your upcoming reimbursement payments by Whitestone Partners.</div>' +
+    rows
+      .map(function(c) {
+        return (
+          '<div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid #ffcdd2;display:flex;justify-content:space-between;font-size:12px;">' +
+          '<span style="color:var(--navy);">' +
+          escHtml(c.customer_name || "Customer") +
+          "</span>" +
+          '<span style="color:#c0392b;font-weight:600;">-$' +
+          (Number(c.dealer_refund_amount || 0) + Number(c.dealer_fee || 0)).toFixed(2) +
+          "</span>" +
+          "</div>"
+        );
+      })
+      .join("") +
+    "</div>"
+  );
 }
 
 function toggleSettingsSection(id) {
@@ -982,6 +1030,17 @@ async function loadCancellations(statusFilter) {
             "\" style=\"background:transparent;border:1px solid var(--border);color:var(--mid);padding:8px 20px;border-radius:6px;font-size:12px;cursor:pointer;\">Add Note</button>" +
             "</div>"
           : "";
+      var approvedChargebackActions =
+        c.status === "approved" && !c.chargeback_applied
+          ? "<button type=\"button\" onclick=\"markChargebackApplied('" +
+            escHtml(cid) +
+            "')\" style=\"background:#1b5e20;color:white;border:none;padding:8px 20px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;margin-left:0.5rem;\">✓ Mark Chargeback Applied</button>"
+          : "";
+      var chargebackAppliedTag = c.chargeback_applied
+        ? "<span style=\"font-size:11px;color:#1b5e20;font-weight:600;margin-left:0.75rem;\">✓ Chargeback applied " +
+          (c.chargeback_applied_at ? new Date(c.chargeback_applied_at).toLocaleDateString() : "") +
+          "</span>"
+        : "";
       return (
         "<div class=\"card\" style=\"margin-bottom:1rem;\">" +
         "<div style=\"display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1rem;\">" +
@@ -1007,21 +1066,43 @@ async function loadCancellations(statusFilter) {
         escHtml(String(c.status || "").toUpperCase()) +
         "</span>" +
         "</div>" +
-        "<div style=\"display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1rem;\">" +
-        "<div><div style=\"font-size:10px;color:var(--light);\">Customer Refund</div><div style=\"font-size:16px;font-weight:600;color:var(--navy);\">$" +
+        "<div style=\"background:#f0f4f8;border-radius:8px;padding:1rem;margin-bottom:1rem;\">" +
+        "<div style=\"font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);margin-bottom:0.75rem;\">REFUND FLOW</div>" +
+        "<div style=\"display:grid;grid-template-columns:1fr 1fr;gap:1rem;\">" +
+        "<div style=\"background:white;border-radius:6px;padding:0.75rem;border:1px solid var(--border);\">" +
+        "<div style=\"font-size:10px;color:var(--light);margin-bottom:4px;\">WP Pays Customer</div>" +
+        "<div style=\"font-size:20px;font-weight:700;color:#1565c0;\">$" +
         Number(c.customer_refund_amount || 0).toFixed(2) +
-        "</div></div>" +
-        "<div><div style=\"font-size:10px;color:var(--light);\">WP Covers</div><div style=\"font-size:16px;font-weight:600;color:#1565c0;\">$" +
-        Number(c.whitestone_refund_amount || 0).toFixed(2) +
-        "</div></div>" +
-        "<div><div style=\"font-size:10px;color:var(--light);\">Dealer Covers</div><div style=\"font-size:16px;font-weight:600;color:#c0392b;\">$" +
+        "</div>" +
+        "<div style=\"font-size:10px;color:var(--light);margin-top:2px;\">Full refund — paid directly by Whitestone</div>" +
+        "</div>" +
+        "<div style=\"background:white;border-radius:6px;padding:0.75rem;border:1px solid #ffcdd2;\">" +
+        "<div style=\"font-size:10px;color:var(--light);margin-bottom:4px;\">Dealer Chargeback</div>" +
+        "<div style=\"font-size:20px;font-weight:700;color:#c0392b;\">$" +
+        (Number(c.dealer_refund_amount || 0) + Number(c.dealer_fee || 0)).toFixed(2) +
+        "</div>" +
+        "<div style=\"font-size:10px;color:var(--light);margin-top:2px;\">Dealer share $" +
         Number(c.dealer_refund_amount || 0).toFixed(2) +
-        "</div></div>" +
-        "<div><div style=\"font-size:10px;color:var(--light);\">Dealer Fee</div><div style=\"font-size:16px;font-weight:600;color:" +
-        (c.dealer_fee_waived ? "#1b5e20" : "#f59e0b") +
+        " + $" +
+        Number(c.dealer_fee || 0) +
+        " fee — deducted from reimbursements</div>" +
+        "</div>" +
+        "</div>" +
+        "<div style=\"display:flex;justify-content:space-between;margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);font-size:12px;\">" +
+        "<span style=\"color:var(--light);\">WP Net Cost: <strong style=\"color:var(--navy);\">$" +
+        Number(c.whitestone_refund_amount || 0).toFixed(2) +
+        "</strong></span>" +
+        "<span style=\"color:var(--light);\">Grace Period: <strong style=\"color:" +
+        (c.grace_period_applies ? "#1b5e20" : "#c0392b") +
         ";\">" +
-        (c.dealer_fee_waived ? "Waived" : "$100") +
-        "</div></div>" +
+        (c.grace_period_applies ? "Yes — fee waived" : "No — $100 fee applies") +
+        "</strong></span>" +
+        "<span style=\"color:var(--light);\">Chargeback Applied: <strong style=\"color:" +
+        (c.chargeback_applied ? "#1b5e20" : "#f59e0b") +
+        ";\">" +
+        (c.chargeback_applied ? "✓ Applied" : "Pending") +
+        "</strong></span>" +
+        "</div>" +
         "</div>" +
         "<div style=\"margin-bottom:1rem;font-size:13px;color:var(--mid);\"><strong>Reason:</strong> " +
         reasonDisp +
@@ -1032,7 +1113,11 @@ async function loadCancellations(statusFilter) {
             escHtml(String(c.admin_notes)) +
             "</div>"
           : "") +
+        "<div style=\"display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;\">" +
         pendingActions +
+        approvedChargebackActions +
+        chargebackAppliedTag +
+        "</div>" +
         "</div>"
       );
     })
@@ -1113,6 +1198,44 @@ async function addCancellationNote(cancellationId) {
   }
 }
 
+async function markChargebackApplied(cancellationId) {
+  if (!currentDealer || !currentDealer.isAdmin) return;
+  var note = prompt("Add a note about this chargeback (optional):") || "Chargeback applied against dealer reimbursements";
+  var totalChargeback = 0;
+  var r = await fetch(
+    SUPABASE_URL +
+      "/rest/v1/cancellations?id=eq." +
+      encodeURIComponent(cancellationId) +
+      "&select=dealer_refund_amount,dealer_fee",
+    { headers: authHeaders() }
+  );
+  var rows = await r.json();
+  if (rows && rows[0]) totalChargeback = Number(rows[0].dealer_refund_amount || 0) + Number(rows[0].dealer_fee || 0);
+
+  await fetch(SUPABASE_URL + "/rest/v1/cancellations?id=eq." + encodeURIComponent(cancellationId), {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      chargeback_applied: true,
+      chargeback_applied_at: new Date().toISOString(),
+      chargeback_notes: note,
+      total_chargeback_amount: totalChargeback,
+      status: "processed"
+    })
+  });
+  await writeAuditLog(
+    "cancellation",
+    cancellationId,
+    "chargeback_applied",
+    null,
+    { amount: totalChargeback, note: note },
+    "admin",
+    null,
+    "Dealer chargeback applied: $" + totalChargeback
+  );
+  loadCancellations("approved");
+}
+
 window.openCancellationModal = openCancellationModal;
 window.closeCancellationModal = closeCancellationModal;
 window.submitCancellationRequest = submitCancellationRequest;
@@ -1121,6 +1244,7 @@ window.setCancellationFilter = setCancellationFilter;
 window.approveCancellation = approveCancellation;
 window.denyCancellation = denyCancellation;
 window.addCancellationNote = addCancellationNote;
+window.markChargebackApplied = markChargebackApplied;
 
 async function verifyCustomerContract(firstName, lastName, hin, dealerName) {
   return verifyHINForTicket(hin);
