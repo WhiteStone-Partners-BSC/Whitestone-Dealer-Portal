@@ -855,12 +855,32 @@ async function openCancellationModal(contractId, customerName, retailPrice, whol
   document.getElementById("cm-calc-used").textContent = "-$" + servicesUsed.toFixed(2);
   document.getElementById("cm-calc-prorate").textContent = Math.round(prorateRatio * 100) + "% of contract remaining";
   document.getElementById("cm-calc-total").textContent = "$" + customerRefund.toFixed(2);
-  document.getElementById("cm-calc-wp-share").textContent = "$" + wpRefundShare.toFixed(2);
   document.getElementById("cm-calc-dealer-share").textContent = "$" + dealerRefundShare.toFixed(2);
+  var totalDealerOwes = dealerRefundShare + dealerFee;
+  var dealerTotalEl = document.getElementById("cm-calc-dealer-total");
+  if (dealerTotalEl) dealerTotalEl.textContent = "$" + totalDealerOwes.toFixed(2);
+
+  var wpWholesaleFinal = wpWholesale || 3325;
+  var originalMargin = parseFloat(retailPrice) - wpWholesaleFinal;
+  var marginEl = document.getElementById("cm-original-margin");
+  if (marginEl) marginEl.textContent = "$" + originalMargin.toFixed(2);
+
+  var chargebackEl = document.getElementById("cm-chargeback-display");
+  if (chargebackEl) chargebackEl.textContent = "-$" + totalDealerOwes.toFixed(2);
+
+  var netMargin = originalMargin - totalDealerOwes;
+  var netEl = document.getElementById("cm-net-margin");
+  if (netEl) {
+    netEl.textContent = (netMargin >= 0 ? "+$" : "-$") + Math.abs(netMargin).toFixed(2);
+    netEl.style.color = netMargin >= 0 ? "#1b5e20" : "#c0392b";
+  }
 
   document.getElementById("cm-grace-badge").style.display = graceApplies ? "block" : "none";
   document.getElementById("cm-fee-badge").style.display = graceApplies ? "none" : "block";
-  document.getElementById("cm-calc-fee-row").style.display = graceApplies ? "none" : "flex";
+  var feeRow = document.getElementById("cm-calc-fee-row");
+  var graceFeeRow = document.getElementById("cm-grace-fee-row");
+  if (feeRow) feeRow.style.display = graceApplies ? "none" : "flex";
+  if (graceFeeRow) graceFeeRow.style.display = graceApplies ? "flex" : "none";
 
   document.getElementById("cm-reason").value = "";
   document.getElementById("cm-notes").value = "";

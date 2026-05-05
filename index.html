@@ -11,6 +11,12 @@
   #admin-stat-grid {
     grid-template-columns: 1fr 1fr !important;
   }
+  #cancellation-modal [style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  #cancellation-modal [style*="grid-template-columns:1fr 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
 }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2799,42 +2805,69 @@ window.addEventListener("load", function() {
       </div>
     </div>
 
-    <!-- Estimated refund breakdown -->
-    <div style="background:var(--silver-bg);border-radius:8px;padding:1rem;margin-bottom:1.25rem;border:1px solid var(--border);">
-      <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);margin-bottom:0.75rem;">Estimated Refund Breakdown</div>
-      <div style="display:flex;flex-direction:column;gap:0.4rem;">
-        <div style="display:flex;justify-content:space-between;font-size:13px;">
-          <span style="color:var(--light);">Original retail price</span>
-          <span id="cm-calc-retail">—</span>
+    <div style="margin-bottom:1.25rem;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--mid);margin-bottom:0.75rem;">Cancellation Breakdown</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+        <div style="background:#f0f7ff;border:1px solid #bbdefb;border-radius:8px;padding:1rem;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#1565c0;margin-bottom:0.5rem;">Customer Gets Back</div>
+          <div style="font-size:24px;font-weight:700;color:#1565c0;margin-bottom:0.25rem;" id="cm-calc-total">—</div>
+          <div style="font-size:10px;color:#4a7ba8;margin-bottom:0.75rem;">Paid directly by Whitestone Partners</div>
+          <div style="border-top:1px solid #bbdefb;padding-top:0.6rem;display:flex;flex-direction:column;gap:0.3rem;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;">
+              <span style="color:#4a7ba8;">Original price</span>
+              <span style="color:#1565c0;" id="cm-calc-retail">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;">
+              <span style="color:#4a7ba8;">Services used</span>
+              <span style="color:#1565c0;" id="cm-calc-used">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;">
+              <span style="color:#4a7ba8;">Time remaining</span>
+              <span style="color:#1565c0;" id="cm-calc-prorate">—</span>
+            </div>
+          </div>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:13px;">
-          <span style="color:var(--light);">Services used to date</span>
-          <span id="cm-calc-used" style="color:#c0392b;">— </span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:13px;">
-          <span style="color:var(--light);">Pro-rated (time remaining)</span>
-          <span id="cm-calc-prorate">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:13px;padding-top:0.5rem;border-top:1px solid var(--border);">
-          <span style="font-weight:600;color:var(--navy);">Estimated customer refund</span>
-          <span style="font-weight:700;color:var(--navy);" id="cm-calc-total">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:0.25rem;">
-          <span style="color:var(--light);">Whitestone Partners covers</span>
-          <span style="color:var(--mid);" id="cm-calc-wp-share">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--light);">Your chargeback amount</span>
-          <span style="color:#c0392b;font-weight:600;" id="cm-calc-dealer-share">—</span>
-        </div>
-        <div id="cm-calc-fee-row" style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--light);">Dealer cancellation fee</span>
-          <span style="color:#c0392b;font-weight:600;">-$100</span>
+
+        <div style="background:#fff5f5;border:1px solid #ffcdd2;border-radius:8px;padding:1rem;">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#c0392b;margin-bottom:0.5rem;">You Owe Whitestone Partners</div>
+          <div style="font-size:24px;font-weight:700;color:#c0392b;margin-bottom:0.25rem;" id="cm-calc-dealer-total">—</div>
+          <div style="font-size:10px;color:#a05050;margin-bottom:0.75rem;">Deducted from your reimbursements</div>
+          <div style="border-top:1px solid #ffcdd2;padding-top:0.6rem;display:flex;flex-direction:column;gap:0.3rem;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;">
+              <span style="color:#a05050;">Your refund share</span>
+              <span style="color:#c0392b;" id="cm-calc-dealer-share">—</span>
+            </div>
+            <div id="cm-calc-fee-row" style="display:flex;justify-content:space-between;font-size:11px;">
+              <span style="color:#a05050;">Cancellation fee</span>
+              <span style="color:#c0392b;">$100</span>
+            </div>
+            <div id="cm-grace-fee-row" style="display:none;justify-content:space-between;font-size:11px;">
+              <span style="color:#1b5e20;">Cancellation fee</span>
+              <span style="color:#1b5e20;">Waived ✓</span>
+            </div>
+          </div>
         </div>
       </div>
-      <div style="font-size:10px;color:var(--light);margin-top:0.75rem;font-style:italic;">
-        * Final amounts confirmed by Whitestone Partners upon approval.
-        Numbers shown are estimates based on current data.
+
+      <div style="background:var(--silver-bg);border:1px solid var(--border);border-radius:8px;padding:0.85rem;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;text-align:center;">
+          <div>
+            <div style="font-size:10px;color:var(--light);margin-bottom:2px;">You Originally Made</div>
+            <div style="font-size:15px;font-weight:600;color:#1b5e20;" id="cm-original-margin">—</div>
+          </div>
+          <div style="border-left:1px solid var(--border);border-right:1px solid var(--border);">
+            <div style="font-size:10px;color:var(--light);margin-bottom:2px;">Chargeback Amount</div>
+            <div style="font-size:15px;font-weight:600;color:#c0392b;" id="cm-chargeback-display">—</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--light);margin-bottom:2px;">Your Net on This Contract</div>
+            <div style="font-size:15px;font-weight:600;" id="cm-net-margin">—</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--light);text-align:center;margin-top:0.5rem;font-style:italic;">
+          * Estimates only. Final amounts confirmed by Whitestone Partners upon approval.
+        </div>
       </div>
     </div>
 
@@ -2857,12 +2890,12 @@ window.addEventListener("load", function() {
 
     <!-- Acknowledgement -->
     <div style="background:#fff5e0;border:1px solid #ffe082;border-radius:6px;padding:0.85rem;margin-bottom:1.25rem;font-size:12px;color:#7a4f00;line-height:1.5;">
-      By submitting this request you acknowledge that:<br>
-      • The customer refund amount is estimated and subject to final review<br>
-      • Your chargeback amount will be deducted from your future reimbursements<br>
-      • A $100 dealer fee applies unless within the 30-day grace period<br>
-      • Whitestone Partners will pay the full customer refund directly<br>
-      • Your chargeback amount is deducted from your upcoming reimbursement payments
+      <strong>By submitting this request you acknowledge that:</strong><br>
+      • Whitestone Partners pays the customer their full refund directly — no action needed from you<br>
+      • The amount shown under "You Owe Whitestone Partners" will be deducted from your upcoming reimbursements<br>
+      • If your reimbursement balance is insufficient, your card on file will be charged for any remaining balance<br>
+      • The $100 dealer fee is waived if the cancellation is within the 30-day grace period<br>
+      • Final amounts are confirmed by Whitestone Partners upon approval
     </div>
 
     <div style="display:flex;gap:0.75rem;">
