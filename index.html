@@ -405,13 +405,9 @@
             <div class="card-sub">Unpaid contracts. Select which to pay or cancel any before payment.</div>
           </div>
           <div style="display:flex;gap:0.75rem;align-items:center;display:none;" id="cart-action-btns">
-            <button onclick="paySelectedInvoice()" id="pay-invoice-btn"
-              style="background:#b8963e;color:#0c1e2e;border:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;display:none;">
-              Send Invoice — <span id="pay-invoice-amount">$0</span>
-            </button>
             <button onclick="paySelectedCard()" id="pay-card-btn"
-              style="background:#0c1e2e;color:white;border:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;display:none;">
-              Charge Card on File — <span id="pay-card-amount">$0</span>
+              style="display:none;background:#b8963e;color:#0c1e2e;border:none;padding:10px 24px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">
+              💳 Charge Card on File — <span id="pay-card-amount">$0</span>
             </button>
           </div>
         </div>
@@ -462,12 +458,8 @@
             </div>
           </div>
           <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
-            <button onclick="paySelectedInvoice()"
-              style="background:#b8963e;color:#0c1e2e;border:none;padding:11px 22px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">
-              📄 Send Invoice — <span class="selected-amount-label">$0</span>
-            </button>
             <button onclick="paySelectedCard()"
-              style="background:#0c1e2e;color:white;border:none;padding:11px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
+              style="background:#b8963e;color:#0c1e2e;border:none;padding:12px 32px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:0.02em;">
               💳 Charge Card on File — <span class="selected-amount-label">$0</span>
             </button>
           </div>
@@ -2644,58 +2636,6 @@ window.addEventListener("load", function() {
       if (typeof window.loadDashboard === "function") await window.loadDashboard();
     } catch (e) {
       alert("Could not cancel this cart item. Please try again.");
-    }
-  };
-
-  window.paySelectedInvoice = async function() {
-    if (_selectedCartIds.size === 0) { alert("Please select at least one contract to pay."); return; }
-    var ids = Array.from(_selectedCartIds);
-    var selectedItems = _cartItems.filter(function(i) { return ids.includes(i.id); });
-    var totalWholesale = selectedItems.reduce(function(s, i) { return s + (Number(i.wholesale_price) || 0); }, 0);
-    var totalRetail = selectedItems.reduce(function(s, i) { return s + (Number(i.retail_price) || 0); }, 0);
-    var totalProfit = selectedItems.reduce(function(s, i) { return s + (Number(i.dealer_profit) || 0); }, 0);
-    if (!confirm("Send a Stripe invoice for $" + totalWholesale.toFixed(2) + " covering " + ids.length + " contract(s)?")) return;
-    try {
-      var invRes = await fetch(SUPABASE_URL + "/rest/v1/invoices", {
-        method: "POST",
-        headers: authHeaders({ Prefer: "return=representation" }),
-        body: JSON.stringify({
-          dealer_id: currentDealer.id,
-          dealership_name: currentDealer.name,
-          total_retail: totalRetail,
-          total_wholesale: totalWholesale,
-          total_dealer_profit: totalProfit,
-          item_count: ids.length,
-          status: "pending",
-          payment_method: "invoice",
-          due_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString()
-        })
-      });
-      var invRows = await invRes.json();
-      if (!invRes.ok) throw new Error("Could not create invoice");
-      var invoiceId = invRows[0] && invRows[0].id;
-      for (var i = 0; i < ids.length; i += 1) {
-        await fetch(SUPABASE_URL + "/rest/v1/invoice_items?id=eq." + ids[i], {
-          method: "PATCH",
-          headers: authHeaders(),
-          body: JSON.stringify({ invoice_id: invoiceId, status: "invoiced", payment_method: "invoice" })
-        });
-      }
-      await fetch("/api/create-stripe-invoice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dealerId: currentDealer.id,
-          invoiceId: invoiceId,
-          amount: totalWholesale,
-          itemCount: ids.length,
-          dealerEmail: currentDealer.email
-        })
-      });
-      alert("Invoice sent! Check your email for the Stripe payment link.");
-      await loadBillingCart();
-    } catch (e) {
-      alert("Could not send invoice. Please try again or charge card on file.");
     }
   };
 
