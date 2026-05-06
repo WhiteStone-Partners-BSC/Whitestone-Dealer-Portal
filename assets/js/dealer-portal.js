@@ -60,6 +60,99 @@ async function sendResendEmail(subject, htmlContent) {
   }
 }
 
+async function sendOverdueNotificationEmail(item, day) {
+  try {
+    await fetch(SUPABASE_URL + "/rest/v1/invoice_items?id=eq." + item.id, {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify(day === 10
+        ? { day10_notice_sent: true, day10_notice_sent_at: new Date().toISOString() }
+        : { day20_notice_sent: true, day20_notice_sent_at: new Date().toISOString() }
+      )
+    });
+    await fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: currentDealer && currentDealer.email ? currentDealer.email : null,
+        type: day === 20 ? "overdue_day20" : "overdue_day10",
+        customerName: item.customer_name,
+        amount: item.wholesale_price,
+        dealerName: currentDealer ? currentDealer.name : "",
+        dueDate: item.due_date ? new Date(item.due_date).toLocaleDateString() : "",
+        portalUrl: "https://whitestone-dealer-portal.vercel.app"
+      })
+    });
+  } catch (e) {
+    console.error("Could not send overdue notification:", e);
+  }
+}
+
+async function checkOverdueBanners() {
+  var banner10 = document.getElementById("overdue-banner-10");
+  var banner20 = document.getElementById("overdue-banner-20");
+  if (!banner10 || !banner20 || !currentDealer || currentDealer.isAdmin) return;
+  try {
+    var r = await fetch(
+      SUPABASE_URL + "/rest/v1/invoice_items?dealer_id=eq." + currentDealer.id + "&status=eq.unpaid&order=added_to_cart_at.asc",
+      { headers: authHeaders() }
+    );
+    var items = await r.json();
+    if (!Array.isArray(items) || items.length === 0) {
+      banner10.style.display = "none";
+      banner20.style.display = "none";
+      return;
+    }
+    var today = new Date();
+    var day10Items = [];
+    var day20Items = [];
+    items.forEach(function(item) {
+      var addedAt = new Date(item.added_to_cart_at || item.created_at || new Date().toISOString());
+      var daysOld = Math.floor((today - addedAt) / (1000 * 60 * 60 * 24));
+      if (daysOld >= 10) day10Items.push(item);
+      if (daysOld >= 20) day20Items.push(item);
+    });
+
+    if (day20Items.length > 0) {
+      banner20.style.display = "flex";
+      var detail20 = document.getElementById("banner-20-detail");
+      if (detail20) {
+        var totalOwed20 = day20Items.reduce(function(s, i) { return s + (Number(i.wholesale_price) || 0); }, 0);
+        detail20.textContent = day20Items.length + " contract(s) are 20+ days past due - $" +
+          totalOwed20.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
+          " owed. Continued non-payment may affect your dealer status with Whitestone Partners.";
+      }
+      for (var i = 0; i < day20Items.length; i += 1) {
+        var item20 = day20Items[i];
+        if (!item20.day20_notice_sent) await sendOverdueNotificationEmail(item20, 20);
+      }
+    } else {
+      banner20.style.display = "none";
+    }
+
+    if (day10Items.length > 0) {
+      banner10.style.display = "flex";
+      var detail10 = document.getElementById("banner-10-detail");
+      if (detail10) {
+        var totalOwed10 = day10Items.reduce(function(s, i) { return s + (Number(i.wholesale_price) || 0); }, 0);
+        detail10.textContent = day10Items.length + " contract(s) are past their 10-day due date - $" +
+          totalOwed10.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
+          " owed. Customer coverage will NOT activate until payment is received.";
+      }
+      for (var j = 0; j < day10Items.length; j += 1) {
+        var item10 = day10Items[j];
+        if (!item10.day10_notice_sent) await sendOverdueNotificationEmail(item10, 10);
+      }
+    } else {
+      banner10.style.display = "none";
+    }
+  } catch (e) {
+    console.error("checkOverdueBanners error:", e);
+    banner10.style.display = "none";
+    banner20.style.display = "none";
+  }
+}
+
 function supabaseHeaders(extra) {
   return authHeaders(extra);
 }
@@ -4391,6 +4484,7 @@ document.addEventListener("DOMContentLoaded", function() {
       var sbd = document.querySelector('.sidebar-nav-item[data-panel="dashboard"]');
       if (sbd) sbd.classList.add("active");
       window.switchTab("dashboard");
+      checkOverdueBanners();
       if (typeof checkOnboardingStatus === "function") checkOnboardingStatus();
     }
   }
@@ -5100,6 +5194,7 @@ document.addEventListener("DOMContentLoaded", function() {
       renewalsEl.innerHTML = "<div class='renewals-empty'>Could not load data. Please try again.</div>";
       if (currentDealer && !currentDealer.isAdmin) updateSidebarInfo();
     }
+    checkOverdueBanners();
   }
 
   function updateSidebarInfo() {
