@@ -96,6 +96,10 @@
       <button type="button" class="sidebar-nav-item" data-panel="ticket">Submit Ticket</button>
       <button type="button" class="sidebar-nav-item" data-panel="history">Ticket History</button>
       <button type="button" class="sidebar-nav-item" data-panel="enroll">Enroll Customer</button>
+      <button type="button" class="sidebar-nav-item" data-panel="billing-cart" onclick="window.switchTab('billing-cart'); window.loadBillingCart();">
+        Billing Cart
+        <span id="cart-badge" style="display:none;background:#c0392b;color:white;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:6px;">0</span>
+      </button>
       <div class="sidebar-section-label">Info</div>
       <button type="button" class="sidebar-nav-item" data-panel="resources">Resources</button>
       <button type="button" class="sidebar-nav-item" data-panel="faq">FAQ &amp; Contact</button>
@@ -394,6 +398,84 @@
           <p>The customer's contract has been saved and is now active.</p>
         </div>
         <div id="e-err" class="err">Please fill in the customer's name and email before generating a link.</div>
+      </div>
+    </div>
+
+    <div id="panel-billing-cart" class="tab-panel" style="display:none;">
+      <div class="card" style="margin-bottom:1.25rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+          <div>
+            <div class="card-title">Billing Cart</div>
+            <div class="card-sub">Unpaid contracts. Select which to pay or cancel any before payment.</div>
+          </div>
+          <div style="display:flex;gap:0.75rem;align-items:center;display:none;" id="cart-action-btns">
+            <button onclick="paySelectedInvoice()" id="pay-invoice-btn"
+              style="background:#b8963e;color:#0c1e2e;border:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;display:none;">
+              Send Invoice — <span id="pay-invoice-amount">$0</span>
+            </button>
+            <button onclick="paySelectedCard()" id="pay-card-btn"
+              style="background:#0c1e2e;color:white;border:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;display:none;">
+              Charge Card on File — <span id="pay-card-amount">$0</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.25rem;" id="cart-summary-cards">
+        <div class="card" style="text-align:center;">
+          <div style="font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Unpaid Contracts</div>
+          <div style="font-size:28px;font-weight:700;color:var(--navy);" id="cart-count">0</div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div style="font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">You Owe Whitestone</div>
+          <div style="font-size:28px;font-weight:700;color:#c0392b;" id="cart-total-owed">$0</div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div style="font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Your Total Profit</div>
+          <div style="font-size:28px;font-weight:700;color:#1b5e20;" id="cart-total-profit">$0</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:0.5rem;padding:0.75rem 1rem;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <input type="checkbox" id="cart-select-all" onchange="toggleSelectAll(this.checked)"
+            style="width:16px;height:16px;cursor:pointer;">
+          <label for="cart-select-all" style="font-size:13px;font-weight:600;color:var(--navy);cursor:pointer;">Select All</label>
+          <span style="font-size:12px;color:var(--light);margin-left:auto;" id="cart-selected-count">0 selected</span>
+        </div>
+      </div>
+
+      <div id="cart-items-list"></div>
+
+      <div id="cart-empty" style="display:none;text-align:center;padding:3rem;color:var(--light);">
+        <div style="font-size:32px;margin-bottom:0.75rem;">🛒</div>
+        <div style="font-size:15px;font-weight:500;color:var(--navy);margin-bottom:0.5rem;">Your cart is empty</div>
+        <div style="font-size:13px;">Enroll a customer and choose "Add to Cart" to get started.</div>
+      </div>
+
+      <div id="cart-pay-bar" style="display:none;position:sticky;bottom:0;background:white;border-top:2px solid var(--border);padding:1rem;margin-top:1rem;border-radius:0 0 12px 12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+          <div style="display:flex;gap:2rem;">
+            <div>
+              <div style="font-size:10px;color:var(--light);">Selected Total You Owe</div>
+              <div style="font-size:20px;font-weight:700;color:#c0392b;" id="selected-owed">$0</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--light);">Selected Profit</div>
+              <div style="font-size:20px;font-weight:700;color:#1b5e20;" id="selected-profit">$0</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+            <button onclick="paySelectedInvoice()"
+              style="background:#b8963e;color:#0c1e2e;border:none;padding:11px 22px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">
+              📄 Send Invoice — <span class="selected-amount-label">$0</span>
+            </button>
+            <button onclick="paySelectedCard()"
+              style="background:#0c1e2e;color:white;border:none;padding:11px 22px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
+              💳 Charge Card on File — <span class="selected-amount-label">$0</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2176,6 +2258,258 @@ window.addEventListener("load", function() {
     if (payAmtEl) payAmtEl.textContent = "$" + Number(wholesale).toLocaleString();
   };
 
+  var _cartItems = [];
+  var _selectedCartIds = new Set();
+
+  window.refreshBillingCartBadge = async function() {
+    if (!currentDealer || !currentDealer.id) return;
+    try {
+      var badgeRes = await fetch(
+        SUPABASE_URL + "/rest/v1/invoice_items?dealer_id=eq." + currentDealer.id + "&status=eq.unpaid&select=id",
+        { headers: authHeaders() }
+      );
+      var badgeRows = await badgeRes.json();
+      var badge = document.getElementById("cart-badge");
+      if (badge) {
+        badge.textContent = (badgeRows || []).length;
+        badge.style.display = (badgeRows || []).length > 0 ? "inline" : "none";
+      }
+    } catch (e) {
+      console.log("Billing cart badge load error:", e);
+    }
+  };
+
+  window.loadBillingCart = async function() {
+    var listEl = document.getElementById("cart-items-list");
+    var emptyEl = document.getElementById("cart-empty");
+    if (!listEl || !currentDealer || !currentDealer.id) return;
+    _selectedCartIds.clear();
+    listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--light);font-size:13px;">Loading cart...</div>';
+    try {
+      var r = await fetch(
+        SUPABASE_URL + "/rest/v1/invoice_items?dealer_id=eq." + currentDealer.id + "&status=eq.unpaid&order=created_at.asc",
+        { headers: authHeaders() }
+      );
+      _cartItems = await r.json();
+      if (!Array.isArray(_cartItems)) _cartItems = [];
+      var badge = document.getElementById("cart-badge");
+      if (badge) {
+        badge.textContent = _cartItems.length;
+        badge.style.display = _cartItems.length > 0 ? "inline" : "none";
+      }
+      var totalOwed = _cartItems.reduce(function(s, i) { return s + (Number(i.wholesale_price) || 0); }, 0);
+      var totalProfit = _cartItems.reduce(function(s, i) { return s + (Number(i.dealer_profit) || 0); }, 0);
+      var countEl = document.getElementById("cart-count");
+      var owedEl = document.getElementById("cart-total-owed");
+      var profitEl = document.getElementById("cart-total-profit");
+      if (countEl) countEl.textContent = _cartItems.length;
+      if (owedEl) owedEl.textContent = "$" + totalOwed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (profitEl) profitEl.textContent = "$" + totalProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (_cartItems.length === 0) {
+        listEl.innerHTML = "";
+        if (emptyEl) emptyEl.style.display = "block";
+        var payBar0 = document.getElementById("cart-pay-bar");
+        if (payBar0) payBar0.style.display = "none";
+        var selectAll0 = document.getElementById("cart-select-all");
+        if (selectAll0) selectAll0.checked = false;
+        return;
+      }
+      if (emptyEl) emptyEl.style.display = "none";
+      var today = new Date();
+      listEl.innerHTML = _cartItems.map(function(item) {
+        var added = new Date(item.added_to_cart_at || item.created_at || new Date().toISOString());
+        var due = new Date(item.due_date || new Date().toISOString());
+        var daysLeft = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
+        var isOverdue = daysLeft < 0;
+        var isWarning = daysLeft <= 2 && daysLeft >= 0;
+        var statusColor = isOverdue ? "#c0392b" : (isWarning ? "#f59e0b" : "#1b5e20");
+        var statusText = isOverdue ? ("Overdue by " + Math.abs(daysLeft) + " days") : (daysLeft + " days left");
+        var safeCustomer = String(item.customer_name || "—").replace(/'/g, "\\'");
+        var safeContractId = String(item.contract_id || "").replace(/'/g, "\\'");
+        return '<div class="card" style="margin-bottom:0.5rem;' + (isOverdue ? "border-color:#ffcdd2;background:#fff5f5;" : "") + '">' +
+          '<div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">' +
+          '<input type="checkbox" class="cart-item-cb" data-id="' + item.id + '"' +
+          ' data-wholesale="' + (item.wholesale_price || 0) + '"' +
+          ' data-profit="' + (item.dealer_profit || 0) + '"' +
+          ' onchange="updateCartSelection()"' +
+          ' style="width:16px;height:16px;cursor:pointer;">' +
+          '<div style="flex:1;min-width:120px;">' +
+          '<div style="font-size:14px;font-weight:600;color:var(--navy);">' + (item.customer_name || "—") + "</div>" +
+          '<div style="font-size:11px;color:var(--light);">' + String(item.contract_type || "").toUpperCase() + " · Added " + added.toLocaleDateString() + "</div>" +
+          "</div>" +
+          '<div style="text-align:right;min-width:80px;"><div style="font-size:10px;color:var(--light);">You Sold</div><div style="font-size:14px;font-weight:600;color:var(--navy);">$' + Number(item.retail_price || 0).toLocaleString() + "</div></div>" +
+          '<div style="text-align:right;min-width:80px;"><div style="font-size:10px;color:var(--light);">You Owe WP</div><div style="font-size:14px;font-weight:600;color:#c0392b;">$' + Number(item.wholesale_price || 0).toLocaleString() + "</div></div>" +
+          '<div style="text-align:right;min-width:80px;"><div style="font-size:10px;color:var(--light);">Your Profit</div><div style="font-size:14px;font-weight:600;color:#1b5e20;">+$' + Number(item.dealer_profit || 0).toLocaleString() + "</div></div>" +
+          '<div style="text-align:right;min-width:80px;"><div style="font-size:10px;color:var(--light);">Due Date</div><div style="font-size:12px;font-weight:600;color:' + statusColor + ';">' + due.toLocaleDateString() + '</div><div style="font-size:10px;color:' + statusColor + ';">' + statusText + "</div></div>" +
+          '<button onclick="cancelCartItem(\'' + item.id + '\',\'' + safeCustomer + '\',\'' + safeContractId + '\')" style="background:transparent;border:1px solid #e0c0c0;color:#c0392b;padding:6px 12px;border-radius:4px;font-size:11px;cursor:pointer;">Cancel</button>' +
+          "</div></div>";
+      }).join("");
+      updateCartSelection();
+    } catch (e) {
+      console.log("Billing cart load error:", e);
+      listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--red);font-size:13px;">Could not load cart. Please try again.</div>';
+    }
+  };
+
+  window.toggleSelectAll = function(checked) {
+    document.querySelectorAll(".cart-item-cb").forEach(function(cb) { cb.checked = checked; });
+    updateCartSelection();
+  };
+
+  window.updateCartSelection = function() {
+    _selectedCartIds.clear();
+    var totalOwed = 0;
+    var totalProfit = 0;
+    document.querySelectorAll(".cart-item-cb:checked").forEach(function(cb) {
+      _selectedCartIds.add(cb.getAttribute("data-id"));
+      totalOwed += parseFloat(cb.getAttribute("data-wholesale") || 0);
+      totalProfit += parseFloat(cb.getAttribute("data-profit") || 0);
+    });
+    var count = _selectedCartIds.size;
+    var countEl = document.getElementById("cart-selected-count");
+    if (countEl) countEl.textContent = count + " selected";
+    var payBar = document.getElementById("cart-pay-bar");
+    if (payBar) payBar.style.display = count > 0 ? "block" : "none";
+    var owedEl = document.getElementById("selected-owed");
+    var profitEl = document.getElementById("selected-profit");
+    if (owedEl) owedEl.textContent = "$" + totalOwed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (profitEl) profitEl.textContent = "$" + totalProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    var amtStr = "$" + totalOwed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    document.querySelectorAll(".selected-amount-label").forEach(function(el) { el.textContent = amtStr; });
+    var allCbs = document.querySelectorAll(".cart-item-cb");
+    var selectAllCb = document.getElementById("cart-select-all");
+    if (selectAllCb) selectAllCb.checked = allCbs.length > 0 && count === allCbs.length;
+  };
+
+  window.cancelCartItem = async function(itemId, customerName, contractId) {
+    if (!confirm("Cancel the contract for " + customerName + "? This will undo the enrollment with no fee. The customer will not be covered.")) return;
+    try {
+      await fetch(SUPABASE_URL + "/rest/v1/invoice_items?id=eq." + itemId, { method: "DELETE", headers: authHeaders() });
+      if (contractId) {
+        await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + contractId, { method: "DELETE", headers: authHeaders() });
+      }
+      await writeAuditLog("invoice", itemId, "cart_cancelled", null, { customer: customerName }, currentDealer.name, null, "Cart item cancelled (no fee): " + customerName);
+      await loadBillingCart();
+      if (typeof window.loadCustomersTab === "function") await window.loadCustomersTab();
+      if (typeof window.loadDashboard === "function") await window.loadDashboard();
+    } catch (e) {
+      alert("Could not cancel this cart item. Please try again.");
+    }
+  };
+
+  window.paySelectedInvoice = async function() {
+    if (_selectedCartIds.size === 0) { alert("Please select at least one contract to pay."); return; }
+    var ids = Array.from(_selectedCartIds);
+    var selectedItems = _cartItems.filter(function(i) { return ids.includes(i.id); });
+    var totalWholesale = selectedItems.reduce(function(s, i) { return s + (Number(i.wholesale_price) || 0); }, 0);
+    var totalRetail = selectedItems.reduce(function(s, i) { return s + (Number(i.retail_price) || 0); }, 0);
+    var totalProfit = selectedItems.reduce(function(s, i) { return s + (Number(i.dealer_profit) || 0); }, 0);
+    if (!confirm("Send a Stripe invoice for $" + totalWholesale.toFixed(2) + " covering " + ids.length + " contract(s)?")) return;
+    try {
+      var invRes = await fetch(SUPABASE_URL + "/rest/v1/invoices", {
+        method: "POST",
+        headers: authHeaders({ Prefer: "return=representation" }),
+        body: JSON.stringify({
+          dealer_id: currentDealer.id,
+          dealership_name: currentDealer.name,
+          total_retail: totalRetail,
+          total_wholesale: totalWholesale,
+          total_dealer_profit: totalProfit,
+          item_count: ids.length,
+          status: "pending",
+          payment_method: "invoice",
+          due_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString()
+        })
+      });
+      var invRows = await invRes.json();
+      if (!invRes.ok) throw new Error("Could not create invoice");
+      var invoiceId = invRows[0] && invRows[0].id;
+      for (var i = 0; i < ids.length; i += 1) {
+        await fetch(SUPABASE_URL + "/rest/v1/invoice_items?id=eq." + ids[i], {
+          method: "PATCH",
+          headers: authHeaders(),
+          body: JSON.stringify({ invoice_id: invoiceId, status: "invoiced", payment_method: "invoice" })
+        });
+      }
+      await fetch("/api/create-stripe-invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dealerId: currentDealer.id,
+          invoiceId: invoiceId,
+          amount: totalWholesale,
+          itemCount: ids.length,
+          dealerEmail: currentDealer.email
+        })
+      });
+      alert("Invoice sent! Check your email for the Stripe payment link.");
+      await loadBillingCart();
+    } catch (e) {
+      alert("Could not send invoice. Please try again or charge card on file.");
+    }
+  };
+
+  window.paySelectedCard = async function() {
+    if (_selectedCartIds.size === 0) { alert("Please select at least one contract to pay."); return; }
+    var ids = Array.from(_selectedCartIds);
+    var selectedItems = _cartItems.filter(function(i) { return ids.includes(i.id); });
+    var totalWholesale = selectedItems.reduce(function(s, i) { return s + (Number(i.wholesale_price) || 0); }, 0);
+    if (!confirm("Charge $" + totalWholesale.toFixed(2) + " to your card on file for " + ids.length + " contract(s)?")) return;
+    try {
+      var stripeCustomerId = currentDealer.stripeCustomerId;
+      if (!stripeCustomerId) {
+        var dealerRes = await fetch(
+          SUPABASE_URL + "/rest/v1/dealers?id=eq." + currentDealer.id + "&select=stripe_customer_id",
+          { headers: authHeaders() }
+        );
+        var dealerRows = await dealerRes.json();
+        stripeCustomerId = dealerRows[0] && dealerRows[0].stripe_customer_id;
+      }
+      if (!stripeCustomerId) throw new Error("No payment method on file");
+      var chargeRes = await fetch("/api/charge-enrollment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stripeCustomerId: stripeCustomerId,
+          amount: totalWholesale,
+          dealerName: currentDealer.name,
+          customerName: currentDealer.name,
+          contractType: "invoice_cart_batch",
+          contractId: null
+        })
+      });
+      if (!chargeRes.ok) throw new Error("Charge failed");
+      var paidAt = new Date().toISOString();
+      for (var j = 0; j < ids.length; j += 1) {
+        var id = ids[j];
+        var item = _cartItems.find(function(i) { return i.id === id; });
+        await fetch(SUPABASE_URL + "/rest/v1/invoice_items?id=eq." + id, {
+          method: "PATCH",
+          headers: authHeaders(),
+          body: JSON.stringify({ status: "paid", paid_at: paidAt, payment_method: "card_on_file" })
+        });
+        if (item && item.contract_id) {
+          await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + item.contract_id, {
+            method: "PATCH",
+            headers: authHeaders(),
+            body: JSON.stringify({ status: "active", paid_at: paidAt, payment_method: "card_on_file" })
+          });
+        }
+      }
+      alert("Payment successful! " + ids.length + " contract(s) are now active.");
+      await loadBillingCart();
+      if (typeof window.loadCustomersTab === "function") await window.loadCustomersTab();
+      if (typeof window.loadDashboard === "function") await window.loadDashboard();
+    } catch (e) {
+      alert("Payment failed. Please try again.");
+    }
+  };
+
+  window.showBillingCart = function() {
+    window.switchTab("billing-cart");
+    loadBillingCart();
+  };
+
   window.addToInvoiceCart = async function() {
     var btn = document.getElementById("epc-add-to-cart-btn");
     if (!btn || !_pendingEnrollmentContractId) return;
@@ -2230,6 +2564,7 @@ window.addEventListener("load", function() {
       }
       if (typeof window.loadDashboard === "function") await window.loadDashboard();
       if (typeof window.loadCustomersTab === "function") await window.loadCustomersTab();
+      if (typeof window.refreshBillingCartBadge === "function") await window.refreshBillingCartBadge();
     } catch (e) {
       btn.disabled = false;
       btn.textContent = "Add to Cart";
@@ -2313,6 +2648,7 @@ window.addEventListener("load", function() {
       if (typeof window.onboardingMarkStep === "function") await window.onboardingMarkStep("first_customer");
       if (typeof window.loadDashboard === "function") await window.loadDashboard();
       if (typeof window.loadCustomersTab === "function") await window.loadCustomersTab();
+      if (typeof window.refreshBillingCartBadge === "function") await window.refreshBillingCartBadge();
       var choiceEl = document.getElementById("enrollment-payment-choice");
       if (choiceEl) {
         choiceEl.innerHTML =
@@ -2631,6 +2967,7 @@ window.addEventListener("load", function() {
     originalSwitchTab(name);
     if (name === "dashboard") dealerLoadRateCard();
     if (name === "enroll") loadDealerPricingForEnrollment();
+    if (name === "billing-cart") loadBillingCart();
   };
 
   var originalOnLoginSuccess = window.onLoginSuccess;
@@ -2641,6 +2978,7 @@ window.addEventListener("load", function() {
         dealerLoadRateCard();
         loadDealerPricingForEnrollment();
         checkDealerPaymentMethod();
+        refreshBillingCartBadge();
       }
     };
   }
