@@ -2621,17 +2621,89 @@ window.addEventListener("load", function() {
         var endDate = new Date(today);
         endDate.setDate(endDate.getDate() + (totalDaysMap[contractType] || 365));
         try {
+          var mi        = (document.getElementById("e-mi") || {}).value || "";
+          var address   = (document.getElementById("e-address") || {}).value || "";
+          var city      = (document.getElementById("e-city") || {}).value || "";
+          var state     = (document.getElementById("e-state") || {}).value || "";
+          var zip       = (document.getElementById("e-zip") || {}).value || "";
+          var condition = (document.getElementById("e-condition") || {}).value || "New";
+
+          var hasLien     = document.getElementById("has-lienholder") && document.getElementById("has-lienholder").checked;
+          var lienName    = hasLien ? (document.getElementById("e-lien-name") || {}).value || "" : "";
+          var lienAddress = hasLien ? (document.getElementById("e-lien-address") || {}).value || "" : "";
+          var lienCity    = hasLien ? (document.getElementById("e-lien-city") || {}).value || "" : "";
+          var lienState   = hasLien ? (document.getElementById("e-lien-state") || {}).value || "" : "";
+          var lienZip     = hasLien ? (document.getElementById("e-lien-zip") || {}).value || "" : "";
+          var lienPhone   = hasLien ? (document.getElementById("e-lien-phone") || {}).value || "" : "";
+
+          var eng1Serial = (document.getElementById("e-eng1-serial") || {}).value || "";
+          var eng1Year   = parseInt((document.getElementById("e-eng1-year") || {}).value, 10) || null;
+          var eng1Make   = (document.getElementById("e-eng1-make") || {}).value || "";
+          var eng1Model  = (document.getElementById("e-eng1-model") || {}).value || "";
+          var eng1Hours  = parseInt((document.getElementById("e-eng1-hours") || {}).value, 10) || null;
+
+          var hasDual    = document.getElementById("has-engine2") && document.getElementById("has-engine2").checked;
+          var eng2Serial = hasDual ? (document.getElementById("e-eng2-serial") || {}).value || "" : "";
+          var eng2Year   = hasDual ? parseInt((document.getElementById("e-eng2-year") || {}).value, 10) || null : null;
+          var eng2Make   = hasDual ? (document.getElementById("e-eng2-make") || {}).value || "" : "";
+          var eng2Model  = hasDual ? (document.getElementById("e-eng2-model") || {}).value || "" : "";
+          var eng2Hours  = hasDual ? parseInt((document.getElementById("e-eng2-hours") || {}).value, 10) || null : null;
+
+          var agreementNumber = "";
+          try {
+            var agreeRes = await fetch(SUPABASE_URL + "/rest/v1/rpc/generate_agreement_number", {
+              method: "POST",
+              headers: authHeaders(),
+              body: JSON.stringify({ p_dealer_id: currentDealer.id })
+            });
+            if (agreeRes.ok) {
+              var agreeData = await agreeRes.json();
+              agreementNumber = agreeData || "";
+            }
+          } catch (_agreeErr) {}
+
           var contractPayload = {
-            dealer_id: currentDealer.id, dealership_name: currentDealer.name,
-            customer_first_name: fname, customer_last_name: lname,
-            customer_email: email, customer_phone: phone,
-            boat_make: make, boat_model: model,
-            boat_year: parseInt(year, 10) || new Date().getFullYear(),
-            hin: hin, contract_type: contractType,
-            retail_price: retail, wholesale_price: wholesale,
-            status: "pending_payment", payment_method: "invoice",
-            start_date: today.toISOString().split("T")[0],
-            end_date: endDate.toISOString().split("T")[0]
+            dealer_id:                currentDealer.id,
+            dealership_name:          currentDealer.name,
+            customer_first_name:      fname,
+            customer_last_name:       lname,
+            customer_middle_initial:  mi,
+            customer_email:           email,
+            customer_phone:           phone,
+            customer_address:         address,
+            customer_city:            city,
+            customer_state:           state,
+            customer_zip:             zip,
+            boat_make:                make,
+            boat_model:               model,
+            boat_year:                parseInt(year, 10) || new Date().getFullYear(),
+            hin:                      hin,
+            vessel_condition:         condition,
+            lienholder_name:          hasLien ? lienName : null,
+            lienholder_address:       hasLien ? lienAddress : null,
+            lienholder_city:          hasLien ? lienCity : null,
+            lienholder_state:         hasLien ? lienState : null,
+            lienholder_zip:           hasLien ? lienZip : null,
+            lienholder_phone:         hasLien ? lienPhone : null,
+            engine1_serial:           eng1Serial,
+            engine1_year:             eng1Year,
+            engine1_make:             eng1Make,
+            engine1_model:            eng1Model,
+            engine1_hours:            eng1Hours,
+            dual_engine:              hasDual,
+            engine2_serial:           hasDual ? eng2Serial : null,
+            engine2_year:             hasDual ? eng2Year : null,
+            engine2_make:             hasDual ? eng2Make : null,
+            engine2_model:            hasDual ? eng2Model : null,
+            engine2_hours:            hasDual ? eng2Hours : null,
+            contract_type:            contractType,
+            retail_price:             retail,
+            wholesale_price:          wholesale,
+            agreement_number:         agreementNumber,
+            status:                   "pending_payment",
+            payment_method:           "invoice",
+            start_date:               today.toISOString().split("T")[0],
+            end_date:                 endDate.toISOString().split("T")[0]
           };
           var cr = await fetch(SUPABASE_URL + "/rest/v1/contracts", {
             method: "POST",
@@ -3276,22 +3348,96 @@ window.addEventListener("load", function() {
     var yearEl = document.getElementById("e-year");
     var boatYearNum = yearEl && yearEl.value ? parseInt(yearEl.value, 10) : null;
     if (boatYearNum !== null && isNaN(boatYearNum)) boatYearNum = null;
+    var mi        = (document.getElementById("e-mi") || {}).value || "";
+    var address   = (document.getElementById("e-address") || {}).value || "";
+    var city      = (document.getElementById("e-city") || {}).value || "";
+    var state     = (document.getElementById("e-state") || {}).value || "";
+    var zip       = (document.getElementById("e-zip") || {}).value || "";
+    var condition = (document.getElementById("e-condition") || {}).value || "New";
+
+    var hasLien     = document.getElementById("has-lienholder") && document.getElementById("has-lienholder").checked;
+    var lienName    = hasLien ? (document.getElementById("e-lien-name") || {}).value || "" : "";
+    var lienAddress = hasLien ? (document.getElementById("e-lien-address") || {}).value || "" : "";
+    var lienCity    = hasLien ? (document.getElementById("e-lien-city") || {}).value || "" : "";
+    var lienState   = hasLien ? (document.getElementById("e-lien-state") || {}).value || "" : "";
+    var lienZip     = hasLien ? (document.getElementById("e-lien-zip") || {}).value || "" : "";
+    var lienPhone   = hasLien ? (document.getElementById("e-lien-phone") || {}).value || "" : "";
+
+    var eng1Serial = (document.getElementById("e-eng1-serial") || {}).value || "";
+    var eng1Year   = parseInt((document.getElementById("e-eng1-year") || {}).value, 10) || null;
+    var eng1Make   = (document.getElementById("e-eng1-make") || {}).value || "";
+    var eng1Model  = (document.getElementById("e-eng1-model") || {}).value || "";
+    var eng1Hours  = parseInt((document.getElementById("e-eng1-hours") || {}).value, 10) || null;
+
+    var hasDual    = document.getElementById("has-engine2") && document.getElementById("has-engine2").checked;
+    var eng2Serial = hasDual ? (document.getElementById("e-eng2-serial") || {}).value || "" : "";
+    var eng2Year   = hasDual ? parseInt((document.getElementById("e-eng2-year") || {}).value, 10) || null : null;
+    var eng2Make   = hasDual ? (document.getElementById("e-eng2-make") || {}).value || "" : "";
+    var eng2Model  = hasDual ? (document.getElementById("e-eng2-model") || {}).value || "" : "";
+    var eng2Hours  = hasDual ? parseInt((document.getElementById("e-eng2-hours") || {}).value, 10) || null : null;
+
+    var wholesaleMap = {
+      "1yr": dealerPricingData ? dealerPricingData.contract_retail_1yr : 3325,
+      "2yr": dealerPricingData ? dealerPricingData.contract_retail_2yr : 6650,
+      "3yr": dealerPricingData ? dealerPricingData.contract_retail_3yr : 9975
+    };
+    var wholesale = wholesaleMap[selectedContractLength] || amount;
+
+    var agreementNumber = "";
+    try {
+      var agreeRes = await fetch(SUPABASE_URL + "/rest/v1/rpc/generate_agreement_number", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ p_dealer_id: currentDealer.id })
+      });
+      if (agreeRes.ok) {
+        var agreeData = await agreeRes.json();
+        agreementNumber = agreeData || "";
+      }
+    } catch (_agreeErr2) {}
+
     var contractData = {
-      dealer_id: currentDealer.id,
-      dealership_name: currentDealer.name,
-      customer_first_name: fname,
-      customer_last_name: lname,
-      customer_email: document.getElementById("e-email") ? document.getElementById("e-email").value : "",
-      customer_phone: document.getElementById("e-phone") ? document.getElementById("e-phone").value : "",
-      boat_make: document.getElementById("e-make") ? document.getElementById("e-make").value : "",
-      boat_model: document.getElementById("e-model") ? document.getElementById("e-model").value : "",
-      boat_year: boatYearNum,
-      hin: hinVal,
-      contract_type: selectedContractLength,
-      retail_price: amount,
-      start_date: new Date().toISOString().split("T")[0],
-      end_date: endStr,
-      status: "pending_payment"
+      dealer_id:                currentDealer.id,
+      dealership_name:          currentDealer.name,
+      customer_first_name:      fname,
+      customer_last_name:       lname,
+      customer_middle_initial:  mi,
+      customer_email:           document.getElementById("e-email") ? document.getElementById("e-email").value : "",
+      customer_phone:           document.getElementById("e-phone") ? document.getElementById("e-phone").value : "",
+      customer_address:         address,
+      customer_city:            city,
+      customer_state:           state,
+      customer_zip:             zip,
+      boat_make:                document.getElementById("e-make") ? document.getElementById("e-make").value : "",
+      boat_model:               document.getElementById("e-model") ? document.getElementById("e-model").value : "",
+      boat_year:                boatYearNum || new Date().getFullYear(),
+      hin:                      hinVal,
+      vessel_condition:         condition,
+      lienholder_name:          hasLien ? lienName : null,
+      lienholder_address:       hasLien ? lienAddress : null,
+      lienholder_city:          hasLien ? lienCity : null,
+      lienholder_state:         hasLien ? lienState : null,
+      lienholder_zip:           hasLien ? lienZip : null,
+      lienholder_phone:         hasLien ? lienPhone : null,
+      engine1_serial:           eng1Serial,
+      engine1_year:             eng1Year,
+      engine1_make:             eng1Make,
+      engine1_model:            eng1Model,
+      engine1_hours:            eng1Hours,
+      dual_engine:              hasDual,
+      engine2_serial:           hasDual ? eng2Serial : null,
+      engine2_year:             hasDual ? eng2Year : null,
+      engine2_make:             hasDual ? eng2Make : null,
+      engine2_model:            hasDual ? eng2Model : null,
+      engine2_hours:            hasDual ? eng2Hours : null,
+      contract_type:            selectedContractLength,
+      retail_price:             amount,
+      wholesale_price:          wholesale,
+      agreement_number:         agreementNumber,
+      start_date:               new Date().toISOString().split("T")[0],
+      end_date:                 endStr,
+      status:                   "pending_payment",
+      payment_method:           "card_on_file"
     };
     var contractRes = await fetch(SUPABASE_URL + "/rest/v1/contracts", {
       method: "POST",
