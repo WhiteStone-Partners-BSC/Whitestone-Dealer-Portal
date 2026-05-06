@@ -389,44 +389,6 @@
 
         </div>
 
-        <!-- ENROLLMENT PAYMENT CHOICE -->
-        <div id="enrollment-payment-choice" style="display:none;max-width:520px;margin:0 auto 1rem;">
-          <div style="text-align:center;margin-bottom:1.5rem;">
-            <div style="width:56px;height:56px;border-radius:50%;background:#e8f5e9;border:2px solid #a8d5b5;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 0.75rem;">✓</div>
-            <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:#0c1e2e;">Customer Enrolled!</div>
-            <div style="font-size:13px;color:#4a6278;margin-top:4px;" id="epc-customer-summary">—</div>
-          </div>
-          <div style="border:2px solid #b8963e;border-radius:10px;padding:1.25rem;margin-bottom:0.75rem;background:#fffdf5;">
-            <div style="font-size:9px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#b8963e;margin-bottom:0.4rem;">★ Recommended</div>
-            <div style="font-size:15px;font-weight:600;color:#0c1e2e;margin-bottom:0.25rem;">Add to Invoice Cart</div>
-            <div style="font-size:12px;color:#4a6278;margin-bottom:1rem;line-height:1.5;">
-              Pay with your next invoice. Group multiple enrollments into one payment.
-              You have 10 days before this contract is due.
-            </div>
-            <button id="epc-add-to-cart-btn"
-              onclick="addToInvoiceCart()"
-              style="width:100%;background:#b8963e;color:#0c1e2e;border:none;padding:13px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:0.02em;transition:background 0.2s;"
-              onmouseover="this.style.background='#c9a44a'"
-              onmouseout="this.style.background='#b8963e'">
-              Add to Cart — <span id="epc-cart-amount">$0</span>
-            </button>
-          </div>
-          <div style="text-align:center;margin-bottom:0.75rem;">
-            <div style="font-size:11px;color:#9aafbf;margin-bottom:0.5rem;">Or pay immediately:</div>
-            <button id="epc-pay-now-btn"
-              onclick="payEnrollmentNow()"
-              style="background:transparent;border:1.5px solid #c5d5e0;color:#0c1e2e;padding:10px 24px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;"
-              onmouseover="this.style.borderColor='#0c1e2e'"
-              onmouseout="this.style.borderColor='#c5d5e0'">
-              Pay Now — <span id="epc-pay-amount">$0</span>
-            </button>
-          </div>
-          <div style="background:#fff8e0;border:1px solid #ffe082;border-radius:6px;padding:0.75rem;font-size:11px;color:#7a5c00;line-height:1.5;text-align:center;">
-            ⚠ This contract is <strong>not active</strong> until payment is received.
-            The customer is not covered until you pay.
-          </div>
-        </div>
-
         <div id="enroll-link-box" class="enroll-link-box">
           <h3>Enrollment complete</h3>
           <p>The customer's contract has been saved and is now active.</p>
@@ -551,10 +513,22 @@
           By confirming you authorize Whitestone Partners to charge <strong id="ec-amount-confirm"></strong> for this contract.
         </div>
 
-        <div style="display:flex;gap:0.75rem;">
-          <button onclick="closeEnrollConfirmModal()" style="flex:1;padding:11px;border:1px solid var(--border);background:white;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>
-          <button id="enroll-confirm-submit-btn" style="flex:2;padding:11px;background:var(--navy);color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Confirm Enrollment</button>
+        <div style="display:flex;flex-direction:column;gap:0.6rem;margin-top:1rem;">
+          <button id="enroll-cart-btn"
+            style="width:100%;background:#b8963e;color:#0c1e2e;border:none;padding:13px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:0.02em;">
+            ★ Add to Cart — Pay within 10 days
+          </button>
+          <button id="enroll-paynow-btn"
+            style="width:100%;background:transparent;border:1.5px solid #c5d5e0;color:#0c1e2e;padding:11px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;">
+            Pay Now — Charge card on file
+          </button>
+          <div style="font-size:10px;color:#9aafbf;text-align:center;padding-top:0.25rem;">
+            ⚠ Contract is not active until payment is received
+          </div>
         </div>
+        <button onclick="closeEnrollConfirmModal()" style="background:none;border:none;color:#9aafbf;font-size:12px;cursor:pointer;width:100%;text-align:center;margin-top:0.25rem;">
+          ← Go back and edit
+        </button>
       </div>
     </div>
 
@@ -2430,6 +2404,81 @@ window.addEventListener("load", function() {
     document.getElementById("ec-contract-type").textContent = selectedContractLength.toUpperCase() + " Contract";
     document.getElementById("ec-amount").textContent = "$" + Number(amount).toLocaleString();
     document.getElementById("ec-amount-confirm").textContent = "$" + Number(amount).toLocaleString();
+    var cartBtn = document.getElementById("enroll-cart-btn");
+    if (cartBtn) {
+      cartBtn.onclick = async function() {
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = "Adding to cart...";
+        closeEnrollConfirmModal();
+        var contractType = selectedContractLength || "1yr";
+        var wholesaleMap = { "1yr": 3325, "2yr": 6650, "3yr": 9975 };
+        var retailMap = { "1yr": 4075, "2yr": 8150, "3yr": 12225 };
+        var totalDaysMap = { "1yr": 365, "2yr": 730, "3yr": 1095 };
+        var wholesale = wholesaleMap[contractType] || 3325;
+        var retail = retailMap[contractType] || 4075;
+        var fname = (document.getElementById("e-fname") || {}).value || "";
+        var lname = (document.getElementById("e-lname") || {}).value || "";
+        var email = (document.getElementById("e-email") || {}).value || "";
+        var phone = (document.getElementById("e-phone") || {}).value || "";
+        var make = (document.getElementById("e-make") || {}).value || "";
+        var model = (document.getElementById("e-model") || {}).value || "";
+        var year = (document.getElementById("e-year") || {}).value || "";
+        var hin = (document.getElementById("e-hin") || {}).value || "";
+        var today = new Date();
+        var endDate = new Date(today);
+        endDate.setDate(endDate.getDate() + (totalDaysMap[contractType] || 365));
+        try {
+          var contractPayload = {
+            dealer_id: currentDealer.id, dealership_name: currentDealer.name,
+            customer_first_name: fname, customer_last_name: lname,
+            customer_email: email, customer_phone: phone,
+            boat_make: make, boat_model: model,
+            boat_year: parseInt(year, 10) || new Date().getFullYear(),
+            hin: hin, contract_type: contractType,
+            retail_price: retail, wholesale_price: wholesale,
+            status: "pending_payment", payment_method: "invoice",
+            start_date: today.toISOString().split("T")[0],
+            end_date: endDate.toISOString().split("T")[0]
+          };
+          var cr = await fetch(SUPABASE_URL + "/rest/v1/contracts", {
+            method: "POST",
+            headers: authHeaders({ Prefer: "return=representation" }),
+            body: JSON.stringify(contractPayload)
+          });
+          var crows = await cr.json();
+          if (!cr.ok) throw new Error("Contract failed");
+          var contractId = crows[0] && crows[0].id;
+          window._lastCreatedContractId = contractId;
+          var dueDate = new Date();
+          dueDate.setDate(dueDate.getDate() + 10);
+          var itemPayload = {
+            dealer_id: currentDealer.id, contract_id: contractId,
+            customer_name: (fname + " " + lname).trim(), dealership_name: currentDealer.name,
+            contract_type: contractType, retail_price: retail,
+            wholesale_price: wholesale, dealer_profit: retail - wholesale,
+            due_date: dueDate.toISOString(), status: "unpaid", payment_method: "invoice"
+          };
+          await fetch(SUPABASE_URL + "/rest/v1/invoice_items", {
+            method: "POST", headers: authHeaders(), body: JSON.stringify(itemPayload)
+          });
+          if (typeof window.refreshBillingCartBadge === "function") await window.refreshBillingCartBadge();
+          if (typeof window.showBillingCart === "function") window.showBillingCart();
+          alert("Added to cart! Pay from your Billing Cart within 10 days.");
+        } catch (e) {
+          btn.disabled = false;
+          btn.textContent = "★ Add to Cart — Pay within 10 days";
+          alert("Could not add to cart. Please try again.");
+        }
+      };
+    }
+    var payNowBtn = document.getElementById("enroll-paynow-btn");
+    if (payNowBtn) {
+      payNowBtn.onclick = function() {
+        closeEnrollConfirmModal();
+        chargeEnrollmentNow();
+      };
+    }
     document.getElementById("enroll-confirm-modal").style.display = "flex";
   };
 
@@ -2458,39 +2507,6 @@ window.addEventListener("load", function() {
   var _pendingEnrollmentType = "";
   var _pendingEnrollmentContext = null;
   window._lastCreatedContractId = window._lastCreatedContractId || null;
-  var _enrollmentPaymentChoiceTemplate = "";
-  var _paymentChoiceEl = document.getElementById("enrollment-payment-choice");
-  if (_paymentChoiceEl) _enrollmentPaymentChoiceTemplate = _paymentChoiceEl.innerHTML;
-
-  window.showPaymentChoice = function(contractId, customerName, contractType, wholesale, retail, context) {
-    _pendingEnrollmentContractId = contractId;
-    _pendingEnrollmentWholesale = wholesale;
-    _pendingEnrollmentRetail = retail;
-    _pendingEnrollmentCustomer = customerName;
-    _pendingEnrollmentType = contractType;
-    _pendingEnrollmentContext = context || null;
-
-    var formEl = document.getElementById("enroll-form-content");
-    if (formEl) formEl.style.display = "none";
-    var successEl = document.getElementById("enroll-success-screen");
-    if (successEl) successEl.style.display = "none";
-    var linkBox = document.getElementById("enroll-link-box");
-    if (linkBox) linkBox.style.display = "none";
-    var choiceEl = document.getElementById("enrollment-payment-choice");
-    if (choiceEl) {
-      if (_enrollmentPaymentChoiceTemplate && choiceEl.innerHTML !== _enrollmentPaymentChoiceTemplate) {
-        choiceEl.innerHTML = _enrollmentPaymentChoiceTemplate;
-      }
-      choiceEl.style.display = "block";
-    }
-
-    var summaryEl = document.getElementById("epc-customer-summary");
-    if (summaryEl) summaryEl.textContent = customerName + " — " + contractType.toUpperCase() + " Contract";
-    var cartAmtEl = document.getElementById("epc-cart-amount");
-    if (cartAmtEl) cartAmtEl.textContent = "$" + Number(wholesale).toLocaleString();
-    var payAmtEl = document.getElementById("epc-pay-amount");
-    if (payAmtEl) payAmtEl.textContent = "$" + Number(wholesale).toLocaleString();
-  };
 
   var _cartItems = [];
   var _selectedCartIds = new Set();
@@ -2744,149 +2760,7 @@ window.addEventListener("load", function() {
     loadBillingCart();
   };
 
-  window.addToInvoiceCart = async function() {
-    var btn = document.getElementById("epc-add-to-cart-btn");
-    if (!btn || !_pendingEnrollmentContractId) return;
-    btn.disabled = true;
-    btn.textContent = "Adding to cart...";
-    try {
-      var dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 10);
-      var itemPayload = {
-        dealer_id: currentDealer.id,
-        contract_id: _pendingEnrollmentContractId,
-        customer_name: _pendingEnrollmentCustomer,
-        dealership_name: currentDealer.name,
-        contract_type: _pendingEnrollmentType,
-        retail_price: _pendingEnrollmentRetail,
-        wholesale_price: _pendingEnrollmentWholesale,
-        dealer_profit: _pendingEnrollmentRetail - _pendingEnrollmentWholesale,
-        due_date: dueDate.toISOString(),
-        status: "unpaid",
-        payment_method: "invoice"
-      };
-      var r = await fetch(SUPABASE_URL + "/rest/v1/invoice_items", {
-        method: "POST",
-        headers: authHeaders({ Prefer: "return=representation" }),
-        body: JSON.stringify(itemPayload)
-      });
-      var rows = await r.json();
-      if (!r.ok) throw new Error("Unable to create invoice item");
-      var itemId = rows[0] && rows[0].id;
-      await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + _pendingEnrollmentContractId, {
-        method: "PATCH",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          invoice_item_id: itemId,
-          payment_method: "invoice",
-          status: "pending_payment"
-        })
-      });
-      await writeAuditLog("invoice", itemId, "added_to_cart", null,
-        { customer: _pendingEnrollmentCustomer, amount: _pendingEnrollmentWholesale },
-        currentDealer.name, null, "Contract added to invoice cart: " + _pendingEnrollmentCustomer);
-      var choiceEl = document.getElementById("enrollment-payment-choice");
-      if (choiceEl) {
-        choiceEl.innerHTML =
-          '<div style="text-align:center;padding:2rem;">' +
-          '<div style="font-size:32px;margin-bottom:0.75rem;">🛒</div>' +
-          '<div style="font-family:\'Cormorant Garamond\',serif;font-size:22px;color:#0c1e2e;margin-bottom:0.5rem;">Added to Cart!</div>' +
-          '<div style="font-size:13px;color:#4a6278;margin-bottom:1.5rem;">Payment due within 10 days. Contract activates upon payment.</div>' +
-          '<button onclick="enrollAnotherCustomer()" style="background:#0c1e2e;color:white;border:none;padding:11px 28px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Done</button>' +
-          '<div style="margin-top:0.75rem;"><a href="#" onclick="if(typeof showBillingCart === \'function\'){showBillingCart();}return false;" style="font-size:12px;color:#b8963e;">View your cart →</a></div>' +
-          "</div>";
-      }
-      if (typeof window.loadDashboard === "function") await window.loadDashboard();
-      if (typeof window.loadCustomersTab === "function") await window.loadCustomersTab();
-      if (typeof window.refreshBillingCartBadge === "function") await window.refreshBillingCartBadge();
-    } catch (e) {
-      btn.disabled = false;
-      btn.textContent = "Add to Cart";
-      alert("Could not add to cart. Please try again.");
-    }
-  };
-
-  window.payEnrollmentNow = async function() {
-    var btn = document.getElementById("epc-pay-now-btn");
-    if (!btn || !_pendingEnrollmentContractId) return;
-    btn.disabled = true;
-    btn.textContent = "Processing...";
-    try {
-      var stripeCustomerId = currentDealer.stripeCustomerId;
-      if (!stripeCustomerId) {
-        var dealerRes = await fetch(
-          SUPABASE_URL + "/rest/v1/dealers?id=eq." + currentDealer.id + "&select=stripe_customer_id",
-          { headers: authHeaders() }
-        );
-        var dealerRows = await dealerRes.json();
-        stripeCustomerId = dealerRows[0] && dealerRows[0].stripe_customer_id;
-      }
-      if (!stripeCustomerId) throw new Error("No payment method on file");
-      var chargeResult = await chargeEnrollmentCardOnFile(
-        _pendingEnrollmentContractId,
-        _pendingEnrollmentWholesale,
-        _pendingEnrollmentCustomer,
-        _pendingEnrollmentType
-      );
-      await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + _pendingEnrollmentContractId, {
-        method: "PATCH",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          status: "active",
-          payment_method: "card_on_file",
-          stripe_payment_id: chargeResult.paymentIntentId,
-          paid_at: new Date().toISOString(),
-          wholesale_price: _pendingEnrollmentWholesale,
-          stripe_charge_amount: _pendingEnrollmentWholesale
-        })
-      });
-      if (_pendingEnrollmentContext && _pendingEnrollmentContext.custEmail) {
-        await fetch("/api/send-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: _pendingEnrollmentContext.custEmail,
-            subject: "Your Whitestone Partners Contract is Active — " + _pendingEnrollmentContext.boatYear + " " + _pendingEnrollmentContext.boatMake + " " + _pendingEnrollmentContext.boatModel,
-            html: "<div style=\"font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:2rem;\"><h2 style=\"color:#0c1e2e;font-family:Georgia,serif;font-weight:300;\">Your contract is active.</h2><p style=\"color:#6b8599;\">Hi " + _pendingEnrollmentContext.custFirstName + ", your Whitestone Partners annual boat service contract is now active.</p><table style=\"width:100%;border-collapse:collapse;font-size:14px;margin:1.5rem 0;\"><tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;width:120px;\">Boat</td><td style=\"padding:8px 0;font-weight:500;\">" + _pendingEnrollmentContext.boatYear + " " + _pendingEnrollmentContext.boatMake + " " + _pendingEnrollmentContext.boatModel + "</td></tr><tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">HIN</td><td style=\"padding:8px 0;font-family:monospace;\">" + _pendingEnrollmentContext.hinVal + "</td></tr><tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">Contract</td><td style=\"padding:8px 0;font-weight:500;\">" + _pendingEnrollmentContext.contractLabel + "</td></tr><tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">Enrolled</td><td style=\"padding:8px 0;\">" + _pendingEnrollmentContext.enrollDate + "</td></tr><tr style=\"border-bottom:1px solid #eee;\"><td style=\"padding:8px 0;color:#999;\">Expires</td><td style=\"padding:8px 0;\">" + _pendingEnrollmentContext.expireDate + "</td></tr><tr><td style=\"padding:8px 0;color:#999;\">Dealer</td><td style=\"padding:8px 0;font-weight:500;\">" + currentDealer.name + "</td></tr></table><p style=\"color:#6b8599;font-size:13px;\">Questions? <a href=\"mailto:support@whitestone-partners.com\" style=\"color:#b8963e;\">support@whitestone-partners.com</a></p><p style=\"color:#b8963e;font-style:italic;font-family:Georgia,serif;\">\"The contract that brings your customers back. Every season.\"</p></div>"
-          })
-        }).catch(function(e) { console.log("Customer email error:", e); });
-      }
-      if (_pendingEnrollmentContext && currentDealer && currentDealer.email) {
-        var dealerEmailHtml = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head>" +
-          "<body style=\"margin:0;padding:0;background:#f0f4f8;font-family:Arial,sans-serif;\"><table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f0f4f8;padding:2rem 1rem;\"><tr><td align=\"center\"><table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;width:100%;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);\"><tr><td style=\"height:4px;background:linear-gradient(90deg,#b8963e,#d4ac52,#b8963e);\"></td></tr><tr><td style=\"background:#0c1e2e;padding:1.5rem 2rem;\"><div style=\"font-family:Georgia,serif;font-size:22px;font-weight:300;color:white;letter-spacing:0.06em;\">WHITESTONE PARTNERS</div><div style=\"font-size:10px;color:#b8963e;letter-spacing:0.18em;text-transform:uppercase;margin-top:4px;\">Contract Activated</div></td></tr><tr><td style=\"padding:1.75rem 2rem;\"><p style=\"font-size:15px;font-weight:600;color:#0c1e2e;margin-bottom:0.5rem;\">New contract activated at " + currentDealer.name + "</p><p style=\"font-size:13.5px;color:#6b8599;margin-bottom:1.5rem;\">A new Whitestone Partners contract is now active for your customer. You can begin submitting service tickets immediately.</p><table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"font-size:13.5px;border-collapse:collapse;\"><tr style=\"border-bottom:1px solid #eef0f3;\"><td style=\"padding:9px 0;color:#6b8599;width:140px;\">Customer</td><td style=\"padding:9px 0;font-weight:500;color:#0c1e2e;\">" + _pendingEnrollmentContext.custFirstName + " " + _pendingEnrollmentContext.custLastName + "</td></tr><tr style=\"border-bottom:1px solid #eef0f3;\"><td style=\"padding:9px 0;color:#6b8599;\">Boat</td><td style=\"padding:9px 0;font-weight:500;color:#0c1e2e;\">" + _pendingEnrollmentContext.boatYear + " " + _pendingEnrollmentContext.boatMake + " " + _pendingEnrollmentContext.boatModel + "</td></tr><tr style=\"border-bottom:1px solid #eef0f3;\"><td style=\"padding:9px 0;color:#6b8599;\">HIN</td><td style=\"padding:9px 0;font-family:monospace;color:#0c1e2e;\">" + _pendingEnrollmentContext.hinVal + "</td></tr><tr style=\"border-bottom:1px solid #eef0f3;\"><td style=\"padding:9px 0;color:#6b8599;\">Contract</td><td style=\"padding:9px 0;font-weight:500;color:#0c1e2e;\">" + _pendingEnrollmentContext.contractLabel + "</td></tr><tr style=\"border-bottom:1px solid #eef0f3;\"><td style=\"padding:9px 0;color:#6b8599;\">Activated</td><td style=\"padding:9px 0;color:#0c1e2e;\">" + _pendingEnrollmentContext.enrollDate + "</td></tr><tr style=\"border-bottom:1px solid #eef0f3;\"><td style=\"padding:9px 0;color:#6b8599;\">Expires</td><td style=\"padding:9px 0;color:#0c1e2e;\">" + _pendingEnrollmentContext.expireDate + "</td></tr><tr><td style=\"padding:9px 0;color:#6b8599;\">Amount Charged</td><td style=\"padding:9px 0;font-weight:700;color:#b8963e;font-family:Georgia,serif;font-size:16px;\">$" + Number(_pendingEnrollmentWholesale).toLocaleString() + "</td></tr></table><div style=\"margin-top:1.5rem;padding:1rem;background:#f8f5ee;border-left:3px solid #b8963e;border-radius:4px;font-size:13px;color:#3d5870;\">Submit service tickets through your dealer portal after each covered service to earn reimbursements.</div><div style=\"margin-top:1.5rem;\"><a href=\"https://whitestone-dealer-portal.vercel.app\" style=\"display:inline-block;background:#0c1e2e;color:white;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:13px;font-weight:600;\">View in Portal →</a></div></td></tr><tr><td style=\"padding:1rem 2rem;background:#f8f9fb;border-top:1px solid #eef0f3;font-size:11px;color:#9aafbf;text-align:center;\">Whitestone Partners LLC · St. George, Utah · <a href=\"mailto:support@whitestone-partners.com\" style=\"color:#b8963e;text-decoration:none;\">support@whitestone-partners.com</a></td></tr><tr><td style=\"height:4px;background:linear-gradient(90deg,#b8963e,#d4ac52,#b8963e);\"></td></tr></table></td></tr></table></body></html>";
-        await fetch("/api/send-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: currentDealer.email,
-            subject: "✓ Contract Activated — " + _pendingEnrollmentContext.custFirstName + " " + _pendingEnrollmentContext.custLastName + " · " + _pendingEnrollmentContext.boatYear + " " + _pendingEnrollmentContext.boatMake + " " + _pendingEnrollmentContext.boatModel,
-            html: dealerEmailHtml
-          })
-        }).catch(function(e) { console.log("Dealer email error:", e); });
-      }
-      await writeAuditLog("contract", _pendingEnrollmentContractId, "customer_enrolled", null,
-        { contract_type: _pendingEnrollmentType, amount: _pendingEnrollmentWholesale, payment_id: chargeResult.paymentIntentId },
-        currentDealer.name, _pendingEnrollmentCustomer, "Contract enrolled and payment charged $" + _pendingEnrollmentWholesale);
-      if (typeof window.onboardingMarkStep === "function") await window.onboardingMarkStep("first_customer");
-      if (typeof window.loadDashboard === "function") await window.loadDashboard();
-      if (typeof window.loadCustomersTab === "function") await window.loadCustomersTab();
-      if (typeof window.refreshBillingCartBadge === "function") await window.refreshBillingCartBadge();
-      var choiceEl = document.getElementById("enrollment-payment-choice");
-      if (choiceEl) {
-        choiceEl.innerHTML =
-          '<div style="text-align:center;padding:2rem;">' +
-          '<div style="font-size:32px;margin-bottom:0.75rem;">✅</div>' +
-          '<div style="font-family:\'Cormorant Garamond\',serif;font-size:22px;color:#0c1e2e;margin-bottom:0.5rem;">Payment Received!</div>' +
-          '<div style="font-size:13px;color:#4a6278;margin-bottom:1.5rem;">Contract is now active. Customer is covered.</div>' +
-          '<button onclick="enrollAnotherCustomer()" style="background:#0c1e2e;color:white;border:none;padding:11px 28px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Done</button>' +
-          "</div>";
-      }
-    } catch (e) {
-      btn.disabled = false;
-      btn.textContent = "Pay Now";
-      alert((e && e.message ? e.message : "Payment failed") + ". Please try again or add to cart.");
-    }
-  };
+  
 
   async function chargeEnrollmentCardOnFile(contractId, amount, customerName, contractType) {
     var stripeCustomerId = currentDealer.stripeCustomerId;
@@ -2922,11 +2796,6 @@ window.addEventListener("load", function() {
 
   window.enrollAnotherCustomer = function() {
     document.getElementById("enroll-success-screen").style.display = "none";
-    var choiceEl = document.getElementById("enrollment-payment-choice");
-    if (choiceEl) {
-      choiceEl.style.display = "none";
-      if (_enrollmentPaymentChoiceTemplate) choiceEl.innerHTML = _enrollmentPaymentChoiceTemplate;
-    }
     var formContent = document.getElementById("enroll-form-content");
     if (formContent) formContent.style.display = "block";
     window.selectedContractLength = null;
@@ -3299,12 +3168,7 @@ window.addEventListener("load", function() {
   });
 
   window.chargeEnrollmentNow = async function() {
-    var confirmBtn = document.getElementById("enroll-confirm-submit-btn");
     if (!selectedContractLength) return;
-    if (confirmBtn) {
-      confirmBtn.disabled = true;
-      confirmBtn.textContent = "Processing...";
-    }
     var priceMap = {
       "1yr": dealerPricingData ? dealerPricingData.contract_retail_1yr : 3325,
       "2yr": dealerPricingData ? dealerPricingData.contract_retail_2yr : 6650,
@@ -3348,10 +3212,6 @@ window.addEventListener("load", function() {
     if (!contractRes.ok) {
       document.getElementById("e-err").textContent = "Could not save enrollment. Please try again.";
       document.getElementById("e-err").style.display = "block";
-      if (confirmBtn) {
-        confirmBtn.disabled = false;
-        confirmBtn.textContent = "Confirm Enrollment";
-      }
       return;
     }
     var contractId = Array.isArray(contractResult) ? contractResult[0].id : contractResult.id;
@@ -3372,60 +3232,37 @@ window.addEventListener("load", function() {
     } else {
       expireDate = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     }
+    var chargeResult = await chargeEnrollmentCardOnFile(contractId, amount, customerName, selectedContractLength);
+    await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + contractId, {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        status: "active",
+        payment_method: "card_on_file",
+        stripe_payment_id: chargeResult.paymentIntentId,
+        paid_at: new Date().toISOString(),
+        wholesale_price: amount,
+        stripe_charge_amount: amount
+      })
+    });
+    await writeAuditLog("contract", contractId, "customer_enrolled", null,
+      { contract_type: selectedContractLength, amount: amount, payment_id: chargeResult.paymentIntentId },
+      currentDealer.name, customerName, "Contract enrolled and payment charged $" + amount);
+    if (typeof window.onboardingMarkStep === "function") await window.onboardingMarkStep("first_customer");
     closeEnrollConfirmModal();
     document.getElementById("e-err").style.display = "none";
-    showPaymentChoice(contractId, customerName, selectedContractLength, amount, amount, {
-      custEmail: custEmail,
-      custFirstName: custFirstName,
-      custLastName: custLastName,
-      boatMake: boatMake,
-      boatModel: boatModel,
-      boatYear: boatYear,
+    if (typeof window.loadDashboard === "function") await window.loadDashboard();
+    if (typeof window.loadCustomersTab === "function") await window.loadCustomersTab();
+    if (typeof window.refreshBillingCartBadge === "function") await window.refreshBillingCartBadge();
+    window.showEnrollSuccess({
+      customerName: custFirstName + " " + custLastName,
+      boat: boatYear + " " + boatMake + " " + boatModel,
       contractLabel: contractLabel,
+      amount: amount,
       enrollDate: enrollDate,
-      expireDate: expireDate,
-      hinVal: hinVal
+      expireDate: expireDate
     });
-    var choiceEl = document.getElementById("enrollment-payment-choice");
-    if (choiceEl) choiceEl.scrollIntoView({ behavior: "smooth", block: "center" });
-    if (confirmBtn) {
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = "Confirm Enrollment";
-    }
   };
-
-  document.getElementById("enroll-confirm-submit-btn").addEventListener("click", async function() {
-    await chargeEnrollmentNow();
-  });
-
-  (function() {
-    var btn = document.getElementById("enroll-confirm-submit-btn");
-    if (!btn) return;
-    var newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
-    newBtn.addEventListener("click", function(e) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      var modal = newBtn.closest('[id*="modal"],[id*="confirm"],[id*="review"],[class*="modal"]');
-      if (!modal) modal = newBtn.parentElement;
-      while (modal && modal.style && modal.style.display !== "flex" && modal.style.display !== "block" && modal.parentElement) {
-        modal = modal.parentElement;
-      }
-      if (modal && modal !== document.body) modal.style.display = "none";
-      var cType = selectedContractLength || "1yr";
-      var wMap = { "1yr": 3325, "2yr": 6650, "3yr": 9975 };
-      var rMap = { "1yr": 4075, "2yr": 8150, "3yr": 12225 };
-      var fn = (document.getElementById("e-fname") || {}).value || "";
-      var ln = (document.getElementById("e-lname") || {}).value || "";
-      var customerName = (fn + " " + ln).trim() || "Customer";
-      var contractId = window._lastCreatedContractId;
-      if (!contractId) {
-        if (typeof chargeEnrollmentNow === "function") chargeEnrollmentNow();
-        return;
-      }
-      showPaymentChoice(contractId, customerName, cType, wMap[cType], rMap[cType]);
-    });
-  })();
 
   if (typeof currentDealer !== "undefined" && currentDealer && !currentDealer.isAdmin) {
     dealerLoadRateCard();
