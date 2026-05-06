@@ -2449,7 +2449,8 @@ window.addEventListener("load", function() {
             customer_name: (fname + " " + lname).trim(), dealership_name: currentDealer.name,
             contract_type: contractType, retail_price: retail,
             wholesale_price: wholesale, dealer_profit: retail - wholesale,
-            due_date: dueDate.toISOString(), status: "unpaid", payment_method: "invoice"
+            due_date: dueDate.toISOString(), status: "unpaid", payment_method: "invoice",
+            hin: hin, boat_make: make, boat_model: model, boat_year: parseInt(year, 10) || null
           };
           await fetch(SUPABASE_URL + "/rest/v1/invoice_items", {
             method: "POST", headers: authHeaders(), body: JSON.stringify(itemPayload)
@@ -2529,7 +2530,7 @@ window.addEventListener("load", function() {
     listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--light);font-size:13px;">Loading cart...</div>';
     try {
       var r = await fetch(
-        SUPABASE_URL + "/rest/v1/invoice_items?dealer_id=eq." + currentDealer.id + "&status=eq.unpaid&order=created_at.asc",
+        SUPABASE_URL + "/rest/v1/invoice_items?dealer_id=eq." + currentDealer.id + "&status=eq.unpaid&order=created_at.asc&select=*,contracts(hin,boat_make,boat_model,boat_year,customer_first_name,customer_last_name)",
         { headers: authHeaders() }
       );
       _cartItems = await r.json();
@@ -2566,6 +2567,12 @@ window.addEventListener("load", function() {
         var isWarning = daysLeft <= 2 && daysLeft >= 0;
         var statusColor = isOverdue ? "#c0392b" : (isWarning ? "#f59e0b" : "#1b5e20");
         var statusText = isOverdue ? ("Overdue by " + Math.abs(daysLeft) + " days") : (daysLeft + " days left");
+        var boatInfo = item.contracts || {};
+        var hin = item.hin || boatInfo.hin || "—";
+        var boatMake = item.boat_make || boatInfo.boat_make || "";
+        var boatModel = item.boat_model || boatInfo.boat_model || "";
+        var boatYear = item.boat_year || boatInfo.boat_year || "";
+        var boatStr = [boatYear, boatMake, boatModel].filter(Boolean).join(" ");
         var safeCustomer = String(item.customer_name || "—").replace(/'/g, "\\'");
         var safeContractId = String(item.contract_id || "").replace(/'/g, "\\'");
         return '<div class="card" style="margin-bottom:0.5rem;' + (isOverdue ? "border-color:#ffcdd2;background:#fff5f5;" : "") + '">' +
@@ -2575,9 +2582,11 @@ window.addEventListener("load", function() {
           ' data-profit="' + (item.dealer_profit || 0) + '"' +
           ' onchange="updateCartSelection()"' +
           ' style="width:16px;height:16px;cursor:pointer;">' +
-          '<div style="flex:1;min-width:120px;">' +
+          '<div style="flex:1;min-width:150px;">' +
           '<div style="font-size:14px;font-weight:600;color:var(--navy);">' + (item.customer_name || "—") + "</div>" +
-          '<div style="font-size:11px;color:var(--light);">' + String(item.contract_type || "").toUpperCase() + " · Added " + added.toLocaleDateString() + "</div>" +
+          '<div style="font-size:11px;color:var(--mid);margin-top:1px;">' + (boatStr || "Boat info unavailable") + "</div>" +
+          '<div style="font-size:11px;color:var(--light);margin-top:1px;"><span style="font-weight:600;color:var(--navy);">HIN:</span> ' + hin + "</div>" +
+          '<div style="font-size:10px;color:var(--light);margin-top:2px;">' + String(item.contract_type || "").toUpperCase() + " · Added " + added.toLocaleDateString() + "</div>" +
           "</div>" +
           '<div style="text-align:right;min-width:80px;"><div style="font-size:10px;color:var(--light);">You Sold</div><div style="font-size:14px;font-weight:600;color:var(--navy);">$' + Number(item.retail_price || 0).toLocaleString() + "</div></div>" +
           '<div style="text-align:right;min-width:80px;"><div style="font-size:10px;color:var(--light);">You Owe WP</div><div style="font-size:14px;font-weight:600;color:#c0392b;">$' + Number(item.wholesale_price || 0).toLocaleString() + "</div></div>" +
