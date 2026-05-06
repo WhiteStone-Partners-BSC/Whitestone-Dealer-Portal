@@ -1,8 +1,8 @@
 {
   "name": "whitestone-dealer-portal",
   "private": true,
-  "type": "module",
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.8"
+    "@supabase/supabase-js": "^2.49.8",
+    "pdf-lib": "^1.17.1"
   }
 }
