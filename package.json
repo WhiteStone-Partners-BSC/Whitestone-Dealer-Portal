@@ -1,5 +1,12 @@
 {
   "name": "whitestone-dealer-portal",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "setup:pdf-template": "mkdir -p public && cp \"New_Client_Enrollment_Form_Final.pdf\" public/enrollment-form-template.pdf"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.8",
+    "pdf-lib": "^1.17.1"
+  }
 }
