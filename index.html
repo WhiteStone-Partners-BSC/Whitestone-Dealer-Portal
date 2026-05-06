@@ -2457,6 +2457,7 @@ window.addEventListener("load", function() {
   var _pendingEnrollmentCustomer = "";
   var _pendingEnrollmentType = "";
   var _pendingEnrollmentContext = null;
+  window._lastCreatedContractId = window._lastCreatedContractId || null;
   var _enrollmentPaymentChoiceTemplate = "";
   var _paymentChoiceEl = document.getElementById("enrollment-payment-choice");
   if (_paymentChoiceEl) _enrollmentPaymentChoiceTemplate = _paymentChoiceEl.innerHTML;
@@ -2821,24 +2822,12 @@ window.addEventListener("load", function() {
         stripeCustomerId = dealerRows[0] && dealerRows[0].stripe_customer_id;
       }
       if (!stripeCustomerId) throw new Error("No payment method on file");
-      var chargeRes = await fetch("/api/charge-enrollment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          stripeCustomerId: stripeCustomerId,
-          amount: _pendingEnrollmentWholesale,
-          dealerName: currentDealer.name,
-          customerName: _pendingEnrollmentCustomer,
-          contractType: _pendingEnrollmentType,
-          contractId: _pendingEnrollmentContractId
-        })
-      });
-      var chargeResult = await chargeRes.json();
-      if (!chargeRes.ok || !chargeResult.success) {
-        var failMsg = chargeResult.error;
-        if (failMsg && typeof failMsg === "object") failMsg = failMsg.message || JSON.stringify(failMsg);
-        throw new Error(failMsg || "Payment failed");
-      }
+      var chargeResult = await chargeEnrollmentCardOnFile(
+        _pendingEnrollmentContractId,
+        _pendingEnrollmentWholesale,
+        _pendingEnrollmentCustomer,
+        _pendingEnrollmentType
+      );
       await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + _pendingEnrollmentContractId, {
         method: "PATCH",
         headers: authHeaders(),
@@ -2898,6 +2887,38 @@ window.addEventListener("load", function() {
       alert((e && e.message ? e.message : "Payment failed") + ". Please try again or add to cart.");
     }
   };
+
+  async function chargeEnrollmentCardOnFile(contractId, amount, customerName, contractType) {
+    var stripeCustomerId = currentDealer.stripeCustomerId;
+    if (!stripeCustomerId) {
+      var dealerRes = await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?id=eq." + currentDealer.id + "&select=stripe_customer_id",
+        { headers: authHeaders() }
+      );
+      var dealerRows = await dealerRes.json();
+      stripeCustomerId = dealerRows[0] && dealerRows[0].stripe_customer_id;
+    }
+    if (!stripeCustomerId) throw new Error("No payment method on file");
+    var chargeRes = await fetch("/api/charge-enrollment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        stripeCustomerId: stripeCustomerId,
+        amount: amount,
+        dealerName: currentDealer.name,
+        customerName: customerName,
+        contractType: contractType,
+        contractId: contractId
+      })
+    });
+    var chargeResult = await chargeRes.json();
+    if (!chargeRes.ok || !chargeResult.success) {
+      var failMsg = chargeResult.error;
+      if (failMsg && typeof failMsg === "object") failMsg = failMsg.message || JSON.stringify(failMsg);
+      throw new Error(failMsg || "Payment failed");
+    }
+    return chargeResult;
+  }
 
   window.enrollAnotherCustomer = function() {
     document.getElementById("enroll-success-screen").style.display = "none";
@@ -3277,10 +3298,13 @@ window.addEventListener("load", function() {
     this.textContent = "Review Enrollment";
   });
 
-  document.getElementById("enroll-confirm-submit-btn").addEventListener("click", async function() {
+  window.chargeEnrollmentNow = async function() {
+    var confirmBtn = document.getElementById("enroll-confirm-submit-btn");
     if (!selectedContractLength) return;
-    this.disabled = true;
-    this.textContent = "Processing...";
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Processing...";
+    }
     var priceMap = {
       "1yr": dealerPricingData ? dealerPricingData.contract_retail_1yr : 3325,
       "2yr": dealerPricingData ? dealerPricingData.contract_retail_2yr : 6650,
@@ -3324,11 +3348,14 @@ window.addEventListener("load", function() {
     if (!contractRes.ok) {
       document.getElementById("e-err").textContent = "Could not save enrollment. Please try again.";
       document.getElementById("e-err").style.display = "block";
-      this.disabled = false;
-      this.textContent = "Confirm Enrollment";
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "Confirm Enrollment";
+      }
       return;
     }
     var contractId = Array.isArray(contractResult) ? contractResult[0].id : contractResult.id;
+    window._lastCreatedContractId = contractId;
     var custEmail     = document.getElementById("e-email") ? document.getElementById("e-email").value.trim() : "";
     var custFirstName = document.getElementById("e-fname") ? document.getElementById("e-fname").value.trim() : "";
     var custLastName  = document.getElementById("e-lname") ? document.getElementById("e-lname").value.trim() : "";
@@ -3361,9 +3388,44 @@ window.addEventListener("load", function() {
     });
     var choiceEl = document.getElementById("enrollment-payment-choice");
     if (choiceEl) choiceEl.scrollIntoView({ behavior: "smooth", block: "center" });
-    this.disabled = false;
-    this.textContent = "Confirm Enrollment";
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Confirm Enrollment";
+    }
+  };
+
+  document.getElementById("enroll-confirm-submit-btn").addEventListener("click", async function() {
+    await chargeEnrollmentNow();
   });
+
+  (function() {
+    var btn = document.getElementById("enroll-confirm-submit-btn");
+    if (!btn) return;
+    var newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    newBtn.addEventListener("click", function(e) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      var modal = newBtn.closest('[id*="modal"],[id*="confirm"],[id*="review"],[class*="modal"]');
+      if (!modal) modal = newBtn.parentElement;
+      while (modal && modal.style && modal.style.display !== "flex" && modal.style.display !== "block" && modal.parentElement) {
+        modal = modal.parentElement;
+      }
+      if (modal && modal !== document.body) modal.style.display = "none";
+      var cType = selectedContractLength || "1yr";
+      var wMap = { "1yr": 3325, "2yr": 6650, "3yr": 9975 };
+      var rMap = { "1yr": 4075, "2yr": 8150, "3yr": 12225 };
+      var fn = (document.getElementById("e-fname") || {}).value || "";
+      var ln = (document.getElementById("e-lname") || {}).value || "";
+      var customerName = (fn + " " + ln).trim() || "Customer";
+      var contractId = window._lastCreatedContractId;
+      if (!contractId) {
+        if (typeof chargeEnrollmentNow === "function") chargeEnrollmentNow();
+        return;
+      }
+      showPaymentChoice(contractId, customerName, cType, wMap[cType], rMap[cType]);
+    });
+  })();
 
   if (typeof currentDealer !== "undefined" && currentDealer && !currentDealer.isAdmin) {
     dealerLoadRateCard();
