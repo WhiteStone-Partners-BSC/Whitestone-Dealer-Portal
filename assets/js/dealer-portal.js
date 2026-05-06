@@ -4140,8 +4140,8 @@ function financialsGetDateFilter() {
 window.financialsLoad = async function() {
   var dateFilter = financialsGetDateFilter();
 
-  var contractsUrl = SUPABASE_URL + "/rest/v1/contracts?select=*";
-  if (dateFilter) contractsUrl += "&created_at=gte." + dateFilter;
+  var contractsUrl = SUPABASE_URL + "/rest/v1/contracts?paid_at=not.is.null&select=*";
+  if (dateFilter) contractsUrl += "&paid_at=gte." + dateFilter;
   var contractsRes = await fetch(contractsUrl, { headers: authHeaders() });
   var contracts = await contractsRes.json() || [];
 
@@ -4156,7 +4156,12 @@ window.financialsLoad = async function() {
   );
   var pricing = await pricingRes.json() || [];
 
-  var wholesaleTotal = contracts.reduce(function(total, c) {
+  var paidContracts = contracts.filter(function(c) {
+    return !!c.paid_at;
+  });
+  var paidContractIds = new Set(paidContracts.map(function(c) { return c.id; }));
+
+  var wholesaleTotal = paidContracts.reduce(function(total, c) {
     var dealerPricing = pricing.find(function(p) {
       return p.dealership_name === c.dealership_name;
     });
@@ -4169,9 +4174,14 @@ window.financialsLoad = async function() {
     return total + (priceMap[c.contract_type] || 0);
   }, 0);
 
-  var paidReimbs = reimbs.filter(function(r) { return r.status === "paid"; });
+  var reimbsOnPaidContracts = reimbs.filter(function(r) {
+    return !!r.contract_id && paidContractIds.has(r.contract_id);
+  });
+  var paidReimbs = reimbsOnPaidContracts.filter(function(r) { return r.status === "paid"; });
   var pendingReimbs = reimbs.filter(function(r) {
-    return r.status === "pending" || r.status === "approved";
+    return (r.status === "pending" || r.status === "approved") &&
+      !!r.contract_id &&
+      paidContractIds.has(r.contract_id);
   });
   var reimbTotal = paidReimbs.reduce(function(a, r) { return a + (r.amount || 150); }, 0);
   var outstandingTotal = pendingReimbs.reduce(function(a, r) { return a + (r.amount || 150); }, 0);
@@ -4180,7 +4190,7 @@ window.financialsLoad = async function() {
   var wEl = document.getElementById("fin-wholesale");
   if (wEl) wEl.textContent = "$" + wholesaleTotal.toLocaleString();
   var wsSub = document.getElementById("fin-wholesale-sub");
-  if (wsSub) wsSub.textContent = contracts.length + " contract" + (contracts.length !== 1 ? "s" : "");
+  if (wsSub) wsSub.textContent = paidContracts.length + " contract" + (paidContracts.length !== 1 ? "s" : "");
   var rEl = document.getElementById("fin-reimbursed");
   if (rEl) rEl.textContent = "$" + reimbTotal.toLocaleString();
   var rsSub = document.getElementById("fin-reimbursed-sub");
@@ -4196,7 +4206,7 @@ window.financialsLoad = async function() {
 
   var transEl = document.getElementById("fin-recent-transactions");
   var allTrans = [];
-  contracts.forEach(function(c) {
+  paidContracts.forEach(function(c) {
     allTrans.push({
       type: "contract",
       date: c.created_at,
@@ -4246,7 +4256,7 @@ window.financialsLoad = async function() {
   }
 
   var revenueByDealer = {};
-  contracts.forEach(function(c) {
+  paidContracts.forEach(function(c) {
     var dp = pricing.find(function(p) { return p.dealership_name === c.dealership_name; });
     var pm = {
       "1yr": dp ? dp.contract_retail_1yr : 3325,
@@ -4281,7 +4291,7 @@ window.financialsLoad = async function() {
   }
 
   var revenueByType = { "1yr": 0, "2yr": 0, "3yr": 0 };
-  contracts.forEach(function(c) {
+  paidContracts.forEach(function(c) {
     var dp = pricing.find(function(p) { return p.dealership_name === c.dealership_name; });
     var pm = {
       "1yr": dp ? dp.contract_retail_1yr : 3325,
@@ -4294,7 +4304,7 @@ window.financialsLoad = async function() {
   var typeEl = document.getElementById("fin-revenue-by-type");
   if (typeEl) {
     typeEl.innerHTML = ["1yr", "2yr", "3yr"].map(function(type) {
-      var count = contracts.filter(function(c) { return c.contract_type === type; }).length;
+      var count = paidContracts.filter(function(c) { return c.contract_type === type; }).length;
       return "<div style=\"display:flex;align-items:center;justify-content:space-between;padding:0.85rem 0;border-bottom:1px solid var(--border);\">" +
         "<div><div style=\"font-size:13.5px;font-weight:500;color:var(--navy);\">" + type.toUpperCase() + " Contract</div>" +
         "<div style=\"font-size:12px;color:var(--light);\">" + count + " enrolled</div></div>" +
@@ -4577,7 +4587,7 @@ document.addEventListener("DOMContentLoaded", function() {
     var pendingApps = [];
     try {
       var responses = await Promise.all([
-        fetch(SUPABASE_URL + "/rest/v1/contracts?select=id,status,end_date,retail_price,contract_type,dealership_name,created_at", { headers: hdr }),
+        fetch(SUPABASE_URL + "/rest/v1/contracts?select=id,status,end_date,retail_price,wholesale_price,contract_type,dealership_name,created_at,paid_at,payment_method", { headers: hdr }),
         fetch(SUPABASE_URL + "/rest/v1/tickets?status=eq.pending&select=id", { headers: hdr }),
         fetch(SUPABASE_URL + "/rest/v1/reimbursements?select=id,amount,status,created_at", { headers: hdr }),
         fetch(SUPABASE_URL + "/rest/v1/audit_log?select=*&order=created_at.desc&limit=5", { headers: hdr }),
@@ -4614,20 +4624,29 @@ document.addEventListener("DOMContentLoaded", function() {
 
     var monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     var monthContracts = contracts.filter(function(c) {
-      return c.created_at && new Date(c.created_at) >= monthStart;
+      return c.paid_at &&
+        String(c.status || "").toLowerCase() === "active" &&
+        new Date(c.paid_at) >= monthStart;
     });
     var monthRevenue = monthContracts.reduce(function(a, c) {
-      return a + (Number(c.retail_price) || 0);
+      return a + (Number(c.wholesale_price) || 0);
+    }, 0);
+    var pendingPaymentTotal = contracts.filter(function(c) {
+      return String(c.status || "").toLowerCase() === "pending_payment";
+    }).reduce(function(a, c) {
+      return a + (Number(c.wholesale_price) || 0);
     }, 0);
 
     var elAC = document.getElementById("stat-active-contracts");
     var elACS = document.getElementById("stat-active-contracts-sub");
     var elRev = document.getElementById("stat-revenue");
+    var elPendingPayment = document.getElementById("stat-pending-payment");
     var elPT = document.getElementById("stat-pending-tickets");
     var elEx = document.getElementById("stat-expiring");
     if (elAC) elAC.textContent = String(active.length);
     if (elACS) elACS.textContent = active.length === 1 ? "1 active contract" : active.length + " active contracts";
     if (elRev) elRev.textContent = "$" + Math.round(monthRevenue).toLocaleString();
+    if (elPendingPayment) elPendingPayment.textContent = "$" + Math.round(pendingPaymentTotal).toLocaleString();
     if (elPT) elPT.textContent = String(pendingTix.length);
     if (elEx) elEx.textContent = String(expiring.length);
 
@@ -5880,8 +5899,30 @@ document.addEventListener("DOMContentLoaded", function() {
     btn.disabled = false; btn.textContent = "Submit Service Ticket";
   });
 
+  window.toggleLienholder = function(checked) {
+    document.getElementById("lienholder-fields").style.display = checked ? "block" : "none";
+    document.getElementById("lienholder-none").style.display = checked ? "none" : "block";
+  };
+
+  window.toggleEngine2 = function(checked) {
+    document.getElementById("engine2-fields").style.display = checked ? "block" : "none";
+  };
+
+  window.selectContractLength = window.selectContractLength || function(type, el) {
+    document.querySelectorAll(".contract-option").forEach(function(o) {
+      o.style.border = "2px solid var(--border)";
+      o.style.background = "white";
+    });
+    if (el) {
+      el.style.border = "2px solid #b8963e";
+      el.style.background = "#fffdf5";
+    }
+    window.selectedContractLength = type;
+  };
+
   // ENROLL
-  document.getElementById("enroll-btn").addEventListener("click", async function() {
+  var enrollBtnLegacy = document.getElementById("enroll-btn");
+  if (enrollBtnLegacy) enrollBtnLegacy.addEventListener("click", async function() {
     var fname = document.getElementById("e-fname").value;
     var lname = document.getElementById("e-lname").value;
     var email = document.getElementById("e-email").value;

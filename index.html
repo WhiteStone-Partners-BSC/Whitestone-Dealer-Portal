@@ -306,53 +306,129 @@
     </div>
 
     <!-- ENROLL -->
-    <div class="tab-panel" id="panel-enroll">
-      <div class="card">
-        <div class="card-title">Enroll a Customer</div>
-        <div class="card-sub">Enter your customer's details, choose a contract length, and confirm enrollment before saving.</div>
+    <div class="tab-panel panel" id="panel-enroll" style="display:none;">
+      <div class="panel-shell">
         <div id="enroll-form-content">
-        <div class="fr">
-          <div class="fg"><label>Customer First Name</label><input type="text" id="e-fname" placeholder="First name"></div>
-          <div class="fg"><label>Customer Last Name</label><input type="text" id="e-lname" placeholder="Last name"></div>
-        </div>
-        <div class="fr">
-          <div class="fg"><label>Customer Email</label><input type="email" id="e-email" placeholder="customer@email.com"></div>
-          <div class="fg"><label>Customer Phone</label><input type="tel" id="e-phone" placeholder="(555) 000-0000"></div>
-        </div>
-        <div class="fr">
-          <div class="fg"><label>Boat Make</label><input type="text" id="e-make" placeholder="e.g. Malibu"></div>
-          <div class="fg"><label>Boat Model</label><input type="text" id="e-model" placeholder="e.g. 23 LSV"></div>
-        </div>
-        <div class="fr">
-          <div class="fg"><label>Boat Year</label><input type="text" id="e-year" placeholder="e.g. 2023"></div>
-          <div class="fg"><label>Hull ID (HIN) <span class="req-star">*</span></label><input type="text" id="e-hin" placeholder="Hull identification number" autocomplete="off"></div>
-        </div>
-        <div id="e-hin-error" class="field-err" style="display:none;"></div>
-        <div class="fg" style="margin-bottom:1rem;">
-          <label>Contract Length <span style="color:var(--red);">*</span></label>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;" id="contract-length-selector">
-            <div class="contract-length-option" data-length="1yr" onclick="selectContractLength('1yr')"
-              style="border:2px solid var(--border);border-radius:8px;padding:1rem;text-align:center;cursor:pointer;transition:all 0.2s;">
-              <div style="font-size:11px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">1-Year</div>
-              <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:var(--navy);" id="enroll-price-1yr">—</div>
+          <div class="card" style="margin-bottom:1.5rem;">
+            <h2 style="font-family:'Cormorant Garamond',serif;font-weight:300;font-size:26px;color:var(--navy);margin:0 0 0.25rem;">Enroll a Customer</h2>
+            <p style="font-size:13px;color:var(--light);margin:0;">Complete all required fields to generate the enrollment contract.</p>
+          </div>
+
+          <div class="card" style="margin-bottom:1rem;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:1rem;">Section 1 — Plan Holder Information</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:0.75rem;margin-bottom:0.75rem;">
+              <div><label class="form-label">First Name *</label><input id="e-fname" class="form-input" type="text" placeholder="First name" required></div>
+              <div><label class="form-label">Last Name *</label><input id="e-lname" class="form-input" type="text" placeholder="Last name" required></div>
+              <div><label class="form-label">M.I.</label><input id="e-mi" class="form-input" type="text" placeholder="A" maxlength="1"></div>
             </div>
-            <div class="contract-length-option" data-length="2yr" onclick="selectContractLength('2yr')"
-              style="border:2px solid var(--border);border-radius:8px;padding:1rem;text-align:center;cursor:pointer;transition:all 0.2s;">
-              <div style="font-size:11px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">2-Year</div>
-              <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:var(--navy);" id="enroll-price-2yr">—</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+              <div><label class="form-label">Mailing Address *</label><input id="e-address" class="form-input" type="text" placeholder="123 Main Street" required></div>
+              <div><label class="form-label">Email Address *</label><input id="e-email" class="form-input" type="email" placeholder="customer@email.com" required></div>
             </div>
-            <div class="contract-length-option" data-length="3yr" onclick="selectContractLength('3yr')"
-              style="border:2px solid var(--border);border-radius:8px;padding:1rem;text-align:center;cursor:pointer;transition:all 0.2s;">
-              <div style="font-size:11px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">3-Year</div>
-              <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:var(--navy);" id="enroll-price-3yr">—</div>
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:0.75rem;">
+              <div><label class="form-label">City *</label><input id="e-city" class="form-input" type="text" placeholder="St. George" required></div>
+              <div><label class="form-label">State *</label><input id="e-state" class="form-input" type="text" placeholder="UT" maxlength="2" required></div>
+              <div><label class="form-label">Zip *</label><input id="e-zip" class="form-input" type="text" placeholder="84770" required></div>
+              <div><label class="form-label">Phone *</label><input id="e-phone" class="form-input" type="tel" placeholder="(435) 555-0000" required></div>
             </div>
           </div>
-          <div id="enroll-no-pricing-msg" style="display:none;margin-top:0.75rem;background:#fff5f0;border:1px solid #f0d060;border-radius:6px;padding:0.85rem 1rem;font-size:13px;color:#7a4f00;">
-            ⚠ Your pricing has not been confirmed yet. Please contact <strong>support@whitestone-partners.com</strong> to activate enrollment.
+
+          <div class="card" style="margin-bottom:1rem;">
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+              <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);">Section 2 — Lienholder Information</div>
+              <label style="display:flex;align-items:center;gap:0.4rem;font-size:12px;color:var(--mid);cursor:pointer;margin-left:auto;">
+                <input type="checkbox" id="has-lienholder" onchange="toggleLienholder(this.checked)">
+                This vessel has a lienholder (financed)
+              </label>
+            </div>
+            <div id="lienholder-fields" style="display:none;">
+              <div style="margin-bottom:0.75rem;">
+                <label class="form-label">Lien Holder Name</label>
+                <input id="e-lien-name" class="form-input" type="text" placeholder="Bank or finance company name">
+              </div>
+              <div style="margin-bottom:0.75rem;">
+                <label class="form-label">Mailing Address</label>
+                <input id="e-lien-address" class="form-input" type="text" placeholder="Lienholder address">
+              </div>
+              <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:0.75rem;">
+                <div><label class="form-label">City</label><input id="e-lien-city" class="form-input" type="text" placeholder="City"></div>
+                <div><label class="form-label">State</label><input id="e-lien-state" class="form-input" type="text" placeholder="UT" maxlength="2"></div>
+                <div><label class="form-label">Zip</label><input id="e-lien-zip" class="form-input" type="text" placeholder="84770"></div>
+                <div><label class="form-label">Phone</label><input id="e-lien-phone" class="form-input" type="tel" placeholder="(xxx) xxx-xxxx"></div>
+              </div>
+            </div>
+            <div id="lienholder-none" style="font-size:12px;color:var(--light);font-style:italic;">No lienholder — vessel is owned outright.</div>
           </div>
-        </div>
-        <div class="stripe-note"><span class="stripe-badge">Stripe</span> Pricing is dealer-specific. Payment processing is wired in test mode only.</div>
-        <button class="sub-btn" id="enroll-btn">Review Enrollment</button>
+
+          <div class="card" style="margin-bottom:1rem;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:1rem;">Section 3 — Vessel Information</div>
+            <div style="display:grid;grid-template-columns:1fr 80px 1fr 1fr 120px;gap:0.75rem;margin-bottom:0.75rem;">
+              <div><label class="form-label">Hull ID (HIN) *</label><input id="e-hin" class="form-input" type="text" placeholder="MALIA23K304" required style="font-family:monospace;"></div>
+              <div><label class="form-label">Year *</label><input id="e-year" class="form-input" type="text" placeholder="2024" maxlength="4" required></div>
+              <div><label class="form-label">Make *</label><input id="e-make" class="form-input" type="text" placeholder="Malibu" required></div>
+              <div><label class="form-label">Model *</label><input id="e-model" class="form-input" type="text" placeholder="23 LSV" required></div>
+              <div>
+                <label class="form-label">Condition *</label>
+                <select id="e-condition" class="form-input" required>
+                  <option value="New">New</option>
+                  <option value="Used">Used</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:1rem;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:1rem;">Section 4 — Engine Information</div>
+            <div style="font-size:12px;color:var(--mid);margin-bottom:0.5rem;">Engine 1</div>
+            <div style="display:grid;grid-template-columns:1fr 80px 1fr 1fr 80px;gap:0.75rem;margin-bottom:1rem;">
+              <div><label class="form-label">Serial # *</label><input id="e-eng1-serial" class="form-input" type="text" placeholder="ENG123456" required></div>
+              <div><label class="form-label">Year *</label><input id="e-eng1-year" class="form-input" type="text" placeholder="2024" maxlength="4" required></div>
+              <div><label class="form-label">Make *</label><input id="e-eng1-make" class="form-input" type="text" placeholder="Indmar" required></div>
+              <div><label class="form-label">Model *</label><input id="e-eng1-model" class="form-input" type="text" placeholder="6.2L MPI" required></div>
+              <div><label class="form-label">Hours *</label><input id="e-eng1-hours" class="form-input" type="number" placeholder="45" min="0" required></div>
+            </div>
+            <label style="display:flex;align-items:center;gap:0.5rem;font-size:12px;color:var(--mid);cursor:pointer;margin-bottom:0.75rem;">
+              <input type="checkbox" id="has-engine2" onchange="toggleEngine2(this.checked)">
+              This vessel has a second engine
+            </label>
+            <div id="engine2-fields" style="display:none;">
+              <div style="font-size:12px;color:var(--mid);margin-bottom:0.5rem;">Engine 2</div>
+              <div style="display:grid;grid-template-columns:1fr 80px 1fr 1fr 80px;gap:0.75rem;">
+                <div><label class="form-label">Serial #</label><input id="e-eng2-serial" class="form-input" type="text" placeholder="ENG789012"></div>
+                <div><label class="form-label">Year</label><input id="e-eng2-year" class="form-input" type="text" placeholder="2024" maxlength="4"></div>
+                <div><label class="form-label">Make</label><input id="e-eng2-make" class="form-input" type="text" placeholder="Indmar"></div>
+                <div><label class="form-label">Model</label><input id="e-eng2-model" class="form-input" type="text" placeholder="6.2L MPI"></div>
+                <div><label class="form-label">Hours</label><input id="e-eng2-hours" class="form-input" type="number" placeholder="45" min="0"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:1rem;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:1rem;">Section 5 — Contract Length *</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;">
+              <div class="contract-option" data-length="1yr" onclick="selectContractLength('1yr',this)" style="border:2px solid var(--border);border-radius:8px;padding:1rem;text-align:center;cursor:pointer;transition:all 0.2s;">
+                <div style="font-size:11px;color:var(--light);margin-bottom:4px;">1-YEAR</div>
+                <div style="font-size:20px;font-weight:700;color:var(--gold);" id="enroll-price-1yr">$3,325</div>
+              </div>
+              <div class="contract-option" data-length="2yr" onclick="selectContractLength('2yr',this)" style="border:2px solid var(--border);border-radius:8px;padding:1rem;text-align:center;cursor:pointer;transition:all 0.2s;">
+                <div style="font-size:11px;color:var(--light);margin-bottom:4px;">2-YEAR</div>
+                <div style="font-size:20px;font-weight:700;color:var(--gold);" id="enroll-price-2yr">$6,650</div>
+              </div>
+              <div class="contract-option" data-length="3yr" onclick="selectContractLength('3yr',this)" style="border:2px solid var(--border);border-radius:8px;padding:1rem;text-align:center;cursor:pointer;transition:all 0.2s;">
+                <div style="font-size:11px;color:var(--light);margin-bottom:4px;">3-YEAR</div>
+                <div style="font-size:20px;font-weight:700;color:var(--gold);" id="enroll-price-3yr">$9,975</div>
+              </div>
+            </div>
+            <div id="enroll-no-pricing-msg" style="display:none;margin-top:0.75rem;background:#fff5f0;border:1px solid #f0d060;border-radius:6px;padding:0.85rem 1rem;font-size:13px;color:#7a4f00;">
+              ⚠ Your pricing has not been confirmed yet. Please contact <strong>support@whitestone-partners.com</strong> to activate enrollment.
+            </div>
+          </div>
+
+          <div id="e-hin-error" class="field-err" style="display:none;"></div>
+          <div id="e-err" style="display:none;background:#fff5f5;border:1px solid #ffcdd2;border-radius:6px;padding:0.75rem;font-size:13px;color:#c0392b;margin-bottom:1rem;"></div>
+          <button onclick="showEnrollConfirmModal()" style="background:#0c1e2e;color:white;border:none;padding:13px;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;width:100%;font-family:'DM Sans',sans-serif;letter-spacing:0.02em;">
+            REVIEW ENROLLMENT
+          </button>
         </div>
 
         <!-- Enrollment Success Screen -->
@@ -393,7 +469,6 @@
           <h3>Enrollment complete</h3>
           <p>The customer's contract has been saved and is now active.</p>
         </div>
-        <div id="e-err" class="err">Please fill in the customer's name and email before generating a link.</div>
       </div>
     </div>
 
@@ -471,11 +546,15 @@
       <div style="background:white;border-radius:12px;padding:2rem;max-width:440px;width:90%;">
         <div style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:300;color:var(--navy);margin-bottom:1.5rem;">Confirm Enrollment</div>
 
-        <div style="background:var(--silver-bg);border-radius:8px;padding:1.25rem;margin-bottom:1.5rem;font-size:13.5px;line-height:2;">
-          <div style="display:flex;justify-content:space-between;"><span style="color:var(--light);">Customer</span><span id="ec-customer-name" style="font-weight:500;color:var(--navy);"></span></div>
-          <div style="display:flex;justify-content:space-between;"><span style="color:var(--light);">Boat</span><span id="ec-boat" style="font-weight:500;color:var(--navy);"></span></div>
-          <div style="display:flex;justify-content:space-between;"><span style="color:var(--light);">HIN</span><span id="ec-hin" style="font-weight:500;color:var(--navy);font-family:monospace;font-size:12px;"></span></div>
-          <div style="display:flex;justify-content:space-between;"><span style="color:var(--light);">Contract</span><span id="ec-contract-type" style="font-weight:500;color:var(--navy);"></span></div>
+        <div style="background:var(--silver-bg);border-radius:8px;padding:1.25rem;margin-bottom:1.5rem;font-size:13px;line-height:1.7;">
+          <div style="display:flex;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Customer</span><span id="ec-customer-name" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
+          <div style="display:flex;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Address</span><span id="ec-address" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
+          <div style="display:flex;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Email + Phone</span><span id="ec-contact" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
+          <div style="display:flex;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Lienholder</span><span id="ec-lienholder" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
+          <div style="display:flex;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Vessel</span><span id="ec-vessel" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
+          <div style="display:flex;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Engine 1</span><span id="ec-engine1" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
+          <div id="ec-engine2-row" style="display:none;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Engine 2</span><span id="ec-engine2" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
+          <div style="display:flex;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Contract</span><span id="ec-contract-type" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
           <div style="height:1px;background:var(--border);margin:8px 0;"></div>
           <div style="display:flex;justify-content:space-between;font-size:15px;">
             <span style="font-weight:600;color:var(--navy);">Amount Due</span>
@@ -2346,7 +2425,7 @@ window.addEventListener("load", function() {
     var msgEl = document.getElementById("enroll-no-pricing-msg");
     if (!dealerPricingData || !dealerPricingData.confirmed) {
       if (msgEl) msgEl.style.display = "block";
-      document.querySelectorAll(".contract-length-option").forEach(function(el) {
+      document.querySelectorAll(".contract-option, .contract-length-option").forEach(function(el) {
         el.style.opacity = "0.4";
         el.style.pointerEvents = "none";
         el.style.borderColor = "var(--border)";
@@ -2360,7 +2439,7 @@ window.addEventListener("load", function() {
       return;
     }
     if (msgEl) msgEl.style.display = "none";
-    document.querySelectorAll(".contract-length-option").forEach(function(el) {
+    document.querySelectorAll(".contract-option, .contract-length-option").forEach(function(el) {
       el.style.opacity = "1";
       el.style.pointerEvents = "auto";
     });
@@ -2369,19 +2448,118 @@ window.addEventListener("load", function() {
     document.getElementById("enroll-price-3yr").textContent = "$" + Number(dealerPricingData.contract_retail_3yr || 9975).toLocaleString();
   };
 
-  window.selectContractLength = function(length) {
+  window.selectContractLength = function(length, selectedEl) {
     selectedContractLength = length;
-    document.querySelectorAll(".contract-length-option").forEach(function(el) {
+    document.querySelectorAll(".contract-option, .contract-length-option").forEach(function(el) {
       var isSelected = el.dataset.length === length;
       el.style.borderColor = isSelected ? "var(--gold)" : "var(--border)";
       el.style.background = isSelected ? "#fffbf0" : "white";
     });
+    if (selectedEl && selectedEl.style) {
+      selectedEl.style.border = "2px solid #b8963e";
+      selectedEl.style.background = "#fffdf5";
+    }
   };
 
-  window.showEnrollConfirmModal = function(formData) {
-    if (!selectedContractLength) { alert("Please select a contract length."); return; }
+  window.showEnrollConfirmModal = async function(formData) {
+    var getVal = function(id) {
+      var el = document.getElementById(id);
+      return el && typeof el.value !== "undefined" ? String(el.value).trim() : "";
+    };
+    var errEl = document.getElementById("e-err");
+    if (errEl) {
+      errEl.style.display = "none";
+      errEl.textContent = "";
+    }
+    var requiredFields = [
+      { id: "e-fname", label: "First Name" },
+      { id: "e-lname", label: "Last Name" },
+      { id: "e-address", label: "Mailing Address" },
+      { id: "e-email", label: "Email Address" },
+      { id: "e-city", label: "City" },
+      { id: "e-state", label: "State" },
+      { id: "e-zip", label: "Zip" },
+      { id: "e-phone", label: "Phone" },
+      { id: "e-eng1-serial", label: "Engine 1 Serial #" },
+      { id: "e-eng1-year", label: "Engine 1 Year" },
+      { id: "e-eng1-make", label: "Engine 1 Make" },
+      { id: "e-eng1-model", label: "Engine 1 Model" },
+      { id: "e-eng1-hours", label: "Engine 1 Hours" }
+    ];
+    var missing = requiredFields.filter(function(f) { return !getVal(f.id); });
+    if (missing.length) {
+      if (errEl) {
+        errEl.textContent = "Please complete required fields: " + missing.map(function(f) { return f.label; }).join(", ");
+        errEl.style.display = "block";
+      }
+      return;
+    }
+    if (!selectedContractLength) {
+      if (errEl) {
+        errEl.textContent = "Please select a contract length.";
+        errEl.style.display = "block";
+      }
+      return;
+    }
     if (!dealerPricingData || !dealerPricingData.confirmed) {
-      alert("Your pricing has not been confirmed. Please contact support@whitestone-partners.com.");
+      if (errEl) {
+        errEl.textContent = "Your pricing has not been confirmed. Please contact support@whitestone-partners.com.";
+        errEl.style.display = "block";
+      }
+      return;
+    }
+    var hinErrEl = document.getElementById("e-hin-error");
+    var hinVal = normalizeHin(getVal("e-hin"));
+    if (hinErrEl) {
+      hinErrEl.style.display = "none";
+      hinErrEl.textContent = "";
+    }
+    if (!hinVal) {
+      if (hinErrEl) {
+        hinErrEl.textContent = "Hull ID (HIN) is required. No HIN, no enrollment.";
+        hinErrEl.style.display = "block";
+      }
+      return;
+    }
+    if (!currentDealer || !currentDealer.id) {
+      if (errEl) {
+        errEl.textContent = "Please sign in before enrolling a customer.";
+        errEl.style.display = "block";
+      }
+      return;
+    }
+    var fname = getVal("e-fname");
+    var lname = getVal("e-lname");
+    var mi = getVal("e-mi");
+    var email = getVal("e-email");
+    var phone = getVal("e-phone");
+    var address = getVal("e-address");
+    var city = getVal("e-city");
+    var state = getVal("e-state").toUpperCase();
+    var zip = getVal("e-zip");
+    var make = getVal("e-make");
+    var model = getVal("e-model");
+    var year = getVal("e-year");
+    var condition = getVal("e-condition") || "New";
+    var eng1Make = getVal("e-eng1-make");
+    var eng1Model = getVal("e-eng1-model");
+    var eng1Serial = getVal("e-eng1-serial");
+    var eng1Year = getVal("e-eng1-year");
+    var eng1Hours = getVal("e-eng1-hours");
+    var hasLienholder = !!(document.getElementById("has-lienholder") && document.getElementById("has-lienholder").checked);
+    var lienName = hasLienholder ? getVal("e-lien-name") : "";
+    var hasEngine2 = !!(document.getElementById("has-engine2") && document.getElementById("has-engine2").checked);
+    var eng2Make = hasEngine2 ? getVal("e-eng2-make") : "";
+    var eng2Model = hasEngine2 ? getVal("e-eng2-model") : "";
+    var eng2Serial = hasEngine2 ? getVal("e-eng2-serial") : "";
+    var eng2Year = hasEngine2 ? getVal("e-eng2-year") : "";
+    var eng2Hours = hasEngine2 ? getVal("e-eng2-hours") : "";
+    var hinCheck = await verifyHINForEnrollment(hinVal, fname, lname, currentDealer.name);
+    if (!hinCheck.allowed) {
+      if (hinErrEl) {
+        hinErrEl.textContent = hinCheck.message || "Enrollment not allowed.";
+        hinErrEl.style.display = "block";
+      }
       return;
     }
     var priceMap = {
@@ -2390,9 +2568,31 @@ window.addEventListener("load", function() {
       "3yr": dealerPricingData.contract_retail_3yr
     };
     var amount = priceMap[selectedContractLength] || 0;
-    document.getElementById("ec-customer-name").textContent = formData.firstName + " " + formData.lastName;
-    document.getElementById("ec-boat").textContent = (formData.year || "") + " " + (formData.make || "") + " " + (formData.model || "");
-    document.getElementById("ec-hin").textContent = formData.hin || "—";
+    formData = formData || {
+      firstName: fname,
+      lastName: lname,
+      email: email,
+      phone: phone,
+      make: make,
+      model: model,
+      year: year,
+      hin: hinVal
+    };
+    document.getElementById("ec-customer-name").textContent = (fname + " " + lname + (mi ? " (" + mi + ")" : "")).trim();
+    document.getElementById("ec-address").textContent = [address, city + ", " + state + " " + zip].join(", ");
+    document.getElementById("ec-contact").textContent = email + " | " + phone;
+    document.getElementById("ec-lienholder").textContent = hasLienholder ? (lienName || "Provided") : "None";
+    document.getElementById("ec-vessel").textContent = year + " " + make + " " + model + " — HIN: " + (hinVal || "—") + " (" + condition + ")";
+    document.getElementById("ec-engine1").textContent = eng1Make + " " + eng1Model + " Serial# " + eng1Serial + " (" + eng1Year + " " + eng1Hours + "hrs)";
+    var engine2Row = document.getElementById("ec-engine2-row");
+    var engine2Text = document.getElementById("ec-engine2");
+    if (hasEngine2 && (eng2Serial || eng2Make || eng2Model || eng2Year || eng2Hours)) {
+      if (engine2Row) engine2Row.style.display = "flex";
+      if (engine2Text) engine2Text.textContent = [eng2Make, eng2Model].join(" ").trim() + " Serial# " + (eng2Serial || "—") + " (" + (eng2Year || "—") + " " + (eng2Hours || "—") + "hrs)";
+    } else {
+      if (engine2Row) engine2Row.style.display = "none";
+      if (engine2Text) engine2Text.textContent = "";
+    }
     document.getElementById("ec-contract-type").textContent = selectedContractLength.toUpperCase() + " Contract";
     document.getElementById("ec-amount").textContent = "$" + Number(amount).toLocaleString();
     document.getElementById("ec-amount-confirm").textContent = "$" + Number(amount).toLocaleString();
@@ -2416,7 +2616,7 @@ window.addEventListener("load", function() {
         var make = (document.getElementById("e-make") || {}).value || "";
         var model = (document.getElementById("e-model") || {}).value || "";
         var year = (document.getElementById("e-year") || {}).value || "";
-        var hin = (document.getElementById("e-hin") || {}).value || "";
+        var hin = normalizeHin((document.getElementById("e-hin") || {}).value || "");
         var today = new Date();
         var endDate = new Date(today);
         endDate.setDate(endDate.getDate() + (totalDaysMap[contractType] || 365));
@@ -3055,66 +3255,7 @@ window.addEventListener("load", function() {
     };
   }
 
-  var oldEnrollBtn = document.getElementById("enroll-btn");
-  var newEnrollBtn = oldEnrollBtn.cloneNode(true);
-  oldEnrollBtn.parentNode.replaceChild(newEnrollBtn, oldEnrollBtn);
-  newEnrollBtn.addEventListener("click", async function() {
-    var fname = document.getElementById("e-fname").value.trim();
-    var lname = document.getElementById("e-lname").value.trim();
-    var email = document.getElementById("e-email").value.trim();
-    var hinVal = normalizeHin(document.getElementById("e-hin").value);
-    var hinErrEl = document.getElementById("e-hin-error");
-    if (hinErrEl) {
-      hinErrEl.style.display = "none";
-      hinErrEl.textContent = "";
-    }
-    document.getElementById("e-err").textContent = "Please fill in the customer's name and email before continuing.";
-    if (!fname || !lname || !email) {
-      document.getElementById("e-err").style.display = "block";
-      return;
-    }
-    if (!hinVal) {
-      if (hinErrEl) {
-        hinErrEl.textContent = "Hull ID (HIN) is required. No HIN, no enrollment.";
-        hinErrEl.style.display = "block";
-      }
-      return;
-    }
-    if (!currentDealer || !currentDealer.id) {
-      document.getElementById("e-err").style.display = "block";
-      return;
-    }
-    if (!dealerPricingData || !dealerPricingData.confirmed) {
-      alert("Your pricing has not been confirmed. Please contact support@whitestone-partners.com.");
-      return;
-    }
-    this.disabled = true;
-    this.textContent = "Verifying...";
-    var hinCheck = await verifyHINForEnrollment(hinVal, fname, lname, currentDealer.name);
-    if (!hinCheck.allowed) {
-      if (hinErrEl) {
-        hinErrEl.textContent = hinCheck.message || "Enrollment not allowed.";
-        hinErrEl.style.display = "block";
-      }
-      this.disabled = false;
-      this.textContent = "Review Enrollment";
-      return;
-    }
-    document.getElementById("e-err").style.display = "none";
-    enrollPendingFormData = {
-      firstName: fname,
-      lastName: lname,
-      email: email,
-      phone: document.getElementById("e-phone").value,
-      make: document.getElementById("e-make").value,
-      model: document.getElementById("e-model").value,
-      year: document.getElementById("e-year").value,
-      hin: hinVal
-    };
-    showEnrollConfirmModal(enrollPendingFormData);
-    this.disabled = false;
-    this.textContent = "Review Enrollment";
-  });
+  window.enrollPendingFormData = window.enrollPendingFormData || null;
 
   window.chargeEnrollmentNow = async function() {
     if (!selectedContractLength) return;
