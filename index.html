@@ -2714,6 +2714,7 @@ window.addEventListener("load", function() {
           if (!cr.ok) throw new Error("Contract failed");
           var contractId = crows[0] && crows[0].id;
           window._lastCreatedContractId = contractId;
+          window._lastEnrolledContractId = contractId;
           var dueDate = new Date();
           dueDate.setDate(dueDate.getDate() + 10);
           var itemPayload = {
@@ -2728,8 +2729,8 @@ window.addEventListener("load", function() {
             method: "POST", headers: authHeaders(), body: JSON.stringify(itemPayload)
           });
           if (typeof window.refreshBillingCartBadge === "function") await window.refreshBillingCartBadge();
-          if (typeof window.showBillingCart === "function") window.showBillingCart();
-          alert("Added to cart! Pay from your Billing Cart within 10 days.");
+          closeEnrollConfirmModal();
+          window.showEnrollSuccess((fname + " " + lname).trim(), "Added to cart! Pay within 10 days.", contractId);
         } catch (e) {
           btn.disabled = false;
           btn.textContent = "★ Add to Cart — Pay within 10 days";
@@ -2751,18 +2752,72 @@ window.addEventListener("load", function() {
     document.getElementById("enroll-confirm-modal").style.display = "none";
   };
 
-  window.showEnrollSuccess = function(data) {
+  window.showEnrollSuccess = function(customerName, message, contractId) {
+    var safeContractId = String(contractId || "").replace(/'/g, "\\'");
     var formContent = document.getElementById("enroll-form-content");
     if (formContent) formContent.style.display = "none";
     var linkBox = document.getElementById("enroll-link-box");
     if (linkBox) linkBox.style.display = "none";
-    document.getElementById("success-customer-name").textContent = data.customerName;
-    document.getElementById("success-boat").textContent = data.boat;
-    document.getElementById("success-contract-type").textContent = data.contractLabel;
-    document.getElementById("success-amount").textContent = "$" + data.amount.toLocaleString();
-    document.getElementById("success-start-date").textContent = data.enrollDate;
-    document.getElementById("success-end-date").textContent = data.expireDate;
-    document.getElementById("enroll-success-screen").style.display = "block";
+    var successScreen = document.getElementById("enroll-success-screen");
+    if (!successScreen) return;
+    var successHTML =
+      '<div style="text-align:center;padding:2rem;">' +
+        '<div style="width:60px;height:60px;border-radius:50%;background:#e8f5e9;border:2px solid #a8d5b5;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 1rem;">✓</div>' +
+        '<div style="font-family:\'Cormorant Garamond\',serif;font-size:24px;font-weight:300;color:#0c1e2e;margin-bottom:0.5rem;">Enrollment Complete!</div>' +
+        '<div style="font-size:13px;color:#4a6278;margin-bottom:1.5rem;">' + (message || (customerName + " has been enrolled successfully.")) + "</div>" +
+        '<button onclick="downloadEnrollmentForm(\'' + safeContractId + '\')" id="download-pdf-btn" style="width:100%;background:#b8963e;color:#0c1e2e;border:none;padding:13px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;margin-bottom:0.75rem;display:flex;align-items:center;justify-content:center;gap:0.5rem;">' +
+          "📄 Download Enrollment Form" +
+        "</button>" +
+        '<div style="font-size:11px;color:#9aafbf;margin-bottom:1.25rem;">Pre-filled PDF ready for customer signature</div>' +
+        '<div style="display:flex;gap:0.75rem;justify-content:center;">' +
+          '<button onclick="enrollAnotherCustomer()" style="background:transparent;border:1.5px solid #c5d5e0;color:#0c1e2e;padding:9px 20px;border-radius:6px;font-size:13px;cursor:pointer;">Enroll Another</button>' +
+          (message && message.toLowerCase().includes("cart")
+            ? '<button onclick="switchTab(\'billing-cart\');loadBillingCart();" style="background:transparent;border:1.5px solid #c5d5e0;color:#0c1e2e;padding:9px 20px;border-radius:6px;font-size:13px;cursor:pointer;">View Cart →</button>'
+            : "") +
+        "</div>" +
+      "</div>";
+    successScreen.innerHTML = successHTML;
+    successScreen.style.display = "block";
+  };
+
+  window.downloadEnrollmentForm = async function(contractId) {
+    contractId = contractId || window._lastEnrolledContractId || window._lastCreatedContractId;
+    var btn = document.getElementById("download-pdf-btn");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "⏳ Generating PDF...";
+    }
+    try {
+      var response = await fetch("/api/generate-enrollment-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: contractId })
+      });
+      if (!response.ok) throw new Error("PDF generation failed");
+      var disposition = response.headers.get("Content-Disposition") || "";
+      var filenameMatch = disposition.match(/filename="(.+)"/);
+      var filename = filenameMatch ? filenameMatch[1] : "WP_Enrollment_Form.pdf";
+      var blob = await response.blob();
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "📄 Download Enrollment Form";
+      }
+    } catch (e) {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "📄 Download Enrollment Form";
+      }
+      alert("Could not generate PDF. Please try again or download manually from the customer record.");
+      console.error("PDF download error:", e);
+    }
   };
 
   var _pendingEnrollmentContractId = null;
@@ -2772,6 +2827,7 @@ window.addEventListener("load", function() {
   var _pendingEnrollmentType = "";
   var _pendingEnrollmentContext = null;
   window._lastCreatedContractId = window._lastCreatedContractId || null;
+  window._lastEnrolledContractId = window._lastEnrolledContractId || null;
 
   var _cartItems = [];
   var _selectedCartIds = new Set();
@@ -3020,19 +3076,39 @@ window.addEventListener("load", function() {
     var formContent = document.getElementById("enroll-form-content");
     if (formContent) formContent.style.display = "block";
     window.selectedContractLength = null;
-    document.querySelectorAll(".contract-length-option").forEach(function(el) {
+    document.querySelectorAll(".contract-option, .contract-length-option").forEach(function(el) {
       el.style.borderColor = "";
       el.style.background = "";
     });
-    var fields = ["e-fname", "e-lname", "e-email", "e-phone", "e-make", "e-model", "e-year", "e-hin"];
+    var fields = [
+      "e-fname", "e-lname", "e-mi", "e-address", "e-email", "e-city", "e-state", "e-zip", "e-phone",
+      "e-make", "e-model", "e-year", "e-hin", "e-condition",
+      "e-lien-name", "e-lien-address", "e-lien-city", "e-lien-state", "e-lien-zip", "e-lien-phone",
+      "e-eng1-serial", "e-eng1-year", "e-eng1-make", "e-eng1-model", "e-eng1-hours",
+      "e-eng2-serial", "e-eng2-year", "e-eng2-make", "e-eng2-model", "e-eng2-hours"
+    ];
     fields.forEach(function(id) {
       var el = document.getElementById(id);
-      if (el) el.value = "";
+      if (el) {
+        if (id === "e-condition") el.value = "New";
+        else el.value = "";
+      }
     });
+    var hasLienholder = document.getElementById("has-lienholder");
+    if (hasLienholder) hasLienholder.checked = false;
+    var hasEngine2 = document.getElementById("has-engine2");
+    if (hasEngine2) hasEngine2.checked = false;
+    if (typeof window.toggleLienholder === "function") window.toggleLienholder(false);
+    if (typeof window.toggleEngine2 === "function") window.toggleEngine2(false);
     var hinErr = document.getElementById("e-hin-error");
     if (hinErr) {
       hinErr.style.display = "none";
       hinErr.textContent = "";
+    }
+    var err = document.getElementById("e-err");
+    if (err) {
+      err.style.display = "none";
+      err.textContent = "";
     }
   };
 
@@ -3452,22 +3528,7 @@ window.addEventListener("load", function() {
     }
     var contractId = Array.isArray(contractResult) ? contractResult[0].id : contractResult.id;
     window._lastCreatedContractId = contractId;
-    var custEmail     = document.getElementById("e-email") ? document.getElementById("e-email").value.trim() : "";
-    var custFirstName = document.getElementById("e-fname") ? document.getElementById("e-fname").value.trim() : "";
-    var custLastName  = document.getElementById("e-lname") ? document.getElementById("e-lname").value.trim() : "";
-    var boatMake      = document.getElementById("e-make")  ? document.getElementById("e-make").value.trim()  : "";
-    var boatModel     = document.getElementById("e-model") ? document.getElementById("e-model").value.trim() : "";
-    var boatYear      = document.getElementById("e-year")  ? document.getElementById("e-year").value.trim()  : "";
-    var contractLabel = selectedContractLength === "2yr" ? "2-Year" : selectedContractLength === "3yr" ? "3-Year" : "1-Year";
-    var enrollDate    = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    var expireDate    = "";
-    if (selectedContractLength === "3yr") {
-      expireDate = new Date(new Date().setFullYear(new Date().getFullYear() + 3)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    } else if (selectedContractLength === "2yr") {
-      expireDate = new Date(new Date().setFullYear(new Date().getFullYear() + 2)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    } else {
-      expireDate = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    }
+    window._lastEnrolledContractId = contractId;
     var chargeResult = await chargeEnrollmentCardOnFile(contractId, amount, customerName, selectedContractLength);
     await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + contractId, {
       method: "PATCH",
@@ -3490,14 +3551,7 @@ window.addEventListener("load", function() {
     if (typeof window.loadDashboard === "function") await window.loadDashboard();
     if (typeof window.loadCustomersTab === "function") await window.loadCustomersTab();
     if (typeof window.refreshBillingCartBadge === "function") await window.refreshBillingCartBadge();
-    window.showEnrollSuccess({
-      customerName: custFirstName + " " + custLastName,
-      boat: boatYear + " " + boatMake + " " + boatModel,
-      contractLabel: contractLabel,
-      amount: amount,
-      enrollDate: enrollDate,
-      expireDate: expireDate
-    });
+    window.showEnrollSuccess(customerName, customerName + " has been enrolled successfully.", contractId);
   };
 
   if (typeof currentDealer !== "undefined" && currentDealer && !currentDealer.isAdmin) {
