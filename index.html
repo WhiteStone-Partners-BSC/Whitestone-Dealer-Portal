@@ -2807,18 +2807,38 @@ window.addEventListener("load", function() {
         body: JSON.stringify({ contractId: contractId })
       });
       if (!response.ok) throw new Error("PDF generation failed");
-      var disposition = response.headers.get("Content-Disposition") || "";
-      var filenameMatch = disposition.match(/filename="(.+)"/);
-      var filename = filenameMatch ? filenameMatch[1] : "WP_Enrollment_Form.pdf";
-      var blob = await response.blob();
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      var ct = (response.headers.get("Content-Type") || "").toLowerCase();
+      if (ct.indexOf("text/html") !== -1) {
+        var htmlText = await response.text();
+        var htmlBlob = new Blob([htmlText], { type: "text/html;charset=utf-8" });
+        var url = URL.createObjectURL(htmlBlob);
+        var printWin = window.open(url, "_blank");
+        if (!printWin) {
+          var disposition = response.headers.get("Content-Disposition") || "";
+          var fnMatch = disposition.match(/filename="(.+)"/);
+          var fn = fnMatch ? fnMatch[1] : "WP_Enrollment_Form.html";
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = fn;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+        setTimeout(function() { URL.revokeObjectURL(url); }, 120000);
+      } else {
+        var blob = await response.blob();
+        var url = URL.createObjectURL(blob);
+        var disposition = response.headers.get("Content-Disposition") || "";
+        var filenameMatch = disposition.match(/filename="(.+)"/);
+        var filename = filenameMatch ? filenameMatch[1] : "WP_Enrollment_Form.pdf";
+        var a2 = document.createElement("a");
+        a2.href = url;
+        a2.download = filename;
+        document.body.appendChild(a2);
+        a2.click();
+        document.body.removeChild(a2);
+        URL.revokeObjectURL(url);
+      }
       if (btn) {
         btn.disabled = false;
         btn.textContent = "📄 Download Enrollment Form";
@@ -2828,7 +2848,7 @@ window.addEventListener("load", function() {
         btn.disabled = false;
         btn.textContent = "📄 Download Enrollment Form";
       }
-      alert("Could not generate PDF. Please try again or download manually from the customer record.");
+      alert("Could not open the enrollment form. Please try again or use the customer record.");
       console.error("PDF download error:", e);
     }
   };
