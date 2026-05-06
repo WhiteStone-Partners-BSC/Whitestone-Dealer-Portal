@@ -2486,7 +2486,20 @@ window.addEventListener("load", function() {
       { id: "e-eng1-model", label: "Engine 1 Model" },
       { id: "e-eng1-hours", label: "Engine 1 Hours" }
     ];
-    var missing = requiredFields.filter(function(f) { return !getVal(f.id); });
+    var engineFieldIds = {
+      "e-eng1-serial": true,
+      "e-eng1-year": true,
+      "e-eng1-make": true,
+      "e-eng1-model": true,
+      "e-eng1-hours": true
+    };
+    var missing = requiredFields.filter(function(f) {
+      if (engineFieldIds[f.id]) {
+        var el = document.getElementById(f.id);
+        return !el || typeof el.value === "undefined" || !String(el.value).trim();
+      }
+      return !getVal(f.id);
+    });
     if (missing.length) {
       if (errEl) {
         errEl.textContent = "Please complete required fields: " + missing.map(function(f) { return f.label; }).join(", ");
