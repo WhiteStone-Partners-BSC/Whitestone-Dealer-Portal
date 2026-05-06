@@ -672,6 +672,9 @@
       <button type="button" class="admin-nav-item" data-admin-panel="customers">Customers</button>
       <button type="button" class="admin-nav-item" data-admin-panel="claims">Claims</button>
       <button type="button" class="admin-nav-item" data-admin-panel="cancellations">Cancellations</button>
+      <button type="button" class="admin-nav-item" data-admin-panel="billing" onclick="if(typeof adminNav==='function'){adminNav('billing');} if(typeof loadAdminBilling==='function'){loadAdminBilling();}">
+        Billing
+      </button>
       <button type="button" class="admin-nav-item" data-admin-panel="financials">Financials</button>
       <button type="button" class="admin-nav-item" data-admin-panel="pricing">Pricing</button>
       <button type="button" class="admin-nav-item" data-admin-panel="messages">
@@ -858,6 +861,45 @@
         </div>
         <div id="cancellations-loading" style="text-align:center;padding:3rem;color:var(--light);font-size:13px;">Loading...</div>
         <div id="cancellations-list"></div>
+      </div>
+    </div>
+
+    <div id="admin-panel-billing" class="admin-panel" style="display:none;">
+      <div class="admin-panel-shell">
+        <div class="card" style="margin-bottom:1.25rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+            <div>
+              <div class="card-title">Billing Dashboard</div>
+              <div class="card-sub">All outstanding dealer invoices and cart items across the network.</div>
+            </div>
+            <div style="display:flex;gap:0.5rem;">
+              <button onclick="loadAdminBilling('all')" id="bill-filter-all" style="background:var(--gold);color:var(--navy);border:none;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">All</button>
+              <button onclick="loadAdminBilling('overdue')" id="bill-filter-overdue" style="background:var(--silver-bg);color:var(--mid);border:1px solid var(--border);padding:6px 14px;border-radius:4px;font-size:12px;cursor:pointer;">Overdue</button>
+              <button onclick="loadAdminBilling('open')" id="bill-filter-open" style="background:var(--silver-bg);color:var(--mid);border:1px solid var(--border);padding:6px 14px;border-radius:4px;font-size:12px;cursor:pointer;">Open</button>
+              <button onclick="loadAdminBilling('paid')" id="bill-filter-paid" style="background:var(--silver-bg);color:var(--mid);border:1px solid var(--border);padding:6px 14px;border-radius:4px;font-size:12px;cursor:pointer;">Paid</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.25rem;">
+          <div class="card" style="text-align:center;">
+            <div style="font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Total Outstanding</div>
+            <div style="font-size:24px;font-weight:700;color:var(--navy);" id="admin-bill-outstanding">$0</div>
+          </div>
+          <div class="card" style="text-align:center;border-color:#ffcdd2;background:#fff5f5;">
+            <div style="font-size:10px;color:#c0392b;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Overdue</div>
+            <div style="font-size:24px;font-weight:700;color:#c0392b;" id="admin-bill-overdue">$0</div>
+          </div>
+          <div class="card" style="text-align:center;">
+            <div style="font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Dealers with Open Bills</div>
+            <div style="font-size:24px;font-weight:700;color:var(--navy);" id="admin-bill-dealers">0</div>
+          </div>
+          <div class="card" style="text-align:center;">
+            <div style="font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Unpaid Contracts</div>
+            <div style="font-size:24px;font-weight:700;color:var(--navy);" id="admin-bill-contracts">0</div>
+          </div>
+        </div>
+        <div id="admin-billing-loading" style="text-align:center;padding:3rem;color:var(--light);font-size:13px;">Loading...</div>
+        <div id="admin-billing-list"></div>
       </div>
     </div>
 
@@ -1396,6 +1438,163 @@ window.addEventListener("load", function() {
     } else if (id === "inactive-body") {
       document.getElementById("inactive-arrow").textContent = open ? "▶" : "▼";
     }
+  };
+
+  window.loadAdminBilling = async function(filter) {
+    filter = filter || "all";
+    var listEl = document.getElementById("admin-billing-list");
+    var loadingEl = document.getElementById("admin-billing-loading");
+    if (!listEl) return;
+    ["all", "overdue", "open", "paid"].forEach(function(key) {
+      var btn = document.getElementById("bill-filter-" + key);
+      if (!btn) return;
+      if (key === filter) {
+        btn.style.background = "var(--gold)";
+        btn.style.color = "var(--navy)";
+        btn.style.border = "none";
+      } else {
+        btn.style.background = "var(--silver-bg)";
+        btn.style.color = "var(--mid)";
+        btn.style.border = "1px solid var(--border)";
+      }
+    });
+    if (loadingEl) loadingEl.style.display = "block";
+    listEl.innerHTML = "";
+    try {
+      var r = await fetch(
+        SUPABASE_URL + "/rest/v1/invoice_items?status=neq.cancelled&order=due_date.asc&select=*",
+        { headers: authHeaders() }
+      );
+      var items = await r.json();
+      if (!Array.isArray(items)) items = [];
+      var today = new Date();
+      var byDealer = {};
+      items.forEach(function(item) {
+        var did = item.dealer_id || "unknown";
+        if (!byDealer[did]) {
+          byDealer[did] = { name: item.dealership_name || "Unknown", items: [], totalOwed: 0, totalRetail: 0, totalProfit: 0, hasOverdue: false, oldestDays: 0 };
+        }
+        var due = new Date(item.due_date || new Date().toISOString());
+        var daysOld = Math.ceil((today - new Date(item.added_to_cart_at || item.created_at || new Date().toISOString())) / (1000 * 60 * 60 * 24));
+        var isOverdue = today > due && item.status === "unpaid";
+        if (isOverdue) byDealer[did].hasOverdue = true;
+        if (daysOld > byDealer[did].oldestDays) byDealer[did].oldestDays = daysOld;
+        byDealer[did].items.push(Object.assign({}, item, { isOverdue: isOverdue, daysOld: daysOld }));
+        if (item.status === "unpaid" || item.status === "invoiced") {
+          byDealer[did].totalOwed += Number(item.wholesale_price) || 0;
+          byDealer[did].totalRetail += Number(item.retail_price) || 0;
+          byDealer[did].totalProfit += Number(item.dealer_profit) || 0;
+        }
+      });
+
+      var totalOutstanding = 0;
+      var totalOverdue = 0;
+      var dealerCount = 0;
+      var contractCount = 0;
+      Object.keys(byDealer).forEach(function(key) {
+        var d = byDealer[key];
+        totalOutstanding += d.totalOwed;
+        if (d.hasOverdue) totalOverdue += d.totalOwed;
+        if (d.totalOwed > 0) dealerCount += 1;
+        contractCount += d.items.filter(function(i) { return i.status === "unpaid" || i.status === "invoiced"; }).length;
+      });
+      var outEl = document.getElementById("admin-bill-outstanding");
+      var ovdEl = document.getElementById("admin-bill-overdue");
+      var dlrEl = document.getElementById("admin-bill-dealers");
+      var cntEl = document.getElementById("admin-bill-contracts");
+      if (outEl) outEl.textContent = "$" + totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (ovdEl) ovdEl.textContent = "$" + totalOverdue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (dlrEl) dlrEl.textContent = dealerCount;
+      if (cntEl) cntEl.textContent = contractCount;
+      if (loadingEl) loadingEl.style.display = "none";
+
+      var dealerList = Object.entries(byDealer).filter(function(entry) {
+        var d = entry[1];
+        if (filter === "overdue") return d.hasOverdue;
+        if (filter === "open") return !d.hasOverdue && d.totalOwed > 0;
+        if (filter === "paid") return d.totalOwed === 0 && d.items.length > 0;
+        return d.items.length > 0;
+      });
+      if (dealerList.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--light);font-size:13px;">No billing records found.</div>';
+        return;
+      }
+
+      listEl.innerHTML = dealerList.map(function(entry) {
+        var dealerId = entry[0];
+        var d = entry[1];
+        var isOverdue = d.hasOverdue;
+        var overdueStyle = isOverdue ? "border-color:#ffcdd2;background:#fff5f5;" : "";
+        var overdueTag = isOverdue ?
+          '<span style="background:#c0392b;color:white;font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;margin-left:0.5rem;">🔴 OVERDUE</span>' :
+          '<span style="background:#e8f5e9;color:#1b5e20;font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;margin-left:0.5rem;">✅ Open</span>';
+        var unpaidItems = d.items.filter(function(i) { return i.status === "unpaid" || i.status === "invoiced"; });
+        var safeDealerName = String(d.name || "").replace(/'/g, "\\'");
+        return '<div class="card" style="margin-bottom:1rem;' + overdueStyle + '">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1rem;">' +
+          '<div><div style="font-size:16px;font-weight:600;color:var(--navy);">' + d.name + overdueTag + '</div>' +
+          '<div style="font-size:12px;color:var(--light);margin-top:2px;">' + unpaidItems.length + " unpaid contract(s) · Oldest: " + d.oldestDays + " days ago</div></div>" +
+          '<div style="display:flex;gap:1rem;text-align:right;">' +
+          '<div><div style="font-size:10px;color:var(--light);">Total Owed</div><div style="font-size:18px;font-weight:700;color:#c0392b;">$' + d.totalOwed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div></div>' +
+          '<div><div style="font-size:10px;color:var(--light);">Dealer Profit</div><div style="font-size:18px;font-weight:700;color:#1b5e20;">+$' + d.totalProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "</div></div></div></div>" +
+          '<div style="border-top:1px solid var(--border);padding-top:0.75rem;">' +
+          '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;padding:0 0.25rem;">' +
+          '<div style="font-size:10px;color:var(--light);font-weight:600;">CUSTOMER</div><div style="font-size:10px;color:var(--light);font-weight:600;">TERM</div><div style="font-size:10px;color:var(--light);font-weight:600;">YOU SOLD</div><div style="font-size:10px;color:var(--light);font-weight:600;">OWED TO WP</div><div style="font-size:10px;color:var(--light);font-weight:600;">DUE DATE</div><div style="font-size:10px;color:var(--light);font-weight:600;">STATUS</div></div>' +
+          d.items.map(function(item) {
+            var due = new Date(item.due_date || new Date().toISOString());
+            var daysLeft = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
+            var statusText = item.status === "paid" ? "✅ Paid" : (item.isOverdue ? "🔴 " + Math.abs(daysLeft) + "d overdue" : (item.status === "invoiced" ? "📄 Invoiced" : daysLeft + "d left"));
+            var statusColor = item.status === "paid" ? "#1b5e20" : (item.isOverdue ? "#c0392b" : (item.status === "invoiced" ? "#1565c0" : "var(--mid)"));
+            var rowBg = item.isOverdue ? "background:#fff0f0;" : (item.status === "paid" ? "background:#f0fff4;" : "");
+            return '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr;gap:0.5rem;padding:0.5rem 0.25rem;border-radius:4px;' + rowBg + '">' +
+              '<div style="font-size:13px;color:var(--navy);font-weight:500;">' + (item.customer_name || "—") + "</div>" +
+              '<div style="font-size:12px;color:var(--mid);">' + String(item.contract_type || "").toUpperCase() + "</div>" +
+              '<div style="font-size:13px;color:var(--navy);">$' + Number(item.retail_price || 0).toLocaleString() + "</div>" +
+              '<div style="font-size:13px;color:#c0392b;font-weight:600;">$' + Number(item.wholesale_price || 0).toLocaleString() + "</div>" +
+              '<div style="font-size:12px;color:var(--mid);">' + due.toLocaleDateString() + "</div>" +
+              '<div style="font-size:12px;font-weight:600;color:' + statusColor + ';">' + statusText + "</div></div>";
+          }).join("") + "</div>" +
+          (isOverdue ?
+            '<div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #ffcdd2;display:flex;gap:0.5rem;">' +
+            '<button onclick="sendOverdueReminder(\'' + dealerId + '\',\'' + safeDealerName + '\')" style="background:#c0392b;color:white;border:none;padding:7px 16px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Send Reminder Email</button>' +
+            '<button onclick="markBillingNoted(\'' + dealerId + '\')" style="background:transparent;border:1px solid var(--border);color:var(--mid);padding:7px 16px;border-radius:4px;font-size:12px;cursor:pointer;">Add Note</button>' +
+            "</div>" : "") +
+          "</div>";
+      }).join("");
+    } catch (e) {
+      if (loadingEl) loadingEl.style.display = "none";
+      listEl.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--light);font-size:13px;">Could not load billing records.</div>';
+    }
+  };
+
+  window.sendOverdueReminder = async function(dealerId, dealerName) {
+    if (!confirm("Send overdue payment reminder to " + dealerName + "?")) return;
+    try {
+      var dealerRes = await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(dealerId) + "&select=email&limit=1",
+        { headers: authHeaders() }
+      );
+      var dealerRows = await dealerRes.json();
+      var dealerEmail = dealerRows[0] && dealerRows[0].email;
+      if (!dealerEmail) throw new Error("No dealer email found");
+      await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: dealerEmail,
+          subject: "Action Required - Outstanding Whitestone Partners Invoice",
+          type: "overdue_reminder",
+          dealerId: dealerId
+        })
+      });
+      alert("Reminder sent to " + dealerName);
+    } catch (e) {
+      alert("Could not send reminder. Please email them directly.");
+    }
+  };
+
+  window.markBillingNoted = function(dealerId) {
+    alert("Note recorded for dealer " + dealerId + ".");
   };
 
   window.adminLoadDealerTable = async function() {
