@@ -1,14 +1,14 @@
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
-import { createClient } from "@supabase/supabase-js";
-import fs from "fs";
-import path from "path";
+const { PDFDocument, rgb, StandardFonts } = require("pdf-lib");
+const { createClient } = require("@supabase/supabase-js");
+const fs = require("fs");
+const path = require("path");
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 );
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { contractId } = req.body || {};
@@ -117,3 +117,5 @@ export default async function handler(req, res) {
   res.setHeader("Content-Length", pdfBytes.length);
   res.send(Buffer.from(pdfBytes));
 }
+
+module.exports = handler;
