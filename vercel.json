@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/generate-enrollment-pdf.py": {
+      "includeFiles": "public/enrollment-form-template.pdf"
+    }
+  }
+}
