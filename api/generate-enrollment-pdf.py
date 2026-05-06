@@ -77,7 +77,7 @@ class handler(BaseHTTPRequestHandler):
         import io
 
         # Load template
-        template_path = os.path.join(os.path.dirname(__file__), '..', 'public', 'enrollment-form-template.pdf')
+        template_path = '/var/task/public/enrollment-form-template.pdf'
         template_path = os.path.abspath(template_path)
 
         # Build overlay with text annotations
