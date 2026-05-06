@@ -5968,6 +5968,85 @@ document.addEventListener("DOMContentLoaded", function() {
     btn.textContent = "Generate Payment Link";
   });
 
+  // Final enrollment confirm override: create pending contract then show payment choice.
+  (function bindConfirmEnrollmentToPaymentChoice() {
+    var confirmBtn = document.getElementById("enroll-confirm-submit-btn");
+    if (!confirmBtn) return;
+
+    confirmBtn.onclick = async function() {
+      if (typeof closeEnrollConfirmModal === "function") closeEnrollConfirmModal();
+
+      var firstName = (document.getElementById("enroll-first-name") || document.getElementById("customer-first-name") || document.getElementById("e-fname") || document.querySelector('[name="first_name"]') || {}).value || "";
+      var lastName = (document.getElementById("enroll-last-name") || document.getElementById("customer-last-name") || document.getElementById("e-lname") || document.querySelector('[name="last_name"]') || {}).value || "";
+      var boatMake = (document.getElementById("enroll-boat-make") || document.getElementById("boat-make") || document.getElementById("e-make") || document.querySelector('[name="boat_make"]') || {}).value || "";
+      var boatModel = (document.getElementById("enroll-boat-model") || document.getElementById("boat-model") || document.getElementById("e-model") || document.querySelector('[name="boat_model"]') || {}).value || "";
+      var boatYear = (document.getElementById("enroll-boat-year") || document.getElementById("boat-year") || document.getElementById("e-year") || document.querySelector('[name="boat_year"]') || {}).value || "";
+      var hin = (document.getElementById("enroll-hin") || document.getElementById("hull-id") || document.getElementById("e-hin") || document.querySelector('[name="hin"]') || {}).value || "";
+      var email = (document.getElementById("enroll-email") || document.getElementById("customer-email") || document.getElementById("e-email") || document.querySelector('[name="email"]') || {}).value || "";
+      var phone = (document.getElementById("enroll-phone") || document.getElementById("customer-phone") || document.getElementById("e-phone") || document.querySelector('[name="phone"]') || {}).value || "";
+
+      var typeEl = document.querySelector('[data-type].selected, .contract-option.selected, .contract-length-option.selected');
+      var contractType = typeEl ? (typeEl.getAttribute("data-type") || "1yr") : ((typeof selectedContractLength !== "undefined" && selectedContractLength) ? selectedContractLength : "1yr");
+
+      var wholesaleMap = { "1yr": 3325, "2yr": 6650, "3yr": 9975 };
+      var retailMap = { "1yr": 4075, "2yr": 8150, "3yr": 12225 };
+      var totalDaysMap = { "1yr": 365, "2yr": 730, "3yr": 1095 };
+      var wholesale = wholesaleMap[contractType] || 3325;
+      var retail = retailMap[contractType] || 4075;
+
+      var today = new Date();
+      var endDate = new Date(today);
+      endDate.setDate(endDate.getDate() + (totalDaysMap[contractType] || 365));
+
+      try {
+        var payload = {
+          dealer_id: currentDealer.id,
+          dealership_name: currentDealer.name,
+          customer_first_name: firstName,
+          customer_last_name: lastName,
+          customer_email: email,
+          customer_phone: phone,
+          boat_make: boatMake,
+          boat_model: boatModel,
+          boat_year: parseInt(boatYear, 10) || new Date().getFullYear(),
+          hin: hin,
+          contract_type: contractType,
+          retail_price: retail,
+          wholesale_price: wholesale,
+          status: "pending_payment",
+          payment_method: "invoice",
+          start_date: today.toISOString().split("T")[0],
+          end_date: endDate.toISOString().split("T")[0]
+        };
+
+        var r = await fetch(SUPABASE_URL + "/rest/v1/contracts", {
+          method: "POST",
+          headers: authHeaders({ Prefer: "return=representation" }),
+          body: JSON.stringify(payload)
+        });
+        var rows = await r.json();
+        if (!r.ok) throw new Error("Contract creation failed");
+        var contractId = rows[0] && rows[0].id;
+        window._lastCreatedContractId = contractId;
+
+        if (typeof showPaymentChoice === "function") {
+          showPaymentChoice(
+            contractId,
+            (firstName + " " + lastName).trim() || "Customer",
+            contractType,
+            wholesale,
+            retail
+          );
+        } else if (typeof window.chargeEnrollmentNow === "function") {
+          window.chargeEnrollmentNow();
+        }
+      } catch (e) {
+        console.error("Enrollment error:", e);
+        alert("Could not create contract. Please try again.");
+      }
+    };
+  })();
+
   // PAST TICKETS
   async function loadTickets() {
     var container = document.getElementById("tickets-container");
