@@ -1,4 +1,5 @@
 from http.server import BaseHTTPRequestHandler
+import glob
 import json
 import os
 import urllib.request
@@ -46,9 +47,34 @@ class handler(BaseHTTPRequestHandler):
         if isinstance(dealer, list):
             dealer = dealer[0] if dealer else {}
 
+        # Resolve template PDF (paths differ between Vercel and local)
+        _possible = [
+            '/var/task/public/enrollment-form-template.pdf',
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'public', 'enrollment-form-template.pdf'),
+            os.path.join(os.getcwd(), 'public', 'enrollment-form-template.pdf'),
+            os.path.join(os.getcwd(), 'enrollment-form-template.pdf'),
+        ]
+        template_path = None
+        for _p in _possible:
+            if os.path.exists(os.path.abspath(_p)):
+                template_path = os.path.abspath(_p)
+                break
+
+        if not template_path:
+            _debug = {
+                'error': 'Template PDF not found',
+                'cwd': os.getcwd(),
+                'file': os.path.abspath(__file__),
+                'checked': _possible,
+                'var_task': os.listdir('/var/task') if os.path.exists('/var/task') else 'missing',
+                'var_task_public': os.listdir('/var/task/public') if os.path.exists('/var/task/public') else 'missing',
+            }
+            self._json(500, _debug)
+            return
+
         # Generate filled PDF
         try:
-            pdf_bytes = self._fill_pdf(c, dealer)
+            pdf_bytes = self._fill_pdf(c, dealer, template_path)
         except Exception as e:
             self._json(500, {'error': 'PDF generation failed: ' + str(e)})
             return
@@ -70,15 +96,11 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _fill_pdf(self, c, dealer):
+    def _fill_pdf(self, c, dealer, template_path):
         from pypdf import PdfReader, PdfWriter
         from reportlab.pdfgen import canvas
         from reportlab.lib.pagesizes import letter
         import io
-
-        # Load template
-        template_path = '/var/task/public/enrollment-form-template.pdf'
-        template_path = os.path.abspath(template_path)
 
         # Build overlay with text annotations
         packet = io.BytesIO()
