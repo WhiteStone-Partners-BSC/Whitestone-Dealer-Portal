@@ -5010,6 +5010,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     document.querySelectorAll("#dealer-main-content .tab-panel").forEach(function(p) {
       p.classList.remove("active");
+      p.style.display = "none";
     });
     document.querySelectorAll(".sidebar-nav-item").forEach(function(b) {
       b.classList.remove("active");
@@ -5017,7 +5018,10 @@ document.addEventListener("DOMContentLoaded", function() {
     var sb = document.querySelector('.sidebar-nav-item[data-panel="' + name + '"]');
     if (sb) sb.classList.add("active");
     var panel = document.getElementById("panel-" + name);
-    if (panel) panel.classList.add("active");
+    if (panel) {
+      panel.classList.add("active");
+      panel.style.display = "block";
+    }
     if (name === "billing-cart") {
       var billingCartPanel = document.getElementById("panel-billing-cart");
       if (billingCartPanel) billingCartPanel.style.display = "block";
