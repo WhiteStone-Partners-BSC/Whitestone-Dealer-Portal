@@ -4999,6 +4999,10 @@ document.addEventListener("DOMContentLoaded", function() {
     if (sb) sb.classList.add("active");
     var panel = document.getElementById("panel-" + name);
     if (panel) panel.classList.add("active");
+    if (name === "billing-cart") {
+      var billingCartPanel = document.getElementById("panel-billing-cart");
+      if (billingCartPanel) billingCartPanel.style.display = "block";
+    }
     if (name === "dashboard") loadDashboard();
     if (name === "history") loadTickets();
     if (name === "customers") loadCustomersTab();
