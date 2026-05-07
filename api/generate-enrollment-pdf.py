@@ -77,108 +77,128 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _fill_pdf(self, c, dealer, template_path):
+    def _fill_pdf(self, c, dealer, template_path=None):
         from pypdf import PdfReader, PdfWriter
         from reportlab.pdfgen import canvas
         from reportlab.lib.pagesizes import letter
         import io
 
-        # Build overlay with text annotations
+        template_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'enrollment-form-template.pdf'
+        )
+        if not os.path.exists(template_path):
+            raise FileNotFoundError('Template not found: ' + template_path)
+
         packet = io.BytesIO()
-        c_canvas = canvas.Canvas(packet, pagesize=letter)
-        w, h = letter  # 612 x 792
+        cv = canvas.Canvas(packet, pagesize=letter)
+        w_page, h_page = letter  # 612 x 792
 
-        def txt(text, x, y, size=9):
-            if text and str(text).strip():
-                c_canvas.setFont('Helvetica', size)
-                c_canvas.drawString(x, h - y - size, str(text))
+        def txt(text, x, y_from_top, font_size=8):
+            """Draw text. y_from_top measured from top of page."""
+            if not text or str(text).strip() == '':
+                return
+            cv.setFont('Helvetica', font_size)
+            cv.drawString(x, h_page - y_from_top, str(text))
 
-        # Agreement number and date
-        txt(c.get('agreement_number', ''), 68, 90)
+        # Format date from ISO to MM/DD/YYYY
         agreement_date = (c.get('start_date') or '')[:10]
         if agreement_date:
-            parts = agreement_date.split('-')
-            if len(parts) == 3:
-                agreement_date = parts[1] + '/' + parts[2] + '/' + parts[0]
-        txt(agreement_date, 72, 115)
+            p = agreement_date.split('-')
+            if len(p) == 3:
+                agreement_date = p[1] + '/' + p[2] + '/' + p[0]
 
-        # Plan holder
-        txt(c.get('customer_first_name', ''),  62,  145)
-        txt(c.get('customer_last_name', ''),   312, 145)
-        txt(c.get('customer_middle_initial', ''), 526, 145)
-        txt(c.get('customer_address', ''),     72,  163)
-        txt(c.get('customer_email', ''),       352, 163)
-        txt(c.get('customer_city', ''),        42,  180)
-        txt(c.get('customer_state', ''),       206, 180)
-        txt(c.get('customer_zip', ''),         287, 180)
-        txt(c.get('customer_phone', ''),       427, 180)
+        # ── HEADER ─────────────────────────────────────────────────────
+        txt(c.get('agreement_number', ''), 68, 94.0,  8)
+        txt(agreement_date,                68, 117.0, 8)
 
-        # Lienholder
+        # ── PLAN HOLDER ────────────────────────────────────────────────
+        txt(c.get('customer_first_name', ''),     62,  148.0, 8)
+        txt(c.get('customer_last_name', ''),      312, 148.0, 8)
+        txt(c.get('customer_middle_initial', ''), 528, 148.0, 8)
+        # Address/Email start AFTER their label text ends
+        txt(c.get('customer_address', ''),        76,  165.0, 8)
+        txt(c.get('customer_email', ''),          357, 165.0, 8)
+        txt(c.get('customer_city', ''),           40,  182.0, 8)
+        txt(c.get('customer_state', ''),          204, 182.0, 8)
+        txt(c.get('customer_zip', ''),            278, 182.0, 8)
+        txt(c.get('customer_phone', ''),          427, 182.0, 8)
+
+        # ── LIENHOLDER ─────────────────────────────────────────────────
         if c.get('lienholder_name'):
-            txt(c.get('lienholder_name', ''),    62,  206)
-            txt(c.get('lienholder_address', ''), 72,  223)
-            txt(c.get('lienholder_city', ''),    42,  240)
-            txt(c.get('lienholder_state', ''),   206, 240)
-            txt(c.get('lienholder_zip', ''),     287, 240)
-            txt(c.get('lienholder_phone', ''),   427, 240)
+            txt(c.get('lienholder_name', ''),    76,  209.0, 8)
+            txt(c.get('lienholder_address', ''), 76,  226.0, 8)
+            txt(c.get('lienholder_city', ''),    40,  243.0, 8)
+            txt(c.get('lienholder_state', ''),   204, 243.0, 8)
+            txt(c.get('lienholder_zip', ''),     278, 243.0, 8)
+            txt(c.get('lienholder_phone', ''),   427, 243.0, 8)
 
-        # Dealership
-        dealer_name = dealer.get('dealership_name') or c.get('dealership_name', '')
-        txt(dealer_name, 92, 266)
+        # ── DEALERSHIP ─────────────────────────────────────────────────
+        dealer_name = (dealer or {}).get('dealership_name') or c.get('dealership_name', '')
+        txt(dealer_name, 104, 269.0, 8)
 
-        # Vessel
-        txt(c.get('hin', ''),        37,  326)
-        txt(c.get('boat_year', ''),  206, 326)
-        txt(c.get('boat_make', ''),  292, 326)
-        txt(c.get('boat_model', ''), 422, 326)
-
-        # New/Used checkbox
+        # ── VESSEL ─────────────────────────────────────────────────────
+        txt(c.get('hin', ''),                          40,  329.0, 8)
+        txt(str(c.get('boat_year', '') or ''),         204, 329.0, 8)
+        txt(c.get('boat_make', ''),                    287, 329.0, 8)
+        txt(c.get('boat_model', ''),                   413, 329.0, 8)
+        # NEW/Used checkboxes (exact rectangle positions measured from form)
+        # NEW box:  x0=529.7 x1=534.7 top=329.7 bottom=334.7
+        # Used box: x0=570.7 x1=576.2 top=329.3 bottom=334.8
         condition = c.get('vessel_condition', 'New')
         if condition == 'Used':
-            txt('X', 571, 323)
+            txt('X', 571, 335.0, 7)
         else:
-            txt('X', 530, 323)
+            txt('X', 530, 335.0, 7)
 
-        # Engine 1
-        txt(c.get('engine1_serial', ''), 82,  344)
-        txt(c.get('engine1_year', ''),   206, 344)
-        txt(c.get('engine1_make', ''),   292, 344)
-        txt(c.get('engine1_model', ''),  422, 344)
-        txt(c.get('engine1_hours', ''),  562, 344)
+        # ── ENGINE 1 ───────────────────────────────────────────────────
+        txt(str(c.get('engine1_serial', '') or ''), 75,  347.0, 8)
+        txt(str(c.get('engine1_year', '') or ''),   204, 347.0, 8)
+        txt(str(c.get('engine1_make', '') or ''),   287, 347.0, 8)
+        txt(str(c.get('engine1_model', '') or ''),  413, 347.0, 8)
+        txt(str(c.get('engine1_hours', '') or ''),  561, 347.0, 8)
 
-        # Engine 2
+        # ── ENGINE 2 ───────────────────────────────────────────────────
         if c.get('dual_engine') and c.get('engine2_serial'):
-            txt(c.get('engine2_serial', ''), 82,  361)
-            txt(c.get('engine2_year', ''),   206, 361)
-            txt(c.get('engine2_make', ''),   292, 361)
-            txt(c.get('engine2_model', ''),  422, 361)
-            txt(c.get('engine2_hours', ''),  562, 361)
+            txt(str(c.get('engine2_serial', '') or ''), 75,  364.0, 8)
+            txt(str(c.get('engine2_year', '') or ''),   204, 364.0, 8)
+            txt(str(c.get('engine2_make', '') or ''),   287, 364.0, 8)
+            txt(str(c.get('engine2_model', '') or ''),  413, 364.0, 8)
+            txt(str(c.get('engine2_hours', '') or ''),  561, 364.0, 8)
 
-        # Term checkboxes
+        # ── TERM CHECKBOXES ────────────────────────────────────────────
+        # Exact checkbox rectangle positions:
+        # 12 MONTH: x0=159.2 x1=164.7 top=407.2 bottom=412.7
+        # 24 MONTH: x0=303.3 x1=308.8 top=407.2 bottom=412.7
+        # 36 MONTH: x0=447.4 x1=452.9 top=407.2 bottom=412.7
         term = c.get('contract_type', '1yr')
-        if term == '1yr': txt('X', 144, 408, 11)
-        elif term == '2yr': txt('X', 289, 408, 11)
-        elif term == '3yr': txt('X', 433, 408, 11)
+        if term == '1yr':
+            txt('X', 160, 413.0, 7)
+        elif term == '2yr':
+            txt('X', 304, 413.0, 7)
+        elif term == '3yr':
+            txt('X', 448, 413.0, 7)
 
-        # Purchase price and date
+        # ── PURCHASE PRICE & DATE ──────────────────────────────────────
+        # Start AFTER label text ends:
+        # PRICE label x1=164.4 → data at 166
+        # DATE label x1=451.1 → data at 453
         price_map = {'1yr': '$3,325.00', '2yr': '$6,650.00', '3yr': '$9,975.00'}
-        txt(price_map.get(term, ''), 147, 430)
-        txt(agreement_date, 457, 430)
+        txt(price_map.get(term, ''), 166, 430.0, 8)
+        txt(agreement_date,          453, 430.0, 8)
 
-        c_canvas.save()
+        cv.save()
         packet.seek(0)
 
         # Merge overlay onto template
-        overlay = PdfReader(packet)
+        overlay  = PdfReader(packet)
         template = PdfReader(template_path)
-        writer = PdfWriter()
+        writer   = PdfWriter()
 
-        # First page — merge overlay
         page = template.pages[0]
         page.merge_page(overlay.pages[0])
         writer.add_page(page)
 
-        # Remaining pages — add as-is
         for i in range(1, len(template.pages)):
             writer.add_page(template.pages[i])
 
