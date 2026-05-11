@@ -6991,3 +6991,315 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 
 });
+
+// —— Admin: dealer enrollment form (modal in index.html) ——
+window.dealerEnrollmentCurrentId = null;
+
+function denTodayIso() {
+  var t = new Date();
+  var mo = t.getMonth() + 1;
+  var da = t.getDate();
+  return t.getFullYear() + "-" + (mo < 10 ? "0" : "") + mo + "-" + (da < 10 ? "0" : "") + da;
+}
+
+function denShowEnrollmentMsg(text, ok) {
+  var el = document.getElementById("den-enrollment-msg");
+  if (!el) return;
+  el.style.display = "block";
+  el.textContent = text;
+  el.style.background = ok ? "#f0f9f4" : "#fff0f0";
+  el.style.color = ok ? "var(--green-text)" : "var(--red-text)";
+  el.style.border = "1px solid " + (ok ? "#a8d5b5" : "#ffb3b3");
+}
+
+window.closeDealerEnrollmentModal = function() {
+  var m = document.getElementById("dealer-enrollment-modal");
+  if (m) m.style.display = "none";
+  window.dealerEnrollmentCurrentId = null;
+};
+
+window.addContactRow = function(name, position) {
+  name = name == null ? "" : String(name);
+  position = position == null ? "" : String(position);
+  var wrap = document.getElementById("den-contacts-wrap");
+  if (!wrap) return;
+  if (wrap.querySelectorAll(".den-contact-row").length >= 10) {
+    alert("Maximum of 10 contacts.");
+    return;
+  }
+  var row = document.createElement("div");
+  row.className = "den-contact-row";
+  row.style.display = "grid";
+  row.style.gridTemplateColumns = "1fr 1fr auto";
+  row.style.gap = "0.5rem";
+  row.style.alignItems = "end";
+  row.style.marginBottom = "0.5rem";
+
+  var fg1 = document.createElement("div");
+  fg1.className = "fg";
+  fg1.style.marginBottom = "0";
+  fg1.innerHTML =
+    '<label>Name <span style="color:var(--red-text);">*</span></label>';
+  var in1 = document.createElement("input");
+  in1.type = "text";
+  in1.className = "den-c-name";
+  in1.autocomplete = "name";
+  in1.value = name;
+  fg1.appendChild(in1);
+
+  var fg2 = document.createElement("div");
+  fg2.className = "fg";
+  fg2.style.marginBottom = "0";
+  fg2.innerHTML = "<label>Position</label>";
+  var in2 = document.createElement("input");
+  in2.type = "text";
+  in2.className = "den-c-position";
+  in2.autocomplete = "organization-title";
+  in2.value = position;
+  fg2.appendChild(in2);
+
+  var rm = document.createElement("button");
+  rm.type = "button";
+  rm.textContent = "✕";
+  rm.title = "Remove";
+  rm.style.padding = "8px 10px";
+  rm.style.background = "white";
+  rm.style.border = "1px solid var(--border)";
+  rm.style.borderRadius = "6px";
+  rm.style.cursor = "pointer";
+  rm.style.fontSize = "14px";
+  rm.style.lineHeight = "1";
+  rm.style.color = "var(--mid)";
+  rm.addEventListener("click", function() {
+    if (wrap.querySelectorAll(".den-contact-row").length <= 1) {
+      alert("At least one contact row is required.");
+      return;
+    }
+    row.remove();
+  });
+
+  row.appendChild(fg1);
+  row.appendChild(fg2);
+  row.appendChild(rm);
+  wrap.appendChild(row);
+};
+
+window.openDealerEnrollmentModal = async function(dealerId, dealerName) {
+  if (!currentDealer || !currentDealer.isAdmin) {
+    alert("Admin access required.");
+    return;
+  }
+  var m = document.getElementById("dealer-enrollment-modal");
+  if (!m) return;
+
+  window.dealerEnrollmentCurrentId = dealerId;
+  var title = document.getElementById("den-modal-title");
+  if (title) title.textContent = dealerName || "Dealer";
+  var hid = document.getElementById("den-dealer-id");
+  if (hid) hid.value = dealerId;
+  var msg = document.getElementById("den-enrollment-msg");
+  if (msg) msg.style.display = "none";
+  var confirmEl = document.getElementById("den-agreement-confirm");
+  if (confirmEl) confirmEl.checked = false;
+
+  m.style.display = "flex";
+
+  function setVal(id, v) {
+    var el = document.getElementById(id);
+    if (el) el.value = v != null && v !== undefined ? String(v) : "";
+  }
+
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(dealerId) + "&select=*",
+      { headers: authHeaders() }
+    );
+    var rows = await res.json();
+    var d = rows && rows[0];
+    if (!d) {
+      alert("Could not load dealer.");
+      closeDealerEnrollmentModal();
+      return;
+    }
+
+    setVal("den-legal-name", d.legal_business_name || d.dealership_name || "");
+    setVal("den-dba", d.dba_name || "");
+    setVal("den-business-address", d.business_address || d.address || "");
+    setVal("den-business-city", d.business_city || d.city || "");
+    setVal("den-business-state", d.business_state || d.state || "");
+    setVal("den-business-zip", d.business_zip || d.zip || "");
+    setVal("den-business-phone", d.business_phone || d.phone || "");
+    setVal("den-ein", d.ein || "");
+    setVal("den-dealer-number", d.dealer_number != null && d.dealer_number !== "" ? d.dealer_number : "");
+    setVal("den-brands-carried", d.brands_carried || d.boat_brands || "");
+    setVal("den-ar-contact", d.ar_contact || "");
+    setVal("den-ar-phone", d.ar_phone || "");
+    setVal("den-ar-email", d.ar_email || "");
+    setVal("den-account-number", d.account_number || "");
+    setVal("den-routing-number", d.routing_number || "");
+
+    var effEl = document.getElementById("den-effective-date");
+    if (effEl) {
+      if (d.effective_date) {
+        var s = String(d.effective_date);
+        effEl.value = s.length >= 10 ? s.slice(0, 10) : s;
+      } else {
+        effEl.value = denTodayIso();
+      }
+    }
+
+    var wrap = document.getElementById("den-contacts-wrap");
+    if (wrap) {
+      wrap.innerHTML = "";
+      var contacts = [];
+      var raw = d.dealer_contacts;
+      if (Array.isArray(raw)) contacts = raw;
+      else if (raw && typeof raw === "string") {
+        try {
+          var parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) contacts = parsed;
+        } catch (e) {
+          contacts = [];
+        }
+      }
+      if (!contacts.length) contacts.push({ name: "", position: "" });
+      contacts.slice(0, 10).forEach(function(c) {
+        addContactRow((c && c.name) || "", (c && c.position) || "");
+      });
+    }
+  } catch (e) {
+    console.error("openDealerEnrollmentModal", e);
+    alert("Could not load dealer data.");
+    closeDealerEnrollmentModal();
+  }
+};
+
+window.saveDealerEnrollmentData = async function(dealerId) {
+  dealerId = dealerId || window.dealerEnrollmentCurrentId;
+  if (!dealerId) return false;
+  if (!currentDealer || !currentDealer.isAdmin) {
+    alert("Admin access required.");
+    return false;
+  }
+
+  function el(id) {
+    return document.getElementById(id);
+  }
+
+  var legal = el("den-legal-name") ? el("den-legal-name").value.trim() : "";
+  var addr = el("den-business-address") ? el("den-business-address").value.trim() : "";
+  var city = el("den-business-city") ? el("den-business-city").value.trim() : "";
+  var state = el("den-business-state") ? el("den-business-state").value.trim() : "";
+  var zip = el("den-business-zip") ? el("den-business-zip").value.trim() : "";
+  var phone = el("den-business-phone") ? el("den-business-phone").value.trim() : "";
+  var ein = el("den-ein") ? el("den-ein").value.trim() : "";
+  var brands = el("den-brands-carried") ? el("den-brands-carried").value.trim() : "";
+  var arName = el("den-ar-contact") ? el("den-ar-contact").value.trim() : "";
+  var arPhone = el("den-ar-phone") ? el("den-ar-phone").value.trim() : "";
+  var arEmail = el("den-ar-email") ? el("den-ar-email").value.trim() : "";
+  var acct = el("den-account-number") ? el("den-account-number").value.trim() : "";
+  var rout = el("den-routing-number") ? el("den-routing-number").value.trim() : "";
+  var eff = el("den-effective-date") ? el("den-effective-date").value : "";
+
+  var wrap = document.getElementById("den-contacts-wrap");
+  var contactRows = wrap ? wrap.querySelectorAll(".den-contact-row") : [];
+  var contacts = [];
+  contactRows.forEach(function(row) {
+    var n = row.querySelector(".den-c-name");
+    var p = row.querySelector(".den-c-position");
+    contacts.push({
+      name: n && n.value ? n.value.trim() : "",
+      position: p && p.value ? p.value.trim() : ""
+    });
+  });
+
+  if (!legal || !addr || !city || !state || !zip || !phone || !ein || !brands) {
+    alert("Please complete all required fields in Section 1.");
+    return false;
+  }
+  if (!contacts.length || !contacts.some(function(c) { return c.name.length > 0; })) {
+    alert("Add at least one authorized contact with a name.");
+    return false;
+  }
+  if (!arName || !arPhone || !arEmail || !acct || !rout) {
+    alert("Please complete all required fields in Section 3.");
+    return false;
+  }
+  if (!eff) {
+    alert("Please choose an effective date.");
+    return false;
+  }
+
+  var dbaVal = el("den-dba") ? el("den-dba").value.trim() : "";
+
+  var payload = {
+    legal_business_name: legal,
+    dba_name: dbaVal || null,
+    business_address: addr,
+    business_city: city,
+    business_state: state,
+    business_zip: zip,
+    business_phone: phone,
+    ein: ein,
+    brands_carried: brands,
+    dealer_contacts: contacts,
+    ar_contact: arName,
+    ar_phone: arPhone,
+    ar_email: arEmail,
+    account_number: acct,
+    routing_number: rout,
+    effective_date: eff
+  };
+
+  try {
+    var res = await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(dealerId), {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      var errText = await res.text();
+      throw new Error(errText || "Save failed");
+    }
+    denShowEnrollmentMsg("Dealer enrollment info saved.", true);
+    if (typeof window.adminLoadDealerTable === "function") await window.adminLoadDealerTable();
+    return true;
+  } catch (e) {
+    alert("Could not save: " + (e.message || String(e)));
+    return false;
+  }
+};
+
+window.generateDealerAgreementPDF = async function(dealerId) {
+  dealerId = dealerId || window.dealerEnrollmentCurrentId;
+  if (!dealerId) return;
+  var confirmEl = document.getElementById("den-agreement-confirm");
+  if (!confirmEl || !confirmEl.checked) {
+    alert("Please confirm the agreement checkbox before generating the PDF.");
+    return;
+  }
+  var saved = await saveDealerEnrollmentData(dealerId);
+  if (!saved) return;
+  try {
+    var res = await fetch("/api/generate-dealer-agreement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dealerId: dealerId })
+    });
+    if (!res.ok) {
+      var errBody = await res.text();
+      throw new Error(errBody || "PDF request failed");
+    }
+    var blob = await res.blob();
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "Whitestone_Dealer_Agreement_" + String(dealerId).replace(/-/g, "").slice(0, 12) + ".pdf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert("Could not generate PDF: " + (e.message || String(e)));
+  }
+};

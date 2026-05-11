@@ -1490,6 +1490,87 @@
   </div>
 </div>
 
+<!-- Dealer Enrollment (admin) -->
+<div id="dealer-enrollment-modal" onclick="if (event.target === this && typeof closeDealerEnrollmentModal === 'function') closeDealerEnrollmentModal();" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:350;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:white;border-radius:12px;max-width:700px;width:100%;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+    <div style="background:var(--navy2);padding:1rem 1.25rem;display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;">
+      <div style="min-width:0;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);">Dealer enrollment</div>
+        <div id="den-modal-title" style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:white;margin-top:6px;word-break:break-word;">—</div>
+      </div>
+      <button type="button" onclick="closeDealerEnrollmentModal()" style="background:none;border:none;color:rgba(200,220,235,0.75);font-size:22px;cursor:pointer;padding:0;line-height:1;flex-shrink:0;">✕</button>
+    </div>
+    <div style="padding:1.25rem 1.35rem;overflow-y:auto;flex:1;">
+      <input type="hidden" id="den-dealer-id" value="">
+      <div id="den-enrollment-msg" style="display:none;margin-bottom:0.75rem;padding:0.65rem 0.85rem;border-radius:6px;font-size:13px;"></div>
+
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:0.65rem;">Section 1 — Dealership information</div>
+      <div style="display:flex;flex-direction:column;gap:0.85rem;margin-bottom:1.25rem;">
+        <div class="fg">
+          <label>Legal business name <span style="color:var(--red-text);">*</span></label>
+          <input type="text" id="den-legal-name" autocomplete="organization">
+        </div>
+        <div class="fg">
+          <label>DBA (optional)</label>
+          <input type="text" id="den-dba" autocomplete="off">
+        </div>
+        <div class="fg">
+          <label>Business address <span style="color:var(--red-text);">*</span></label>
+          <input type="text" id="den-business-address" autocomplete="street-address">
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.75rem;">
+          <div class="fg"><label>City <span style="color:var(--red-text);">*</span></label><input type="text" id="den-business-city" autocomplete="address-level2"></div>
+          <div class="fg"><label>State <span style="color:var(--red-text);">*</span></label><input type="text" id="den-business-state" maxlength="2" autocomplete="address-level1"></div>
+          <div class="fg"><label>Zip <span style="color:var(--red-text);">*</span></label><input type="text" id="den-business-zip" autocomplete="postal-code"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+          <div class="fg"><label>Phone <span style="color:var(--red-text);">*</span></label><input type="tel" id="den-business-phone" autocomplete="tel"></div>
+          <div class="fg"><label>EIN <span style="color:var(--red-text);">*</span></label><input type="text" id="den-ein" autocomplete="off" placeholder="XX-XXXXXXX"></div>
+        </div>
+        <div class="fg">
+          <label>Dealer number <span style="color:var(--light);font-weight:400;">(read-only)</span></label>
+          <input type="text" id="den-dealer-number" readonly style="background:var(--silver-bg);color:var(--navy);cursor:default;">
+        </div>
+        <div class="fg">
+          <label>Brands carried <span style="color:var(--red-text);">*</span></label>
+          <input type="text" id="den-brands-carried" autocomplete="off" placeholder="Comma-separated brands">
+        </div>
+      </div>
+
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:0.65rem;">Section 2 — Authorized contacts</div>
+      <div id="den-contacts-wrap" style="margin-bottom:0.5rem;"></div>
+      <button type="button" onclick="addContactRow()" style="margin-bottom:1.25rem;background:var(--silver-bg);color:var(--navy);border:1px solid var(--border);padding:8px 14px;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;">+ Add contact</button>
+
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:0.65rem;">Section 3 — Accounting information</div>
+      <div style="display:flex;flex-direction:column;gap:0.85rem;margin-bottom:1.25rem;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+          <div class="fg"><label>AR contact name <span style="color:var(--red-text);">*</span></label><input type="text" id="den-ar-contact" autocomplete="name"></div>
+          <div class="fg"><label>AR phone <span style="color:var(--red-text);">*</span></label><input type="tel" id="den-ar-phone" autocomplete="tel"></div>
+        </div>
+        <div class="fg"><label>AR email <span style="color:var(--red-text);">*</span></label><input type="email" id="den-ar-email" autocomplete="email"></div>
+        <div class="fg"><label>Account number <span style="color:var(--red-text);">*</span></label><input type="text" id="den-account-number" autocomplete="off" style="font-family:ui-monospace,Menlo,Consolas,monospace;"></div>
+        <div class="fg"><label>Routing number <span style="color:var(--red-text);">*</span></label><input type="text" id="den-routing-number" autocomplete="off" style="font-family:ui-monospace,Menlo,Consolas,monospace;"></div>
+      </div>
+
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:0.65rem;">Section 4 — Agreement</div>
+      <div style="display:flex;flex-direction:column;gap:0.85rem;margin-bottom:1rem;">
+        <div class="fg">
+          <label>Effective date <span style="color:var(--red-text);">*</span></label>
+          <input type="date" id="den-effective-date">
+        </div>
+        <label style="display:flex;align-items:flex-start;gap:0.5rem;font-size:13px;color:var(--navy);cursor:pointer;font-weight:500;">
+          <input type="checkbox" id="den-agreement-confirm" style="margin-top:3px;">
+          <span>I confirm this enrollment information is accurate and may be used for the dealer agreement. <span style="color:var(--red-text);">*</span> (required to generate PDF)</span>
+        </label>
+        <div style="display:flex;flex-wrap:wrap;gap:0.65rem;margin-top:0.25rem;">
+          <button type="button" onclick="saveDealerEnrollmentData(document.getElementById('den-dealer-id').value)" style="background:var(--gold);color:var(--navy);border:none;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Save dealer info</button>
+          <button type="button" onclick="generateDealerAgreementPDF(document.getElementById('den-dealer-id').value)" style="background:var(--navy);color:white;border:none;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Generate agreement PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="assets/js/dealer-portal.js" defer></script>
 <script>
@@ -1717,19 +1798,25 @@ window.addEventListener("load", function() {
         active.map(function(d, i) {
           var joined = d.joined_at ? new Date(d.joined_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
           var location = [d.city, d.state].filter(Boolean).join(", ") || d.location || "—";
-          return '<div onclick="openDealerPanel(\'' + esc(d.id) + '\')" ' +
-            'style="display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1.25rem;cursor:pointer;border-bottom:' + (i < active.length - 1 ? '1px solid var(--border)' : 'none') + ';transition:background 0.15s;" ' +
+          return '<div style="display:flex;align-items:stretch;border-bottom:' + (i < active.length - 1 ? "1px solid var(--border)" : "none") + ';">' +
+            '<div onclick="openDealerPanel(\'' + esc(d.id) + '\')" ' +
+            'style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1.25rem;cursor:pointer;transition:background 0.15s;min-width:0;" ' +
             'onmouseover="this.style.background=\'#f8f9fb\'" onmouseout="this.style.background=\'white\'">' +
-            '<div style="display:flex;align-items:center;gap:10px;">' +
+            '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
               '<div style="width:8px;height:8px;border-radius:50%;background:var(--green-text);flex-shrink:0;"></div>' +
-              '<div>' +
+              '<div style="min-width:0;">' +
                 '<div style="font-size:14px;font-weight:500;color:var(--navy);">' + esc(d.dealership_name || "—") + '</div>' +
                 '<div style="font-size:12px;color:var(--light);">' + esc(location) + '</div>' +
               '</div>' +
             '</div>' +
-            '<div style="text-align:right;">' +
+            '<div style="text-align:right;flex-shrink:0;padding-left:0.75rem;display:flex;flex-direction:column;justify-content:center;">' +
               '<div style="font-size:11px;color:var(--light);">Joined ' + esc(joined) + '</div>' +
               '<div style="font-size:11px;color:var(--mid);margin-top:1px;">→</div>' +
+            '</div>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;padding:0 12px;border-left:1px solid var(--border);flex-shrink:0;background:white;">' +
+              '<button type="button" onclick="event.stopPropagation(); if (typeof openDealerEnrollmentModal === \'function\') openDealerEnrollmentModal(\'' + esc(d.id) + '\',\'' + esc(d.dealership_name || "") + '\');" ' +
+              'style="background:var(--gold);color:var(--navy);border:none;padding:8px 12px;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">📋 Enrollment</button>' +
             '</div>' +
           '</div>';
         }).join("") +
@@ -1741,9 +1828,13 @@ window.addEventListener("load", function() {
       inactiveEl.innerHTML = '<div style="font-size:13px;color:var(--light);padding:1rem;background:white;border:1px solid var(--border);border-radius:8px;">No inactive dealers.</div>';
     } else {
       inactiveEl.innerHTML = inactive.map(function(d) {
-        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1.25rem;background:white;border:1px solid var(--border);border-radius:6px;margin-bottom:0.5rem;">' +
-          '<div style="font-size:13.5px;color:var(--light);">' + esc(d.dealership_name || "—") + '</div>' +
-          '<button onclick="reactivateDealer(\'' + esc(d.id) + '\')" style="font-size:11.5px;color:var(--green-text);background:none;border:1px solid var(--green-text);padding:4px 12px;border-radius:4px;cursor:pointer;font-family:inherit;">Reactivate</button>' +
+        return '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;padding:0.75rem 1.25rem;background:white;border:1px solid var(--border);border-radius:6px;margin-bottom:0.5rem;flex-wrap:wrap;">' +
+          '<div style="font-size:13.5px;color:var(--light);flex:1;min-width:0;">' + esc(d.dealership_name || "—") + '</div>' +
+          '<div style="display:flex;align-items:center;gap:0.5rem;flex-shrink:0;">' +
+            '<button type="button" onclick="if (typeof openDealerEnrollmentModal === \'function\') openDealerEnrollmentModal(\'' + esc(d.id) + '\',\'' + esc(d.dealership_name || "") + '\');" ' +
+            'style="background:var(--gold);color:var(--navy);border:none;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">📋 Enrollment</button>' +
+            '<button type="button" onclick="reactivateDealer(\'' + esc(d.id) + '\')" style="font-size:11.5px;color:var(--green-text);background:none;border:1px solid var(--green-text);padding:4px 12px;border-radius:4px;cursor:pointer;font-family:inherit;">Reactivate</button>' +
+          '</div>' +
         '</div>';
       }).join("");
     }
