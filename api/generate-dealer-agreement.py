@@ -8,6 +8,7 @@ import urllib.parse
 class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
+        # Read body
         length = int(self.headers.get('Content-Length', 0))
         body = json.loads(self.rfile.read(length))
         dealer_id = body.get('dealerId')
@@ -16,8 +17,10 @@ class handler(BaseHTTPRequestHandler):
             self._json(400, {'error': 'dealerId required'})
             return
 
+        # Fetch contract from Supabase
         supabase_url = os.environ.get('SUPABASE_URL', '')
-        supabase_key = os.environ.get('SUPABASE_ANON_KEY', '')
+        supabase_key = (os.environ.get('SUPABASE_SERVICE_KEY') or
+                        os.environ.get('SUPABASE_ANON_KEY', ''))
 
         url = (supabase_url + '/rest/v1/dealers'
                + '?id=eq.' + urllib.parse.quote(dealer_id)
