@@ -124,12 +124,13 @@ class handler(BaseHTTPRequestHandler):
 
         eff_raw = d.get('enrollment_effective_date') or d.get('effective_date') or ''
         eff = str(eff_raw)[:10] if eff_raw else ''
-        # Intro paragraph: switch to 8pt to fit inside the underline blanks
-        c.setFont('Helvetica', 8)
         # "...is entered into as of __________ ("Effective Date")..." y_top=462.4
-        # Effective Date shifted LEFT to clear the ("Effective Date") label that follows the blank
-        put(195, 466, eff)
+        # Underline blank runs from x=204.4 to x=236.8 (width ~32pt).
+        # Use 7pt so "YYYY-MM-DD" (always 10 chars) fits inside the blank and sits centered.
+        c.setFont('Helvetica', 7)
+        put(205, 467, eff)
         # Dealer name fills the blank "_____ ("Dealer")" on the line below — 8pt fits the line width
+        c.setFont('Helvetica', 8)
         put(25, 473, legal)
         # Restore default font for any subsequent draws on this page
         c.setFont('Helvetica', 9)
@@ -138,7 +139,9 @@ class handler(BaseHTTPRequestHandler):
 
         # ---------- PAGE 2 OVERLAY ----------
         c.setFont('Helvetica', 9)
-        put(244, 157, '10')
+        # "within ____ business days" — underscores at y=147.8, x=242.7-255.6
+        # Raise Y so "10" sits on the underscores instead of below them
+        put(244, 152, '10')
 
         # Signatures (page 2). Whitestone signature line at y_top=583.3, BY at y_top=591.9
         # Dealer signature line at y_top=617.6, BY at y_top=626.1
