@@ -96,17 +96,18 @@ class handler(BaseHTTPRequestHandler):
             contacts = []
 
         row_y = [288.1, 305.6, 323.1, 340.6, 358.2]
-        # Nudged up 8pt total and left 2-7pt to keep descenders ("g", "&") above row lines
+        # Position text shifted left to sit cleanly inside its column,
+        # clear of the right-column row numbers (6-10) and section dividers.
         for i in range(5):
             if i < len(contacts) and isinstance(contacts[i], dict):
                 c_ = contacts[i]
                 put(40, row_y[i] + 1, c_.get('name'))
-                put(255, row_y[i] + 1, c_.get('position'))
+                put(230, row_y[i] + 1, c_.get('position'))
         for i in range(5, 10):
             if i < len(contacts) and isinstance(contacts[i], dict):
                 c_ = contacts[i]
                 put(328, row_y[i - 5] + 1, c_.get('name'))
-                put(540, row_y[i - 5] + 1, c_.get('position'))
+                put(515, row_y[i - 5] + 1, c_.get('position'))
 
         # --- ACCOUNTING INFORMATION ---
         ar_name = d.get('ar_contact_name') or d.get('ar_contact') or ''
