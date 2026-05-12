@@ -5,7 +5,25 @@ import os
 import urllib.request
 import urllib.parse
 
+
 class handler(BaseHTTPRequestHandler):
+
+    def _fetch_dealer(self, dealer_id):
+        if not dealer_id:
+            return {}
+        url = os.environ.get('SUPABASE_URL', '')
+        key = os.environ.get('SUPABASE_SERVICE_KEY') or os.environ.get('SUPABASE_ANON_KEY', '')
+        qid = urllib.parse.quote(str(dealer_id), safe='')
+        req = urllib.request.Request(
+            f"{url}/rest/v1/dealers?id=eq.{qid}&select=dealership_name,address,city,state,zip,phone",
+            headers={'apikey': key, 'Authorization': f'Bearer {key}'},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                data = json.loads(r.read().decode('utf-8'))
+            return data[0] if data else {}
+        except Exception:
+            return {}
 
     def do_POST(self):
         # Read body
@@ -24,7 +42,7 @@ class handler(BaseHTTPRequestHandler):
 
         url = (supabase_url + '/rest/v1/contracts'
                + '?id=eq.' + urllib.parse.quote(contract_id)
-               + '&select=*,dealers(dealership_name,dealer_number)'
+               + '&select=*'
                + '&limit=1')
 
         req = urllib.request.Request(url, headers={
@@ -44,11 +62,15 @@ class handler(BaseHTTPRequestHandler):
             return
 
         c = rows[0]
-        dealer = c.get('dealers') or {}
-        if isinstance(dealer, list):
-            dealer = dealer[0] if dealer else {}
+        dealer = self._fetch_dealer(c.get('dealer_id'))
+        c['dealership_name'] = dealer.get('dealership_name', '') or c.get('dealership_name', '')
+        c['dealership_address'] = dealer.get('address', '') or ''
+        c['dealership_city'] = dealer.get('city', '') or ''
+        c['dealership_state'] = dealer.get('state', '') or ''
+        c['dealership_zip'] = dealer.get('zip', '') or ''
+        c['dealership_phone'] = dealer.get('phone', '') or ''
 
-        template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'enrollment-form-template.pdf')
+        template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'customer-enrollment-template.pdf')
 
         if not template_path or not os.path.exists(template_path):
             self._json(500, {'error': 'Template not found at: ' + str(template_path)})
@@ -56,7 +78,7 @@ class handler(BaseHTTPRequestHandler):
 
         # Generate filled PDF
         try:
-            pdf_bytes = self._fill_pdf(c, dealer, template_path)
+            pdf_bytes = self._fill_pdf(c, template_path)
         except Exception as e:
             self._json(500, {'error': 'PDF generation failed: ' + str(e)})
             return
@@ -78,7 +100,7 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _fill_pdf(self, c, dealer, template_path=None):
+    def _fill_pdf(self, c, template_path=None):
         from pypdf import PdfReader, PdfWriter
         from reportlab.pdfgen import canvas
         from reportlab.lib.pagesizes import letter
@@ -86,7 +108,7 @@ class handler(BaseHTTPRequestHandler):
 
         template_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
-            'enrollment-form-template.pdf'
+            'customer-enrollment-template.pdf'
         )
         if not os.path.exists(template_path):
             raise FileNotFoundError('Template not found: ' + template_path)
@@ -95,113 +117,123 @@ class handler(BaseHTTPRequestHandler):
         cv = canvas.Canvas(packet, pagesize=letter)
         w_page, h_page = letter  # 612 x 792
 
-        def txt(text, x, y_from_top, font_size=8):
-            """Draw text. y_from_top measured from top of page."""
-            if not text or str(text).strip() == '':
+        def put(x, y_top, value, font_size=8):
+            """Draw text. y_top measured from top of page (PDF coords from bottom use h_page - y_top)."""
+            if not value or str(value).strip() == '':
                 return
             cv.setFont('Helvetica', font_size)
-            cv.drawString(x, h_page - y_from_top, str(text))
+            cv.drawString(x, h_page - y_top, str(value))
 
-        # Format date from ISO to MM/DD/YYYY
-        agreement_date = (c.get('start_date') or '')[:10]
-        if agreement_date:
-            p = agreement_date.split('-')
-            if len(p) == 3:
-                agreement_date = p[1] + '/' + p[2] + '/' + p[0]
+        def fmt_mmddyyyy(iso_or_date):
+            if not iso_or_date:
+                return ''
+            s = str(iso_or_date).strip()
+            if 'T' in s:
+                s = s.split('T')[0]
+            s = s[:10]
+            p = s.split('-')
+            if len(p) == 3 and len(p[0]) == 4:
+                return p[1] + '/' + p[2] + '/' + p[0]
+            return s
 
-        # ── HEADER ─────────────────────────────────────────────────────
-        txt(c.get('agreement_number', ''), 68, 94.0,  8)
-        txt(agreement_date,                68, 117.0, 8)
+        raw_agreement = c.get('agreement_date') or (c.get('start_date') or '')[:10]
+        agreement_date = fmt_mmddyyyy(raw_agreement)
 
-        # ── PLAN HOLDER ────────────────────────────────────────────────
-        txt(c.get('customer_first_name', ''),     62,  148.0, 8)
-        txt(c.get('customer_last_name', ''),      312, 148.0, 8)
-        txt(c.get('customer_middle_initial', ''), 528, 148.0, 8)
-        # Address/Email start AFTER their label text ends
-        txt(c.get('customer_address', ''),        76,  165.0, 8)
-        txt(c.get('customer_email', ''),          357, 165.0, 8)
-        txt(c.get('customer_city', ''),           40,  182.0, 8)
-        txt(c.get('customer_state', ''),          204, 182.0, 8)
-        txt(c.get('customer_zip', ''),            278, 182.0, 8)
-        txt(c.get('customer_phone', ''),          427, 182.0, 8)
+        # Agreement Number — underline at y_top=82.5
+        put(70, 90, c.get('agreement_number'))
+        # Agreement Date — underline at y_top=109.4
+        put(74, 117, agreement_date)
 
-        # ── LIENHOLDER ─────────────────────────────────────────────────
+        # MAINTENANCE PLAN HOLDER INFORMATION
+        put(60, 148, c.get('customer_first_name'))
+        put(305, 148, c.get('customer_last_name'))
+        put(528, 148, c.get('customer_middle_initial'))
+        put(78, 165, c.get('customer_address'))
+        put(360, 165, c.get('customer_email'))
+        put(38, 182, c.get('customer_city'))
+        put(208, 182, c.get('customer_state'))
+        put(281, 182, c.get('customer_zip'))
+        put(421, 182, c.get('customer_phone'))
+
+        # LIENHOLDER INFORMATION
         if c.get('lienholder_name'):
-            txt(c.get('lienholder_name', ''),    76,  209.0, 8)
-            txt(c.get('lienholder_address', ''), 76,  226.0, 8)
-            txt(c.get('lienholder_city', ''),    40,  243.0, 8)
-            txt(c.get('lienholder_state', ''),   204, 243.0, 8)
-            txt(c.get('lienholder_zip', ''),     278, 243.0, 8)
-            txt(c.get('lienholder_phone', ''),   427, 243.0, 8)
+            put(63, 208, c.get('lienholder_name'))
+            put(78, 225, c.get('lienholder_address'))
+            put(38, 242, c.get('lienholder_city'))
+            put(208, 242, c.get('lienholder_state'))
+            put(281, 242, c.get('lienholder_zip'))
+            put(421, 242, c.get('lienholder_phone'))
 
-        # ── DEALERSHIP ─────────────────────────────────────────────────
-        dealer_name = (dealer or {}).get('dealership_name') or c.get('dealership_name', '')
-        txt(dealer_name, 104, 269.0, 8)
+        # SELLING DEALERSHIP INFORMATION
+        put(106, 268, c.get('dealership_name'))
+        put(78, 286, c.get('dealership_address'))
+        put(38, 303, c.get('dealership_city'))
+        put(208, 303, c.get('dealership_state'))
+        put(281, 303, c.get('dealership_zip'))
+        put(421, 303, c.get('dealership_phone'))
 
-        # ── VESSEL ─────────────────────────────────────────────────────
-        txt(c.get('hin', ''),                          40,  329.0, 8)
-        txt(str(c.get('boat_year', '') or ''),         204, 329.0, 8)
-        txt(c.get('boat_make', ''),                    287, 329.0, 8)
-        txt(c.get('boat_model', ''),                   413, 329.0, 8)
-        # NEW/Used checkboxes (exact rectangle positions measured from form)
-        # NEW box:  x0=529.7 x1=534.7 top=329.7 bottom=334.7
-        # Used box: x0=570.7 x1=576.2 top=329.3 bottom=334.8
-        condition = c.get('vessel_condition', 'New')
-        if condition == 'Used':
-            txt('X', 571, 335.0, 7)
+        # VESSEL INFORMATION
+        put(34, 329, c.get('hin'))
+        put(205, 329, str(c.get('boat_year', '') or ''))
+        put(288, 329, c.get('boat_make'))
+        put(415, 329, c.get('boat_model'))
+        condition = (c.get('vessel_condition') or '').strip().lower()
+        if condition == 'used':
+            put(571, 335, 'X', 7)
         else:
-            txt('X', 530, 335.0, 7)
+            put(530, 335, 'X', 7)
 
-        # ── ENGINE 1 ───────────────────────────────────────────────────
-        txt(str(c.get('engine1_serial', '') or ''), 75,  347.0, 8)
-        txt(str(c.get('engine1_year', '') or ''),   204, 347.0, 8)
-        txt(str(c.get('engine1_make', '') or ''),   287, 347.0, 8)
-        txt(str(c.get('engine1_model', '') or ''),  413, 347.0, 8)
-        txt(str(c.get('engine1_hours', '') or ''),  561, 347.0, 8)
+        # ENGINE 1 + ENGINE 2
+        put(70, 347, str(c.get('engine1_serial', '') or ''))
+        put(205, 347, str(c.get('engine1_year', '') or ''))
+        put(288, 347, str(c.get('engine1_make', '') or ''))
+        put(415, 347, str(c.get('engine1_model', '') or ''))
+        put(563, 347, str(c.get('engine1_hours', '') or ''))
 
-        # ── ENGINE 2 ───────────────────────────────────────────────────
-        if c.get('dual_engine') and c.get('engine2_serial'):
-            txt(str(c.get('engine2_serial', '') or ''), 75,  364.0, 8)
-            txt(str(c.get('engine2_year', '') or ''),   204, 364.0, 8)
-            txt(str(c.get('engine2_make', '') or ''),   287, 364.0, 8)
-            txt(str(c.get('engine2_model', '') or ''),  413, 364.0, 8)
-            txt(str(c.get('engine2_hours', '') or ''),  561, 364.0, 8)
+        if c.get('engine2_serial') or c.get('engine2_year') or c.get('engine2_make'):
+            put(70, 364, str(c.get('engine2_serial', '') or ''))
+            put(205, 364, str(c.get('engine2_year', '') or ''))
+            put(288, 364, str(c.get('engine2_make', '') or ''))
+            put(415, 364, str(c.get('engine2_model', '') or ''))
+            put(563, 364, str(c.get('engine2_hours', '') or ''))
 
-        # ── TERM CHECKBOXES ────────────────────────────────────────────
-        # Exact checkbox rectangle positions:
-        # 12 MONTH: x0=159.2 x1=164.7 top=407.2 bottom=412.7
-        # 24 MONTH: x0=303.3 x1=308.8 top=407.2 bottom=412.7
-        # 36 MONTH: x0=447.4 x1=452.9 top=407.2 bottom=412.7
+        # MAINTENANCE COVERAGE — term checkboxes
         term = c.get('contract_type', '1yr')
-        if term == '1yr':
-            txt('X', 160, 413.0, 7)
-        elif term == '2yr':
-            txt('X', 304, 413.0, 7)
-        elif term == '3yr':
-            txt('X', 448, 413.0, 7)
+        tnorm = str(term).strip().lower()
+        if term == '1yr' or tnorm in ('12', '12 month', '1', '1-year', '1 year'):
+            put(160, 413, 'X', 7)
+        elif term == '2yr' or tnorm in ('24', '24 month', '2', '2-year', '2 year'):
+            put(304, 413, 'X', 7)
+        elif term == '3yr' or tnorm in ('36', '36 month', '3', '3-year', '3 year'):
+            put(448, 413, 'X', 7)
 
-        # ── PURCHASE PRICE & DATE ──────────────────────────────────────
-        # Start AFTER label text ends:
-        # PRICE label x1=164.4 → data at 166
-        # DATE label x1=451.1 → data at 453
+        # Purchase price & date
         price_map = {'1yr': '$3,325.00', '2yr': '$6,650.00', '3yr': '$9,975.00'}
-        txt(price_map.get(term, ''), 166, 430.0, 8)
-        txt(agreement_date,          453, 430.0, 8)
+        purchase_price = ''
+        rp = c.get('retail_price')
+        if rp is not None and str(rp).strip() != '':
+            try:
+                purchase_price = '${:,.2f}'.format(float(rp))
+            except (TypeError, ValueError):
+                purchase_price = price_map.get(term, '')
+        else:
+            purchase_price = price_map.get(term, '')
+        put(168, 433, purchase_price)
+        purchase_date = fmt_mmddyyyy(c.get('agreement_date') or (c.get('start_date') or '')[:10])
+        put(455, 433, purchase_date)
 
         cv.save()
         packet.seek(0)
 
-        # Merge overlay onto template
-        overlay  = PdfReader(packet)
-        template = PdfReader(template_path)
-        writer   = PdfWriter()
+        overlay = PdfReader(packet)
+        reader = PdfReader(template_path)
+        writer = PdfWriter()
 
-        page = template.pages[0]
-        page.merge_page(overlay.pages[0])
-        writer.add_page(page)
-
-        for i in range(1, len(template.pages)):
-            writer.add_page(template.pages[i])
+        p1 = reader.pages[0]
+        p1.merge_page(overlay.pages[0])
+        writer.add_page(p1)
+        for i in range(1, len(reader.pages)):
+            writer.add_page(reader.pages[i])
 
         output = io.BytesIO()
         writer.write(output)

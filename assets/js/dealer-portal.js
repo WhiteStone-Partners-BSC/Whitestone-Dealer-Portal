@@ -5317,6 +5317,11 @@ document.addEventListener("DOMContentLoaded", function() {
     if (!c) return;
     document.getElementById("e-fname").value = c.customer_first_name || "";
     document.getElementById("e-lname").value = c.customer_last_name || "";
+    var aDate = document.getElementById("e-agreement-date");
+    if (aDate) {
+      var ad = c.agreement_date;
+      aDate.value = ad && String(ad).length >= 10 ? String(ad).slice(0, 10) : new Date().toISOString().split("T")[0];
+    }
     document.getElementById("e-email").value = c.customer_email || "";
     document.getElementById("e-phone").value = c.customer_phone || "";
     document.getElementById("e-make").value = c.boat_make || "";
@@ -5988,6 +5993,10 @@ document.addEventListener("DOMContentLoaded", function() {
           hin: hinVal,
           contract_type: "1yr",
           retail_price: 3699,
+          agreement_date: (function() {
+            var el = document.getElementById("e-agreement-date");
+            return (el && el.value) || new Date().toISOString().split("T")[0];
+          })(),
           start_date: new Date().toISOString().split("T")[0],
           end_date: endStr,
           status: "active"

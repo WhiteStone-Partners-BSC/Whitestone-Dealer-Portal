@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/generate-enrollment-pdf.py": {
-      "includeFiles": "api/enrollment-form-template.pdf"
+      "includeFiles": "api/customer-enrollment-template.pdf"
     },
     "api/generate-dealer-agreement-pdf.py": {
       "includeFiles": "api/dealer-enrollment-template.pdf"

@@ -343,6 +343,10 @@
 
           <div class="card" style="margin-bottom:1rem;">
             <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:1rem;">Section 1 — Plan Holder Information</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+              <div><label class="form-label">Agreement Date *</label><input id="e-agreement-date" class="form-input" type="date" required /></div>
+              <div></div>
+            </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:0.75rem;margin-bottom:0.75rem;">
               <div><label class="form-label">First Name *</label><input id="e-fname" class="form-input" type="text" placeholder="First name" required></div>
               <div><label class="form-label">Last Name *</label><input id="e-lname" class="form-input" type="text" placeholder="Last name" required></div>
@@ -2540,6 +2544,9 @@ window.addEventListener("load", function() {
 
   window.loadDealerPricingForEnrollment = async function() {
     if (!currentDealer || !currentDealer.id) return;
+    var todayIsoInit = new Date().toISOString().split("T")[0];
+    var aDateInit = document.getElementById("e-agreement-date");
+    if (aDateInit && !aDateInit.value) aDateInit.value = todayIsoInit;
     dealerPricingData = await fetchDealerPricingForCurrentDealer();
     var msgEl = document.getElementById("enroll-no-pricing-msg");
     if (!dealerPricingData || !dealerPricingData.confirmed) {
@@ -2591,6 +2598,7 @@ window.addEventListener("load", function() {
       errEl.textContent = "";
     }
     var requiredFields = [
+      { id: "e-agreement-date", label: "Agreement Date" },
       { id: "e-fname", label: "First Name" },
       { id: "e-lname", label: "Last Name" },
       { id: "e-address", label: "Mailing Address" },
@@ -2832,6 +2840,7 @@ window.addEventListener("load", function() {
             retail_price:             retail,
             wholesale_price:          wholesale,
             agreement_number:         agreementNumber,
+            agreement_date:           (document.getElementById("e-agreement-date") || {}).value || new Date().toISOString().split("T")[0],
             status:                   "pending_payment",
             payment_method:           "invoice",
             start_date:               today.toISOString().split("T")[0],
@@ -3282,7 +3291,7 @@ window.addEventListener("load", function() {
       el.style.background = "";
     });
     var fields = [
-      "e-fname", "e-lname", "e-mi", "e-address", "e-email", "e-city", "e-state", "e-zip", "e-phone",
+      "e-fname", "e-lname", "e-mi", "e-address", "e-email", "e-city", "e-state", "e-zip", "e-phone", "e-agreement-date",
       "e-make", "e-model", "e-year", "e-hin", "e-condition",
       "e-lien-name", "e-lien-address", "e-lien-city", "e-lien-state", "e-lien-zip", "e-lien-phone",
       "e-eng1-serial", "e-eng1-year", "e-eng1-make", "e-eng1-model", "e-eng1-hours",
@@ -3292,6 +3301,7 @@ window.addEventListener("load", function() {
       var el = document.getElementById(id);
       if (el) {
         if (id === "e-condition") el.value = "New";
+        else if (id === "e-agreement-date") el.value = new Date().toISOString().split("T")[0];
         else el.value = "";
       }
     });
@@ -3744,6 +3754,7 @@ window.addEventListener("load", function() {
       retail_price:             amount,
       wholesale_price:          wholesale,
       agreement_number:         agreementNumber,
+      agreement_date:           (document.getElementById("e-agreement-date") || {}).value || new Date().toISOString().split("T")[0],
       start_date:               new Date().toISOString().split("T")[0],
       end_date:                 endStr,
       status:                   "pending_payment",
