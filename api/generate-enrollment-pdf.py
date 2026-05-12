@@ -218,9 +218,11 @@ class handler(BaseHTTPRequestHandler):
                 purchase_price = price_map.get(term, '')
         else:
             purchase_price = price_map.get(term, '')
-        put(168, 433, purchase_price)
+        # Both labels at y_top=424.6
+        # Values sit above the underline (Y nudged up 5pt) with extra padding after the colon (X nudged right 5pt)
+        put(173, 428, purchase_price)
         purchase_date = fmt_mmddyyyy(c.get('agreement_date') or (c.get('start_date') or '')[:10])
-        put(455, 433, purchase_date)
+        put(460, 428, purchase_date)
 
         cv.save()
         packet.seek(0)
