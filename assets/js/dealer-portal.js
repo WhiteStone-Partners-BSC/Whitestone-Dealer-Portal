@@ -185,16 +185,6 @@ async function fetchDealerByAuthId(authId, accessToken) {
   return Array.isArray(dealers) && dealers.length ? dealers[0] : null;
 }
 
-function createDetachedSupabaseClient() {
-  return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false
-    }
-  });
-}
-
 function mapTicketFromRow(row) {
   var created = row.created_at ? new Date(row.created_at) : null;
   var hinRaw = row.hin || "";
@@ -6308,8 +6298,7 @@ document.addEventListener("DOMContentLoaded", function() {
       var reviewedBy = currentDealer.username || "admin";
       var username = await applicationsEnsureUniqueUsername(generateUsername(app.dealership_name));
       var tempPassword = generateTempPassword();
-      var detachedClient = createDetachedSupabaseClient();
-      var signUpResult = await detachedClient.auth.signUp({
+      var signUpResult = await supabase.auth.signUp({
         email: app.email,
         password: tempPassword,
         options: {
@@ -6977,168 +6966,181 @@ window.refreshDealersList = function() {
   if (typeof window.adminLoadDealerTable === "function") return window.adminLoadDealerTable();
 };
 
-window.submitDealerEnrollment = async function(evt) {
-  function get(id) {
-    var el = document.getElementById(id);
-    return el && el.value ? el.value : "";
-  }
-  var required = [
-    "dlr-legal-name", "dlr-address", "dlr-city", "dlr-state", "dlr-zip", "dlr-phone",
-    "dlr-ein", "dlr-brands", "dlr-ar-name", "dlr-ar-phone", "dlr-ar-email",
-    "dlr-account", "dlr-routing", "dlr-contact-first", "dlr-contact-last",
-    "dlr-login-email", "dlr-effective-date"
+window.submitDealerEnrollment = async function(ev) {
+  const btn = (ev && ev.target) ||
+              Array.from(document.querySelectorAll('button'))
+                   .find(b => /Create Dealer/i.test(b.textContent));
+
+  // 1. Read all values
+  const get = id => {
+    const el = document.getElementById(id);
+    return el ? (el.value || '').trim() : '';
+  };
+
+  // 2. Validate required fields
+  const required = [
+    'dlr-legal-name','dlr-address','dlr-city','dlr-state','dlr-zip','dlr-phone',
+    'dlr-ein','dlr-brands','dlr-ar-name','dlr-ar-phone','dlr-ar-email',
+    'dlr-account','dlr-routing','dlr-contact-first','dlr-contact-last',
+    'dlr-login-email','dlr-effective-date'
   ];
-  var ri;
-  for (ri = 0; ri < required.length; ri++) {
-    var rid = required[ri];
-    if (!get(rid).trim()) {
-      alert("Please complete all required fields.");
-      var focusEl = document.getElementById(rid);
-      if (focusEl) focusEl.focus();
+  for (const id of required) {
+    if (!get(id)) {
+      alert('Please complete all required fields.');
+      const el = document.getElementById(id);
+      if (el) el.focus();
       return;
     }
   }
 
-  var contacts = [];
-  var ci;
-  for (ci = 1; ci <= 10; ci++) {
-    var nm = get("dlr-contact-name-" + ci).trim();
-    var pos = get("dlr-contact-pos-" + ci).trim();
-    if (nm || pos) contacts.push({ name: nm, position: pos });
+  // 3. Build authorized_contacts array (only non-empty rows)
+  const contacts = [];
+  for (let i = 1; i <= 10; i++) {
+    const name = get(`dlr-contact-name-${i}`);
+    const position = get(`dlr-contact-pos-${i}`);
+    if (name || position) contacts.push({ name, position });
   }
 
-  var legalName = get("dlr-legal-name").trim();
-  var loginEmail = get("dlr-login-email").trim().toLowerCase();
-  var city = get("dlr-city").trim();
-  var state = get("dlr-state").trim().toUpperCase();
-  var zip = get("dlr-zip").trim();
-  var addr = get("dlr-address").trim();
-  var phone = get("dlr-phone").trim();
-  var ein = get("dlr-ein").trim();
-  var dba = get("dlr-dba").trim();
-  var dealerNum = get("dlr-number").trim();
-  var brands = get("dlr-brands").trim();
-  var arName = get("dlr-ar-name").trim();
-  var arPhone = get("dlr-ar-phone").trim();
-  var arEmail = get("dlr-ar-email").trim();
-  var acct = get("dlr-account").trim();
-  var rout = get("dlr-routing").trim();
-  var cFirst = get("dlr-contact-first").trim();
-  var cLast = get("dlr-contact-last").trim();
-  var effDate = get("dlr-effective-date").trim();
+  // 4. Build the payload — column names must match the SQL migration
+  const payload = {
+    dealership_name: get('dlr-legal-name'),
+    dba: get('dlr-dba') || null,
+    address: get('dlr-address'),
+    city: get('dlr-city'),
+    state: get('dlr-state').toUpperCase(),
+    zip: get('dlr-zip'),
+    phone: get('dlr-phone'),
+    ein: get('dlr-ein'),
+    dealer_number: get('dlr-number') || null,
+    brands_carried: get('dlr-brands'),
+    authorized_contacts: contacts,
+    ar_contact_name: get('dlr-ar-name'),
+    ar_phone: get('dlr-ar-phone'),
+    ar_email: get('dlr-ar-email'),
+    bank_account_number: get('dlr-account'),
+    bank_routing_number: get('dlr-routing'),
+    contact_first_name: get('dlr-contact-first'),
+    contact_last_name: get('dlr-contact-last'),
+    email: get('dlr-login-email'),
+    enrollment_status: 'submitted',
+    enrollment_submitted_at: new Date().toISOString(),
+    enrollment_effective_date: get('dlr-effective-date'),
+    active: false,
+    is_admin: false,
+    password: 'supabase-auth',
+    username: get('dlr-login-email'),
+  };
 
-  var baseUsername = generateUsername((loginEmail.split("@")[0] || legalName || "dealer"));
-  var username = typeof applicationsEnsureUniqueUsername === "function"
-    ? await applicationsEnsureUniqueUsername(baseUsername)
-    : baseUsername;
-
-  var btn = (evt && evt.currentTarget) ? evt.currentTarget : document.getElementById("dlr-enroll-submit-btn");
-  if (!btn) return;
-  btn.disabled = true;
-  btn.textContent = "Creating dealer...";
+  if (btn) {
+    btn.disabled = true;
+    btn.dataset.originalText = btn.textContent;
+    btn.textContent = 'Creating dealer...';
+  }
 
   try {
-    var authClient = typeof createDetachedSupabaseClient === "function" ? createDetachedSupabaseClient() : supabase;
-    var tempPassword = typeof generateTempPassword === "function" ? generateTempPassword() : ("WSP-" + Math.random().toString(36).substring(2, 10).toUpperCase());
-    var signUpResult = await authClient.auth.signUp({
-      email: loginEmail,
-      password: tempPassword,
-      options: { emailRedirectTo: "https://whitestone-dealer-portal.vercel.app" }
+    // 5. Insert dealer row via Supabase REST — same pattern as the rest of the codebase
+    const dealerRes = await fetch(`${SUPABASE_URL}/rest/v1/dealers`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders(),
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(payload),
     });
-    if (signUpResult && signUpResult.error) throw signUpResult.error;
-    var authId = signUpResult && signUpResult.data && signUpResult.data.user ? signUpResult.data.user.id : null;
 
-    var payload = {
-      username: username,
-      password: "supabase-auth",
-      dealership_name: legalName,
-      legal_business_name: legalName,
-      dba: dba || null,
-      dba_name: dba || null,
-      address: addr,
-      business_address: addr,
-      city: city,
-      business_city: city,
-      state: state,
-      business_state: state,
-      zip: zip,
-      business_zip: zip,
-      phone: phone,
-      business_phone: phone,
-      ein: ein,
-      dealer_number: dealerNum || null,
-      brands_carried: brands,
-      authorized_contacts: contacts,
-      dealer_contacts: contacts,
-      ar_contact_name: arName,
-      ar_contact: arName,
-      ar_phone: arPhone,
-      ar_email: arEmail,
-      bank_account_number: acct,
-      bank_routing_number: rout,
-      account_number: acct,
-      routing_number: rout,
-      contact_first_name: cFirst,
-      contact_last_name: cLast,
-      email: loginEmail,
-      location: [city, state].filter(Boolean).join(", "),
-      enrollment_status: "submitted",
-      enrollment_submitted_at: new Date().toISOString(),
-      enrollment_effective_date: effDate,
-      effective_date: effDate,
-      active: false,
-      is_admin: false,
-      joined_at: new Date().toISOString(),
-      auth_id: authId
-    };
-
-    var dealerRes = await fetch(SUPABASE_URL + "/rest/v1/dealers", {
-      method: "POST",
-      headers: authHeaders({ Prefer: "return=representation" }),
-      body: JSON.stringify(payload)
-    });
     if (!dealerRes.ok) {
-      var err = await dealerRes.text();
-      throw new Error("Failed to create dealer: " + err);
+      const errText = await dealerRes.text();
+      throw new Error(`Failed to create dealer (HTTP ${dealerRes.status}): ${errText}`);
     }
-    var created = await dealerRes.json();
-    var dealer = Array.isArray(created) ? created[0] : created;
 
-    await writeAuditLog("dealer", dealer.id, "dealer_enrolled", null, {
-      dealership_name: dealer.dealership_name
-    }, dealer.dealership_name, null, "New dealer enrollment submitted");
+    const dealerData = await dealerRes.json();
+    const dealer = Array.isArray(dealerData) ? dealerData[0] : dealerData;
 
-    btn.textContent = "Generating agreement PDF...";
-    var pdfRes = await fetch("/api/generate-dealer-agreement-pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dealerId: dealer.id })
-    });
-    if (!pdfRes.ok) throw new Error("Dealer created but PDF generation failed: " + (await pdfRes.text()));
+    if (!dealer || !dealer.id) {
+      throw new Error('Dealer created but no ID returned. Check RLS / Prefer header.');
+    }
 
-    var blob = await pdfRes.blob();
-    var safeName = (dealer.dealership_name || "Dealer").replace(/[^a-z0-9]+/gi, "_");
-    var dateStr = new Date().toISOString().split("T")[0];
-    var filename = "WP_DealerAgreement_" + safeName + "_" + dateStr + ".pdf";
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    // 6. Audit log (best-effort — failure here should not block the success path)
+    try {
+      if (typeof writeAuditLog === 'function') {
+        await writeAuditLog(
+          'dealer',
+          dealer.id,
+          'dealer_enrolled',
+          null,
+          { dealership_name: dealer.dealership_name },
+          dealer.dealership_name,
+          null,
+          'New dealer enrollment submitted'
+        );
+      }
+    } catch (auditErr) {
+      console.warn('Audit log write failed (non-fatal):', auditErr);
+    }
 
-    if (typeof window.closeDealerEnrollModal === "function") window.closeDealerEnrollModal();
-    alert('Dealer "' + (dealer.dealership_name || "") + '" created. Agreement PDF downloaded.\n\nNext: configure pricing in the Pricing tab. Dealer cannot enroll customers until pricing is confirmed.');
-    if (typeof window.refreshDealersList === "function") await window.refreshDealersList();
-    if (typeof window.wsPricingLoadDealers === "function") await window.wsPricingLoadDealers();
+    // 7. Try to generate the agreement PDF (best-effort — template may not exist yet)
+    if (btn) btn.textContent = 'Generating agreement PDF...';
+    let pdfDownloaded = false;
+    try {
+      const pdfRes = await fetch('/api/generate-dealer-agreement-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dealerId: dealer.id }),
+      });
+      if (pdfRes.ok) {
+        const blob = await pdfRes.blob();
+        const safeName = (dealer.dealership_name || 'Dealer').replace(/[^a-z0-9]+/gi, '_');
+        const dateStr = new Date().toISOString().split('T')[0];
+        const filename = `WP_DealerAgreement_${safeName}_${dateStr}.pdf`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        pdfDownloaded = true;
+      } else {
+        const pdfErrText = await pdfRes.text();
+        console.warn('PDF generation returned ' + pdfRes.status + ':', pdfErrText);
+      }
+    } catch (pdfErr) {
+      console.warn('PDF generation failed (non-fatal):', pdfErr);
+    }
+
+    // 8. Close modal, notify user
+    if (typeof closeDealerEnrollModal === 'function') {
+      closeDealerEnrollModal();
+    } else {
+      document.getElementById('add-dealer-modal')?.classList.remove('show');
+    }
+
+    const pdfMsg = pdfDownloaded
+      ? 'Agreement PDF downloaded.'
+      : 'Note: Agreement PDF could not be generated (template may be missing). Dealer was still created.';
+
+    alert(
+      `Dealer "${dealer.dealership_name}" created successfully.\n\n` +
+      pdfMsg +
+      `\n\nNext: configure pricing in the Pricing tab. ` +
+      `Dealer cannot enroll customers until pricing is confirmed and enrollment_status is 'active'.`
+    );
+
+    // 9. Refresh the dealers list if a refresh fn exists
+    if (typeof refreshDealersList === 'function') {
+      refreshDealersList();
+    } else if (typeof loadDealers === 'function') {
+      loadDealers();
+    }
+
   } catch (err) {
-    console.error(err);
-    alert("Error: " + (err && err.message ? err.message : String(err)));
+    console.error('submitDealerEnrollment error:', err);
+    alert('Error creating dealer: ' + err.message);
   } finally {
-    btn.disabled = false;
-    btn.textContent = "Create Dealer & Generate Agreement PDF";
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.originalText || 'Create Dealer & Generate Agreement PDF';
+    }
   }
 };
 
