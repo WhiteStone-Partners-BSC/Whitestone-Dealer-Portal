@@ -96,16 +96,17 @@ class handler(BaseHTTPRequestHandler):
             contacts = []
 
         row_y = [288.1, 305.6, 323.1, 340.6, 358.2]
+        # Nudged up 6pt and left 2-7pt to center text on each row's underline
         for i in range(5):
             if i < len(contacts) and isinstance(contacts[i], dict):
                 c_ = contacts[i]
-                put(42, row_y[i] + 9, c_.get('name'))
-                put(262, row_y[i] + 9, c_.get('position'))
+                put(40, row_y[i] + 3, c_.get('name'))
+                put(255, row_y[i] + 3, c_.get('position'))
         for i in range(5, 10):
             if i < len(contacts) and isinstance(contacts[i], dict):
                 c_ = contacts[i]
-                put(330, row_y[i - 5] + 9, c_.get('name'))
-                put(547, row_y[i - 5] + 9, c_.get('position'))
+                put(328, row_y[i - 5] + 3, c_.get('name'))
+                put(540, row_y[i - 5] + 3, c_.get('position'))
 
         # --- ACCOUNTING INFORMATION ---
         ar_name = d.get('ar_contact_name') or d.get('ar_contact') or ''
@@ -196,7 +197,7 @@ so the helper converts with canvas_y = 792 - y_top.
 
 After first real PDF generation, open the output and confirm each value sits on its underline.
 - X drift: adjust the first argument to put(x, y_top, value).
-- Y drift: adjust y_top (and the +9 row offset for contact rows). Larger y_top moves the
+- Y drift: adjust y_top (and the +3 row offset for contact rows). Larger y_top moves the
   baseline DOWN on the page.
 
 If the template file is replaced, re-run calibration (e.g. pdfplumber) and update put() calls.
