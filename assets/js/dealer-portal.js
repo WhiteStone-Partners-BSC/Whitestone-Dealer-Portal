@@ -6935,62 +6935,236 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   }
 
-  // ADMIN — ADD DEALER
-  document.getElementById("add-dealer-btn").addEventListener("click", async function() {
-    var email = document.getElementById("new-username").value.trim().toLowerCase();
-    var password = document.getElementById("new-password").value.trim();
-    var name = document.getElementById("new-name").value.trim();
-    var addOk = document.getElementById("add-ok");
-    var addErr = document.getElementById("add-err");
-    if (!email || !password || !name) { addErr.style.display = "block"; addOk.style.display = "none"; return; }
-    if (email.indexOf("@") === -1) {
-      addErr.textContent = "Enter an email address for the new dealer login.";
-      addErr.style.display = "block";
-      addOk.style.display = "none";
+});
+
+// —— Admin: New Dealer Enrollment (Add Dealer modal in index.html) ——
+window.renderDealerContactsGrid = function() {
+  var grid = document.getElementById("dlr-contacts-grid");
+  if (!grid) return;
+  var html = '<div class="contacts-grid">';
+  var i;
+  for (i = 1; i <= 10; i++) {
+    html += '<div class="contact-row"><div class="contact-num">' + i + "</div>" +
+      '<input type="text" id="dlr-contact-name-' + i + '" placeholder="Name" />' +
+      '<input type="text" id="dlr-contact-pos-' + i + '" placeholder="Position" /></div>';
+  }
+  html += "</div>";
+  grid.innerHTML = html;
+};
+
+window.openDealerEnrollModal = function() {
+  var m = document.getElementById("add-dealer-modal");
+  if (!m) return;
+  m.style.display = "flex";
+  if (typeof window.renderDealerContactsGrid === "function") window.renderDealerContactsGrid();
+  var eff = document.getElementById("dlr-effective-date");
+  if (eff) {
+    var t = new Date();
+    var mo = t.getMonth() + 1;
+    var da = t.getDate();
+    eff.value = t.getFullYear() + "-" + (mo < 10 ? "0" : "") + mo + "-" + (da < 10 ? "0" : "") + da;
+  }
+};
+
+window.closeDealerEnrollModal = function() {
+  var m = document.getElementById("add-dealer-modal");
+  if (m) m.style.display = "none";
+};
+
+window.closeAddDealerModal = window.closeDealerEnrollModal;
+
+window.refreshDealersList = function() {
+  if (typeof window.adminLoadDealerTable === "function") return window.adminLoadDealerTable();
+};
+
+window.submitDealerEnrollment = async function(evt) {
+  function get(id) {
+    var el = document.getElementById(id);
+    return el && el.value ? el.value : "";
+  }
+  var required = [
+    "dlr-legal-name", "dlr-address", "dlr-city", "dlr-state", "dlr-zip", "dlr-phone",
+    "dlr-ein", "dlr-brands", "dlr-ar-name", "dlr-ar-phone", "dlr-ar-email",
+    "dlr-account", "dlr-routing", "dlr-contact-first", "dlr-contact-last",
+    "dlr-login-email", "dlr-effective-date"
+  ];
+  var ri;
+  for (ri = 0; ri < required.length; ri++) {
+    var rid = required[ri];
+    if (!get(rid).trim()) {
+      alert("Please complete all required fields.");
+      var focusEl = document.getElementById(rid);
+      if (focusEl) focusEl.focus();
       return;
     }
-    try {
-      var baseUsername = generateUsername(email.split("@")[0] || name);
-      var username = await applicationsEnsureUniqueUsername(baseUsername);
-      var detachedClient = createDetachedSupabaseClient();
-      var signUpResult = await detachedClient.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-          emailRedirectTo: "https://whitestone-dealer-portal.vercel.app"
-        }
-      });
-      if (signUpResult.error) throw signUpResult.error;
+  }
 
-      var res = await fetch(SUPABASE_URL + "/rest/v1/dealers", {
-        method: "POST",
-        headers: supabaseHeaders({ Prefer: "return=representation" }),
-        body: JSON.stringify({
-          username: username,
-          password: password,
-          dealership_name: name,
-          email: email,
-          auth_id: signUpResult.data && signUpResult.data.user ? signUpResult.data.user.id : null,
-          active: true,
-          is_admin: false
-        })
-      });
-      if (!res.ok) throw new Error();
-      document.getElementById("new-username").value = "";
-      document.getElementById("new-password").value = "";
-      document.getElementById("new-name").value = "";
-      addOk.style.display = "block"; addErr.style.display = "none";
-      setTimeout(function() { addOk.style.display = "none"; }, 3000);
-      renderDealerTable();
-      if (currentDealer && currentDealer.isAdmin) adminLoadNetworkDashboard();
-    } catch (e) {
-      console.error("Could not add dealer", e);
-      addErr.textContent = "Could not add dealer. Use a valid email and try again.";
-      addErr.style.display = "block"; addOk.style.display = "none";
+  var contacts = [];
+  var ci;
+  for (ci = 1; ci <= 10; ci++) {
+    var nm = get("dlr-contact-name-" + ci).trim();
+    var pos = get("dlr-contact-pos-" + ci).trim();
+    if (nm || pos) contacts.push({ name: nm, position: pos });
+  }
+
+  var legalName = get("dlr-legal-name").trim();
+  var loginEmail = get("dlr-login-email").trim().toLowerCase();
+  var city = get("dlr-city").trim();
+  var state = get("dlr-state").trim().toUpperCase();
+  var zip = get("dlr-zip").trim();
+  var addr = get("dlr-address").trim();
+  var phone = get("dlr-phone").trim();
+  var ein = get("dlr-ein").trim();
+  var dba = get("dlr-dba").trim();
+  var dealerNum = get("dlr-number").trim();
+  var brands = get("dlr-brands").trim();
+  var arName = get("dlr-ar-name").trim();
+  var arPhone = get("dlr-ar-phone").trim();
+  var arEmail = get("dlr-ar-email").trim();
+  var acct = get("dlr-account").trim();
+  var rout = get("dlr-routing").trim();
+  var cFirst = get("dlr-contact-first").trim();
+  var cLast = get("dlr-contact-last").trim();
+  var effDate = get("dlr-effective-date").trim();
+
+  var baseUsername = generateUsername((loginEmail.split("@")[0] || legalName || "dealer"));
+  var username = typeof applicationsEnsureUniqueUsername === "function"
+    ? await applicationsEnsureUniqueUsername(baseUsername)
+    : baseUsername;
+
+  var btn = (evt && evt.currentTarget) ? evt.currentTarget : document.getElementById("dlr-enroll-submit-btn");
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = "Creating dealer...";
+
+  try {
+    var authClient = typeof createDetachedSupabaseClient === "function" ? createDetachedSupabaseClient() : supabase;
+    var tempPassword = typeof generateTempPassword === "function" ? generateTempPassword() : ("WSP-" + Math.random().toString(36).substring(2, 10).toUpperCase());
+    var signUpResult = await authClient.auth.signUp({
+      email: loginEmail,
+      password: tempPassword,
+      options: { emailRedirectTo: "https://whitestone-dealer-portal.vercel.app" }
+    });
+    if (signUpResult && signUpResult.error) throw signUpResult.error;
+    var authId = signUpResult && signUpResult.data && signUpResult.data.user ? signUpResult.data.user.id : null;
+
+    var payload = {
+      username: username,
+      password: "supabase-auth",
+      dealership_name: legalName,
+      legal_business_name: legalName,
+      dba: dba || null,
+      dba_name: dba || null,
+      address: addr,
+      business_address: addr,
+      city: city,
+      business_city: city,
+      state: state,
+      business_state: state,
+      zip: zip,
+      business_zip: zip,
+      phone: phone,
+      business_phone: phone,
+      ein: ein,
+      dealer_number: dealerNum || null,
+      brands_carried: brands,
+      authorized_contacts: contacts,
+      dealer_contacts: contacts,
+      ar_contact_name: arName,
+      ar_contact: arName,
+      ar_phone: arPhone,
+      ar_email: arEmail,
+      bank_account_number: acct,
+      bank_routing_number: rout,
+      account_number: acct,
+      routing_number: rout,
+      contact_first_name: cFirst,
+      contact_last_name: cLast,
+      email: loginEmail,
+      location: [city, state].filter(Boolean).join(", "),
+      enrollment_status: "submitted",
+      enrollment_submitted_at: new Date().toISOString(),
+      enrollment_effective_date: effDate,
+      effective_date: effDate,
+      active: false,
+      is_admin: false,
+      joined_at: new Date().toISOString(),
+      auth_id: authId
+    };
+
+    var dealerRes = await fetch(SUPABASE_URL + "/rest/v1/dealers", {
+      method: "POST",
+      headers: authHeaders({ Prefer: "return=representation" }),
+      body: JSON.stringify(payload)
+    });
+    if (!dealerRes.ok) {
+      var err = await dealerRes.text();
+      throw new Error("Failed to create dealer: " + err);
     }
-  });
+    var created = await dealerRes.json();
+    var dealer = Array.isArray(created) ? created[0] : created;
 
-});
+    await writeAuditLog("dealer", dealer.id, "dealer_enrolled", null, {
+      dealership_name: dealer.dealership_name
+    }, dealer.dealership_name, null, "New dealer enrollment submitted");
+
+    btn.textContent = "Generating agreement PDF...";
+    var pdfRes = await fetch("/api/generate-dealer-agreement-pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dealerId: dealer.id })
+    });
+    if (!pdfRes.ok) throw new Error("Dealer created but PDF generation failed: " + (await pdfRes.text()));
+
+    var blob = await pdfRes.blob();
+    var safeName = (dealer.dealership_name || "Dealer").replace(/[^a-z0-9]+/gi, "_");
+    var dateStr = new Date().toISOString().split("T")[0];
+    var filename = "WP_DealerAgreement_" + safeName + "_" + dateStr + ".pdf";
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    if (typeof window.closeDealerEnrollModal === "function") window.closeDealerEnrollModal();
+    alert('Dealer "' + (dealer.dealership_name || "") + '" created. Agreement PDF downloaded.\n\nNext: configure pricing in the Pricing tab. Dealer cannot enroll customers until pricing is confirmed.');
+    if (typeof window.refreshDealersList === "function") await window.refreshDealersList();
+    if (typeof window.wsPricingLoadDealers === "function") await window.wsPricingLoadDealers();
+  } catch (err) {
+    console.error(err);
+    alert("Error: " + (err && err.message ? err.message : String(err)));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Create Dealer & Generate Agreement PDF";
+  }
+};
+
+window.markDealerAgreementSigned = async function(dealerId, dealerName) {
+  if (!dealerId) return;
+  if (!confirm("Mark agreement as signed for " + (dealerName || "this dealer") + "?")) return;
+  try {
+    var who = window.currentDealer && (window.currentDealer.username || window.currentDealer.name) ? (window.currentDealer.username || window.currentDealer.name) : "admin";
+    var res = await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(dealerId), {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        enrollment_status: "signed",
+        agreement_signed_at: new Date().toISOString(),
+        agreement_signed_by: who
+      })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await writeAuditLog("dealer", dealerId, "dealer_agreement_signed", null, { dealership_name: dealerName }, dealerName || null, null, "Dealer agreement marked signed (admin)");
+    if (typeof window.adminLoadDealerTable === "function") await window.adminLoadDealerTable();
+    if (typeof window.wsPricingLoadDealers === "function") await window.wsPricingLoadDealers();
+    alert("Agreement marked signed.");
+  } catch (e) {
+    alert("Could not update: " + (e && e.message ? e.message : String(e)));
+  }
+};
 
 // —— Admin: dealer enrollment form (modal in index.html) ——
 window.dealerEnrollmentCurrentId = null;
@@ -7123,7 +7297,7 @@ window.openDealerEnrollmentModal = async function(dealerId, dealerName) {
     }
 
     setVal("den-legal-name", d.legal_business_name || d.dealership_name || "");
-    setVal("den-dba", d.dba_name || "");
+    setVal("den-dba", d.dba || d.dba_name || "");
     setVal("den-business-address", d.business_address || d.address || "");
     setVal("den-business-city", d.business_city || d.city || "");
     setVal("den-business-state", d.business_state || d.state || "");
@@ -7132,16 +7306,16 @@ window.openDealerEnrollmentModal = async function(dealerId, dealerName) {
     setVal("den-ein", d.ein || "");
     setVal("den-dealer-number", d.dealer_number != null && d.dealer_number !== "" ? d.dealer_number : "");
     setVal("den-brands-carried", d.brands_carried || d.boat_brands || "");
-    setVal("den-ar-contact", d.ar_contact || "");
+    setVal("den-ar-contact", d.ar_contact_name || d.ar_contact || "");
     setVal("den-ar-phone", d.ar_phone || "");
     setVal("den-ar-email", d.ar_email || "");
-    setVal("den-account-number", d.account_number || "");
-    setVal("den-routing-number", d.routing_number || "");
+    setVal("den-account-number", d.bank_account_number || d.account_number || "");
+    setVal("den-routing-number", d.bank_routing_number || d.routing_number || "");
 
     var effEl = document.getElementById("den-effective-date");
     if (effEl) {
-      if (d.effective_date) {
-        var s = String(d.effective_date);
+      if (d.effective_date || d.enrollment_effective_date) {
+        var s = String(d.enrollment_effective_date || d.effective_date);
         effEl.value = s.length >= 10 ? s.slice(0, 10) : s;
       } else {
         effEl.value = denTodayIso();
@@ -7152,7 +7326,7 @@ window.openDealerEnrollmentModal = async function(dealerId, dealerName) {
     if (wrap) {
       wrap.innerHTML = "";
       var contacts = [];
-      var raw = d.dealer_contacts;
+      var raw = d.authorized_contacts != null ? d.authorized_contacts : d.dealer_contacts;
       if (Array.isArray(raw)) contacts = raw;
       else if (raw && typeof raw === "string") {
         try {
@@ -7234,21 +7408,33 @@ window.saveDealerEnrollmentData = async function(dealerId) {
 
   var payload = {
     legal_business_name: legal,
+    dealership_name: legal,
     dba_name: dbaVal || null,
+    dba: dbaVal || null,
     business_address: addr,
+    address: addr,
     business_city: city,
+    city: city,
     business_state: state,
+    state: state,
     business_zip: zip,
+    zip: zip,
     business_phone: phone,
+    phone: phone,
     ein: ein,
     brands_carried: brands,
     dealer_contacts: contacts,
+    authorized_contacts: contacts,
     ar_contact: arName,
+    ar_contact_name: arName,
     ar_phone: arPhone,
     ar_email: arEmail,
     account_number: acct,
     routing_number: rout,
-    effective_date: eff
+    bank_account_number: acct,
+    bank_routing_number: rout,
+    effective_date: eff,
+    enrollment_effective_date: eff
   };
 
   try {
@@ -7281,7 +7467,7 @@ window.generateDealerAgreementPDF = async function(dealerId) {
   var saved = await saveDealerEnrollmentData(dealerId);
   if (!saved) return;
   try {
-    var res = await fetch("/api/generate-dealer-agreement", {
+    var res = await fetch("/api/generate-dealer-agreement-pdf", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ dealerId: dealerId })
@@ -7294,7 +7480,13 @@ window.generateDealerAgreementPDF = async function(dealerId) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
-    a.download = "Whitestone_Dealer_Agreement_" + String(dealerId).replace(/-/g, "").slice(0, 12) + ".pdf";
+    var safe = "Dealer";
+    try {
+      var nmEl = document.getElementById("den-legal-name");
+      if (nmEl && nmEl.value) safe = String(nmEl.value).replace(/[^a-z0-9]+/gi, "_");
+    } catch (e2) {}
+    var dateStr = new Date().toISOString().split("T")[0];
+    a.download = "WP_DealerAgreement_" + safe + "_" + dateStr + ".pdf";
     document.body.appendChild(a);
     a.click();
     a.remove();

@@ -7,6 +7,33 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/dealer-portal.css">
 <style>
+/* New dealer enrollment (admin modal) + pricing gate */
+.add-dealer-enroll-inner{max-width:720px;}
+.form-section{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:1.1rem 1.25rem;margin-bottom:1rem;}
+.section-header{font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:0.85rem;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem 1rem;margin-bottom:0.75rem;}
+.form-field{display:flex;flex-direction:column;gap:4px;min-width:0;}
+.form-field label{font-size:11px;font-weight:600;color:var(--mid);}
+.form-field input,.form-field small{font-family:inherit;}
+.form-field input{padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;}
+.form-field small{font-size:11px;color:var(--light);}
+.form-field-wide{grid-column:1 / -1;}
+.req{color:var(--red-text);font-weight:700;}
+.modal-actions{display:flex;gap:0.75rem;margin-top:1.25rem;flex-wrap:wrap;}
+.btn-primary{flex:2;min-width:180px;padding:10px 14px;background:var(--navy);color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+.btn-primary:disabled{opacity:0.65;cursor:not-allowed;}
+.btn-secondary{flex:1;padding:10px 14px;border:1px solid var(--border);background:white;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;}
+.contacts-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;}
+.contact-row{display:grid;grid-template-columns:32px 1fr 1fr;gap:8px;align-items:center;}
+.contact-num{font-weight:600;color:var(--gold);text-align:right;}
+.contact-row input{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;}
+.section-help{color:#6b7280;font-size:0.9em;margin:4px 0 12px;line-height:1.45;}
+.ws-pricing-gate .empty-state{text-align:center;padding:2rem 1.25rem;}
+.ws-pricing-gate .empty-state h3{font-size:1.15rem;color:var(--navy);margin-bottom:0.5rem;}
+.ws-pricing-gate .empty-state p{font-size:13px;color:var(--mid);margin:0.35rem 0;}
+@media (max-width: 720px) {
+  #add-dealer-modal .form-row { grid-template-columns: 1fr; }
+}
 @media (max-width: 600px) {
   #admin-stat-grid {
     grid-template-columns: 1fr 1fr !important;
@@ -1025,6 +1052,8 @@
         </div>
       </div>
 
+      <div id="ws-pricing-gate" class="ws-pricing-gate" style="display:none;"></div>
+
       <div id="ws-steps" style="display:none;">
         <div class="card" style="margin-bottom:1rem;">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1rem;">
@@ -1433,59 +1462,120 @@
   </div>
 </div>
 
-<!-- Add Dealer Modal -->
-<div id="add-dealer-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;align-items:center;justify-content:center;">
-  <div style="background:white;border-radius:12px;padding:2rem;max-width:480px;width:90%;max-height:85vh;overflow-y:auto;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
-      <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:300;color:var(--navy);">Add New Dealer</div>
-      <button onclick="closeAddDealerModal()" style="background:none;border:none;font-size:20px;color:var(--light);cursor:pointer;">✕</button>
+<!-- Add Dealer Modal — full new dealer enrollment -->
+<div id="add-dealer-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;align-items:center;justify-content:center;padding:1rem;">
+  <div class="add-dealer-enroll-inner" style="background:white;border-radius:12px;padding:1.75rem;width:92%;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+      <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:300;color:var(--navy);">New Dealer Enrollment</div>
+      <button type="button" onclick="closeDealerEnrollModal()" style="background:none;border:none;font-size:20px;color:var(--light);cursor:pointer;">✕</button>
     </div>
-    <div style="display:flex;flex-direction:column;gap:1rem;">
-      <div class="fg">
-        <label>Dealership Name <span style="color:var(--red-text);">*</span></label>
-        <input type="text" id="add-dealership-name" placeholder="Lake City Marine">
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-        <div class="fg">
-          <label>Contact First Name</label>
-          <input type="text" id="add-contact-fname" placeholder="John">
+
+    <div class="form-section">
+      <div class="section-header">SECTION 1 — DEALERSHIP INFORMATION</div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Legal Business Name <span class="req">*</span></label>
+          <input type="text" id="dlr-legal-name" placeholder="ABC Marine Inc." required />
         </div>
-        <div class="fg">
-          <label>Contact Last Name</label>
-          <input type="text" id="add-contact-lname" placeholder="Smith">
+        <div class="form-field">
+          <label>DBA If Applicable</label>
+          <input type="text" id="dlr-dba" placeholder="ABC Marine" />
         </div>
       </div>
-      <div class="fg">
-        <label>Login Email <span style="color:var(--red-text);">*</span></label>
-        <input type="email" id="add-dealer-email" placeholder="john@dealership.com">
-        <div style="font-size:11px;color:var(--light);margin-top:4px;">A welcome email with login instructions will be sent to this address.</div>
-      </div>
-      <div class="fg">
-        <label>Phone</label>
-        <input type="tel" id="add-dealer-phone" placeholder="(801) 555-1234">
-      </div>
-      <div class="fg">
-        <label>Address</label>
-        <input type="text" id="add-dealer-address" placeholder="123 Main Street">
-      </div>
-      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.75rem;">
-        <div class="fg">
-          <label>City</label>
-          <input type="text" id="add-dealer-city" placeholder="Salt Lake City">
+      <div class="form-row">
+        <div class="form-field form-field-wide">
+          <label>Business Address <span class="req">*</span></label>
+          <input type="text" id="dlr-address" placeholder="123 Marina Way" required />
         </div>
-        <div class="fg">
-          <label>State</label>
-          <input type="text" id="add-dealer-state" placeholder="UT" maxlength="2">
-        </div>
-        <div class="fg">
-          <label>Zip</label>
-          <input type="text" id="add-dealer-zip" placeholder="84101">
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>City <span class="req">*</span></label>
+          <input type="text" id="dlr-city" required /></div>
+        <div class="form-field"><label>State <span class="req">*</span></label>
+          <input type="text" id="dlr-state" maxlength="2" required /></div>
+        <div class="form-field"><label>Zip <span class="req">*</span></label>
+          <input type="text" id="dlr-zip" required /></div>
+        <div class="form-field"><label>Phone # <span class="req">*</span></label>
+          <input type="tel" id="dlr-phone" required /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>EIN <span class="req">*</span></label>
+          <input type="text" id="dlr-ein" placeholder="XX-XXXXXXX" required /></div>
+        <div class="form-field"><label>Dealer Number</label>
+          <input type="text" id="dlr-number" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field form-field-wide">
+          <label>Brands Carried <span class="req">*</span></label>
+          <input type="text" id="dlr-brands" placeholder="MasterCraft, Malibu, Axis..." required />
         </div>
       </div>
     </div>
-    <div style="margin-top:1.5rem;display:flex;gap:0.75rem;">
-      <button onclick="closeAddDealerModal()" style="flex:1;padding:10px;border:1px solid var(--border);background:white;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">Cancel</button>
-      <button id="add-dealer-submit-btn" onclick="submitAddDealer()" style="flex:2;padding:10px;background:var(--navy);color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Create Dealer Account</button>
+
+    <div class="form-section">
+      <div class="section-header">SECTION 2 — AUTHORIZED DEALERSHIP CONTACTS</div>
+      <p class="section-help">
+        List all authorized service and sales staff including Finance Managers, Service Managers,
+        Service Writers, Warranty Writers, Business Managers, etc. Up to 10.
+      </p>
+      <div id="dlr-contacts-grid"></div>
+    </div>
+
+    <div class="form-section">
+      <div class="section-header">SECTION 3 — ACCOUNTING INFORMATION</div>
+      <div class="form-row">
+        <div class="form-field form-field-wide">
+          <label>Accounts Receivable Contact <span class="req">*</span></label>
+          <input type="text" id="dlr-ar-name" placeholder="Jane Doe" required />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>A/R Phone <span class="req">*</span></label>
+          <input type="tel" id="dlr-ar-phone" required /></div>
+        <div class="form-field"><label>A/R Email <span class="req">*</span></label>
+          <input type="email" id="dlr-ar-email" required /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Bank Account Number <span class="req">*</span></label>
+          <input type="text" id="dlr-account" autocomplete="off" required /></div>
+        <div class="form-field"><label>Routing Number <span class="req">*</span></label>
+          <input type="text" id="dlr-routing" autocomplete="off" maxlength="9" required /></div>
+      </div>
+      <p class="section-help">
+        By providing banking information, dealer authorizes Whitestone Partners to initiate electronic
+        ACH credits and debits for dealer compensation, claims reimbursement, cancellations,
+        chargebacks, and other amounts arising under the Dealer Participation Agreement.
+      </p>
+    </div>
+
+    <div class="form-section">
+      <div class="section-header">SECTION 4 — LOGIN CREDENTIALS &amp; AGREEMENT</div>
+      <div class="form-row">
+        <div class="form-field"><label>Primary Contact First Name <span class="req">*</span></label>
+          <input type="text" id="dlr-contact-first" required /></div>
+        <div class="form-field"><label>Primary Contact Last Name <span class="req">*</span></label>
+          <input type="text" id="dlr-contact-last" required /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field form-field-wide">
+          <label>Login Email <span class="req">*</span></label>
+          <input type="email" id="dlr-login-email" placeholder="login@dealership.com" required />
+          <small>A welcome email with login instructions will be sent here.</small>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Agreement Effective Date <span class="req">*</span></label>
+          <input type="date" id="dlr-effective-date" required />
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" onclick="closeDealerEnrollModal()">Cancel</button>
+      <button type="button" class="btn-primary" id="dlr-enroll-submit-btn" onclick="submitDealerEnrollment(event)">
+        Create Dealer &amp; Generate Agreement PDF
+      </button>
     </div>
   </div>
 </div>
@@ -1814,9 +1904,11 @@ window.addEventListener("load", function() {
               '<div style="font-size:11px;color:var(--mid);margin-top:1px;">→</div>' +
             '</div>' +
             '</div>' +
-            '<div style="display:flex;align-items:center;padding:0 12px;border-left:1px solid var(--border);flex-shrink:0;background:white;">' +
+            '<div style="display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:6px;padding:0 12px;border-left:1px solid var(--border);flex-shrink:0;background:white;">' +
               '<button type="button" onclick="event.stopPropagation(); if (typeof openDealerEnrollmentModal === \'function\') openDealerEnrollmentModal(\'' + esc(d.id) + '\',\'' + esc(d.dealership_name || "") + '\');" ' +
               'style="background:var(--gold);color:var(--navy);border:none;padding:8px 12px;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">📋 Enrollment</button>' +
+              (d.enrollment_status === "submitted" ? '<button type="button" onclick="event.stopPropagation(); if (typeof markDealerAgreementSigned === \'function\') markDealerAgreementSigned(\'' + esc(d.id) + '\',\'' + esc(d.dealership_name || "") + '\');" ' +
+              'style="background:white;color:var(--navy);border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">Mark Agreement Signed</button>' : "") +
             '</div>' +
           '</div>';
         }).join("") +
@@ -1830,9 +1922,11 @@ window.addEventListener("load", function() {
       inactiveEl.innerHTML = inactive.map(function(d) {
         return '<div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;padding:0.75rem 1.25rem;background:white;border:1px solid var(--border);border-radius:6px;margin-bottom:0.5rem;flex-wrap:wrap;">' +
           '<div style="font-size:13.5px;color:var(--light);flex:1;min-width:0;">' + esc(d.dealership_name || "—") + '</div>' +
-          '<div style="display:flex;align-items:center;gap:0.5rem;flex-shrink:0;">' +
+          '<div style="display:flex;align-items:center;gap:0.5rem;flex-shrink:0;flex-wrap:wrap;">' +
             '<button type="button" onclick="if (typeof openDealerEnrollmentModal === \'function\') openDealerEnrollmentModal(\'' + esc(d.id) + '\',\'' + esc(d.dealership_name || "") + '\');" ' +
             'style="background:var(--gold);color:var(--navy);border:none;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">📋 Enrollment</button>' +
+            (d.enrollment_status === "submitted" ? '<button type="button" onclick="if (typeof markDealerAgreementSigned === \'function\') markDealerAgreementSigned(\'' + esc(d.id) + '\',\'' + esc(d.dealership_name || "") + '\');" ' +
+            'style="background:white;color:var(--navy);border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">Mark Agreement Signed</button>' : "") +
             '<button type="button" onclick="reactivateDealer(\'' + esc(d.id) + '\')" style="font-size:11.5px;color:var(--green-text);background:none;border:1px solid var(--green-text);padding:4px 12px;border-radius:4px;cursor:pointer;font-family:inherit;">Reactivate</button>' +
           '</div>' +
         '</div>';
@@ -2130,73 +2224,6 @@ window.addEventListener("load", function() {
     adminLoadDealerTable();
   };
 
-  window.closeAddDealerModal = function() {
-    document.getElementById("add-dealer-modal").style.display = "none";
-  };
-
-  window.submitAddDealer = async function() {
-    var name = document.getElementById("add-dealership-name").value.trim();
-    var email = document.getElementById("add-dealer-email").value.trim();
-    if (!name || !email) {
-      alert("Dealership name and login email are required.");
-      return;
-    }
-
-    var btn = document.getElementById("add-dealer-submit-btn");
-    btn.disabled = true;
-    btn.textContent = "Creating...";
-
-    try {
-      var authClient = typeof createDetachedSupabaseClient === "function" ? createDetachedSupabaseClient() : supabase;
-      var tempPassword = typeof generateTempPassword === "function" ? generateTempPassword() : ("WSP-" + Math.random().toString(36).substring(2, 8).toUpperCase());
-      var signUpResult = await authClient.auth.signUp({
-        email: email,
-        password: tempPassword,
-        options: { emailRedirectTo: "https://whitestone-dealer-portal.vercel.app" }
-      });
-      var authId = signUpResult && signUpResult.data && signUpResult.data.user ? signUpResult.data.user.id : null;
-      var username = typeof generateUsername === "function" ? generateUsername(name) : name.toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 20);
-
-      await fetch(SUPABASE_URL + "/rest/v1/dealers", {
-        method: "POST",
-        headers: authHeaders({ Prefer: "return=minimal" }),
-        body: JSON.stringify({
-          username: username,
-          password: "supabase-auth",
-          dealership_name: name,
-          contact_first_name: document.getElementById("add-contact-fname").value.trim(),
-          contact_last_name: document.getElementById("add-contact-lname").value.trim(),
-          email: email,
-          phone: document.getElementById("add-dealer-phone").value.trim(),
-          address: document.getElementById("add-dealer-address").value.trim(),
-          city: document.getElementById("add-dealer-city").value.trim(),
-          state: document.getElementById("add-dealer-state").value.trim(),
-          zip: document.getElementById("add-dealer-zip").value.trim(),
-          location: [document.getElementById("add-dealer-city").value.trim(), document.getElementById("add-dealer-state").value.trim()].filter(Boolean).join(", "),
-          auth_id: authId,
-          active: true,
-          is_admin: false,
-          joined_at: new Date().toISOString()
-        })
-      });
-
-      await writeAuditLog("dealer", null, "dealer_created", null, { dealer: name, email: email }, name, null, "Dealer manually added by admin");
-      alert("✓ " + name + " created! A welcome email has been sent to " + email);
-      closeAddDealerModal();
-      adminLoadDealerTable();
-
-      ["add-dealership-name", "add-contact-fname", "add-contact-lname", "add-dealer-email", "add-dealer-phone", "add-dealer-address", "add-dealer-city", "add-dealer-state", "add-dealer-zip"].forEach(function(id) {
-        var field = document.getElementById(id);
-        if (field) field.value = "";
-      });
-    } catch (e) {
-      alert("Error creating dealer: " + e.message);
-    }
-
-    btn.disabled = false;
-    btn.textContent = "Create Dealer Account";
-  };
-
   document.getElementById("dealers-search").addEventListener("input", function() {
     var q = this.value.toLowerCase();
     var filtered = allDealersData.filter(function(d) {
@@ -2212,11 +2239,12 @@ window.addEventListener("load", function() {
   var addDealerBtnFresh = addDealerBtn.cloneNode(true);
   addDealerBtn.parentNode.replaceChild(addDealerBtnFresh, addDealerBtn);
   addDealerBtnFresh.addEventListener("click", function() {
-    document.getElementById("add-dealer-modal").style.display = "flex";
+    if (typeof openDealerEnrollModal === "function") openDealerEnrollModal();
+    else document.getElementById("add-dealer-modal").style.display = "flex";
   });
 
   document.getElementById("add-dealer-modal").addEventListener("click", function(e) {
-    if (e.target === this) closeAddDealerModal();
+    if (e.target === this && typeof closeDealerEnrollModal === "function") closeDealerEnrollModal();
   });
 
   if (typeof adminLoadDealersPanel === "function") {
@@ -2266,7 +2294,7 @@ window.addEventListener("load", function() {
     var sel = document.getElementById("ws-dealer-select");
     if (!sel) return;
     var res = await fetch(
-      SUPABASE_URL + "/rest/v1/dealers?is_admin=eq.false&active=eq.true&select=id,dealership_name&order=dealership_name.asc",
+      SUPABASE_URL + "/rest/v1/dealers?is_admin=eq.false&select=id,dealership_name,enrollment_status,active&order=dealership_name.asc",
       { headers: authHeaders() }
     );
     var dealers = await res.json() || [];
@@ -2276,6 +2304,7 @@ window.addEventListener("load", function() {
       opt.value = d.id;
       opt.textContent = d.dealership_name;
       opt.dataset.name = d.dealership_name;
+      opt.setAttribute("data-enrollment-status", d.enrollment_status || "not_started");
       sel.appendChild(opt);
     });
   };
@@ -3411,10 +3440,35 @@ window.addEventListener("load", function() {
   if (dealerSelect) {
     dealerSelect.addEventListener("change", async function() {
       var dealerId = this.value;
-      var dealerName = this.options[this.selectedIndex] ? this.options[this.selectedIndex].dataset.name : "";
+      var opt = this.options[this.selectedIndex];
+      var dealerName = opt ? opt.dataset.name : "";
+      var enrollSt = opt ? (opt.getAttribute("data-enrollment-status") || opt.dataset.enrollmentStatus || "not_started") : "not_started";
+      var gate = document.getElementById("ws-pricing-gate");
+      var steps = document.getElementById("ws-steps");
       if (!dealerId) {
-        document.getElementById("ws-steps").style.display = "none";
+        if (steps) steps.style.display = "none";
+        if (gate) {
+          gate.style.display = "none";
+          gate.innerHTML = "";
+        }
         return;
+      }
+      if (enrollSt !== "active" && enrollSt !== "signed") {
+        if (steps) steps.style.display = "none";
+        if (gate) {
+          gate.style.display = "block";
+          gate.innerHTML =
+            '<div class="card empty-state">' +
+            "<h3>Enrollment Required</h3>" +
+            "<p>This dealer must complete enrollment and have a signed agreement before pricing can be configured.</p>" +
+            "<p>Current status: <strong>" + esc(enrollSt || "not_started") + "</strong></p>" +
+            "</div>";
+        }
+        return;
+      }
+      if (gate) {
+        gate.style.display = "none";
+        gate.innerHTML = "";
       }
       await wsLoadDealerPricing(dealerId, dealerName);
     });
@@ -3488,11 +3542,19 @@ window.addEventListener("load", function() {
         confirmed_by: "admin"
       })
     });
+    if (wholesaleState.dealerId) {
+      await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(wholesaleState.dealerId), {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ enrollment_status: "active", active: true })
+      });
+    }
     wholesaleState.confirmed = true;
     wholesaleState.locked = true;
     document.getElementById("pricing-confirm-modal").style.display = "none";
     wsUpdateLockStatus();
     await writeAuditLog("pricing", wholesaleState.pricingId, "pricing_confirmed", null, { dealer: wholesaleState.dealerName, ws1: wholesaleState.ws1, ws2: wholesaleState.ws2, ws3: wholesaleState.ws3 }, wholesaleState.dealerName, null, "Wholesale pricing confirmed and locked");
+    if (typeof wsPricingLoadDealers === "function") await wsPricingLoadDealers();
     alert("✓ Pricing confirmed and locked for " + wholesaleState.dealerName);
     this.disabled = false;
     this.textContent = "Confirm & Save";
