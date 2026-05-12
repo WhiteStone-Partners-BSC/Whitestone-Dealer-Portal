@@ -126,9 +126,9 @@ class handler(BaseHTTPRequestHandler):
         eff = str(eff_raw)[:10] if eff_raw else ''
         # "...is entered into as of __________ ("Effective Date")..." y_top=462.4
         # Underline blank runs from x=204.4 to x=236.8 (width ~32pt).
-        # Use 7pt so "YYYY-MM-DD" (always 10 chars) fits inside the blank and sits centered.
-        c.setFont('Helvetica', 7)
-        put(205, 467, eff)
+        # Use 6pt so "YYYY-MM-DD" (always 10 chars) fits comfortably inside the blank with breathing room.
+        c.setFont('Helvetica', 6)
+        put(207, 467, eff)
         # Dealer name fills the blank "_____ ("Dealer")" on the line below — 8pt fits the line width
         c.setFont('Helvetica', 8)
         put(25, 473, legal)
