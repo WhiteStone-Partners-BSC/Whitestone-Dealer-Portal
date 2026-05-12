@@ -2704,27 +2704,27 @@ window.addEventListener("load", function() {
     if (cartBtn) {
       cartBtn.onclick = async function() {
         var btn = this;
-        btn.disabled = true;
-        btn.textContent = "Adding to cart...";
-        closeEnrollConfirmModal();
-        var contractType = selectedContractLength || "1yr";
-        var wholesaleMap = { "1yr": 3325, "2yr": 6650, "3yr": 9975 };
-        var retailMap = { "1yr": 4075, "2yr": 8150, "3yr": 12225 };
-        var totalDaysMap = { "1yr": 365, "2yr": 730, "3yr": 1095 };
-        var wholesale = wholesaleMap[contractType] || 3325;
-        var retail = retailMap[contractType] || 4075;
-        var fname = (document.getElementById("e-fname") || {}).value || "";
-        var lname = (document.getElementById("e-lname") || {}).value || "";
-        var email = (document.getElementById("e-email") || {}).value || "";
-        var phone = (document.getElementById("e-phone") || {}).value || "";
-        var make = (document.getElementById("e-make") || {}).value || "";
-        var model = (document.getElementById("e-model") || {}).value || "";
-        var year = (document.getElementById("e-year") || {}).value || "";
-        var hin = normalizeHin((document.getElementById("e-hin") || {}).value || "");
-        var today = new Date();
-        var endDate = new Date(today);
-        endDate.setDate(endDate.getDate() + (totalDaysMap[contractType] || 365));
         try {
+          btn.disabled = true;
+          btn.textContent = "Adding to cart...";
+          closeEnrollConfirmModal();
+          var contractType = selectedContractLength || "1yr";
+          var wholesaleMap = { "1yr": 3325, "2yr": 6650, "3yr": 9975 };
+          var retailMap = { "1yr": 4075, "2yr": 8150, "3yr": 12225 };
+          var totalDaysMap = { "1yr": 365, "2yr": 730, "3yr": 1095 };
+          var wholesale = wholesaleMap[contractType] || 3325;
+          var retail = retailMap[contractType] || 4075;
+          var fname = (document.getElementById("e-fname") || {}).value || "";
+          var lname = (document.getElementById("e-lname") || {}).value || "";
+          var email = (document.getElementById("e-email") || {}).value || "";
+          var phone = (document.getElementById("e-phone") || {}).value || "";
+          var make = (document.getElementById("e-make") || {}).value || "";
+          var model = (document.getElementById("e-model") || {}).value || "";
+          var year = (document.getElementById("e-year") || {}).value || "";
+          var hin = normalizeHin((document.getElementById("e-hin") || {}).value || "");
+          var today = new Date();
+          var endDate = new Date(today);
+          endDate.setDate(endDate.getDate() + (totalDaysMap[contractType] || 365));
           var mi        = (document.getElementById("e-mi") || {}).value || "";
           var address   = (document.getElementById("e-address") || {}).value || "";
           var city      = (document.getElementById("e-city") || {}).value || "";
@@ -2816,7 +2816,10 @@ window.addEventListener("load", function() {
           });
           var crows = await cr.json();
           if (!cr.ok) throw new Error("Contract failed");
-          var contractId = crows[0] && crows[0].id;
+          var contractRow = Array.isArray(crows) ? crows[0] : crows;
+          var contractId = contractRow && contractRow.id;
+          if (!contractId) throw new Error("Contract save returned no id");
+          console.log("[enroll-cart] step1: contract saved", contractId);
           window._lastCreatedContractId = contractId;
           window._lastEnrolledContractId = contractId;
           var dueDate = new Date();
@@ -2829,16 +2832,29 @@ window.addEventListener("load", function() {
             due_date: dueDate.toISOString(), status: "unpaid", payment_method: "invoice",
             hin: hin, boat_make: make, boat_model: model, boat_year: parseInt(year, 10) || null
           };
-          await fetch(SUPABASE_URL + "/rest/v1/invoice_items", {
+          var invRes = await fetch(SUPABASE_URL + "/rest/v1/invoice_items", {
             method: "POST", headers: authHeaders(), body: JSON.stringify(itemPayload)
           });
-          if (typeof window.refreshBillingCartBadge === "function") await window.refreshBillingCartBadge();
+          if (!invRes.ok) {
+            var invErr = await invRes.text();
+            throw new Error("Invoice item failed: " + invErr);
+          }
+          console.log("[enroll-cart] step2: invoice_item created");
+          try {
+            if (typeof window.refreshBillingCartBadge === "function") await window.refreshBillingCartBadge();
+          } catch (_badgeErr) {
+            console.error("[enroll-cart] step3: badge refresh failed", _badgeErr);
+          }
+          console.log("[enroll-cart] step3: badge done");
           closeEnrollConfirmModal();
           window.showEnrollSuccess((fname + " " + lname).trim(), "Added to cart! Pay within 10 days.", contractId);
+          console.log("[enroll-cart] step4: success UI shown");
         } catch (e) {
+          console.error("[enroll-cart]", e);
+          alert("Could not add to cart. Please try again.");
+        } finally {
           btn.disabled = false;
           btn.textContent = "★ Add to Cart — Pay within 10 days";
-          alert("Could not add to cart. Please try again.");
         }
       };
     }
@@ -2853,7 +2869,8 @@ window.addEventListener("load", function() {
   };
 
   window.closeEnrollConfirmModal = function() {
-    document.getElementById("enroll-confirm-modal").style.display = "none";
+    var m = document.getElementById("enroll-confirm-modal");
+    if (m) m.style.display = "none";
   };
 
   window.showEnrollSuccess = function(customerName, message, contractId) {
@@ -2875,7 +2892,7 @@ window.addEventListener("load", function() {
         '<div style="font-size:11px;color:#9aafbf;margin-bottom:1.25rem;">Pre-filled PDF ready for customer signature</div>' +
         '<div style="display:flex;gap:0.75rem;justify-content:center;">' +
           '<button onclick="enrollAnotherCustomer()" style="background:transparent;border:1.5px solid #c5d5e0;color:#0c1e2e;padding:9px 20px;border-radius:6px;font-size:13px;cursor:pointer;">Enroll Another</button>' +
-          (message && message.toLowerCase().includes("cart")
+          (String(message || "").toLowerCase().includes("cart")
             ? '<button onclick="switchTab(\'billing-cart\');loadBillingCart();" style="background:transparent;border:1.5px solid #c5d5e0;color:#0c1e2e;padding:9px 20px;border-radius:6px;font-size:13px;cursor:pointer;">View Cart →</button>'
             : "") +
         "</div>" +
@@ -2935,36 +2952,83 @@ window.addEventListener("load", function() {
   var _selectedCartIds = new Set();
 
   window.refreshBillingCartBadge = async function() {
-    if (!currentDealer || !currentDealer.id) return;
+    var dealer =
+      typeof currentDealer !== "undefined" && currentDealer && currentDealer.id
+        ? currentDealer
+        : window.currentDealer && window.currentDealer.id
+          ? window.currentDealer
+          : null;
+    if (!dealer || !dealer.id) return;
     try {
       var badgeRes = await fetch(
-        SUPABASE_URL + "/rest/v1/invoice_items?dealer_id=eq." + currentDealer.id + "&status=eq.unpaid&select=id",
+        SUPABASE_URL +
+          "/rest/v1/invoice_items?dealer_id=eq." +
+          encodeURIComponent(dealer.id) +
+          "&status=eq.unpaid&select=id",
         { headers: authHeaders() }
       );
       var badgeRows = await badgeRes.json();
+      var badgeCount = Array.isArray(badgeRows) ? badgeRows.length : 0;
+      if (!badgeRes.ok) {
+        console.error("[billing-cart] badge fetch failed", badgeRes.status, badgeRows);
+        return;
+      }
       var badge = document.getElementById("cart-badge");
       if (badge) {
-        badge.textContent = (badgeRows || []).length;
-        badge.style.display = (badgeRows || []).length > 0 ? "inline" : "none";
+        badge.textContent = badgeCount;
+        badge.style.display = badgeCount > 0 ? "inline" : "none";
       }
     } catch (e) {
-      console.log("Billing cart badge load error:", e);
+      console.error("[billing-cart] badge load error:", e);
     }
   };
 
   window.loadBillingCart = async function() {
     var listEl = document.getElementById("cart-items-list");
     var emptyEl = document.getElementById("cart-empty");
-    if (!listEl || !currentDealer || !currentDealer.id) return;
+    if (!listEl) return;
+
+    var dealer = null;
+    for (var _bcAttempt = 0; _bcAttempt < 40; _bcAttempt++) {
+      dealer =
+        typeof currentDealer !== "undefined" && currentDealer && currentDealer.id
+          ? currentDealer
+          : window.currentDealer && window.currentDealer.id
+            ? window.currentDealer
+            : null;
+      if (dealer && dealer.id) break;
+      await new Promise(function(r) { setTimeout(r, 50); });
+    }
+
+    console.log("[billing-cart] loading for dealer:", dealer && dealer.id, "hasAuthToken:", !!window.authToken);
+
+    if (!dealer || !dealer.id) {
+      console.error("[billing-cart] No dealer session after wait; cannot load cart.");
+      if (emptyEl) emptyEl.style.display = "block";
+      listEl.innerHTML = "";
+      return;
+    }
+
     _selectedCartIds.clear();
     listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--light);font-size:13px;">Loading cart...</div>';
     try {
-      var r = await fetch(
-        SUPABASE_URL + "/rest/v1/invoice_items?dealer_id=eq." + currentDealer.id + "&status=eq.unpaid&order=created_at.asc&select=*,contracts(hin,boat_make,boat_model,boat_year,customer_first_name,customer_last_name)",
-        { headers: authHeaders() }
-      );
-      _cartItems = await r.json();
-      if (!Array.isArray(_cartItems)) _cartItems = [];
+      var qs =
+        "dealer_id=eq." +
+        encodeURIComponent(dealer.id) +
+        "&status=eq.unpaid&order=due_date.asc&select=*";
+      var r = await fetch(SUPABASE_URL + "/rest/v1/invoice_items?" + qs, { headers: authHeaders() });
+      var raw = await r.json();
+      if (!r.ok) {
+        console.error("[billing-cart] invoice_items fetch failed", r.status, raw);
+        listEl.innerHTML =
+          '<div style="text-align:center;padding:2rem;color:var(--red);font-size:13px;">Could not load cart. Please refresh or try again.</div>';
+        return;
+      }
+      if (!Array.isArray(raw)) {
+        console.error("[billing-cart] Unexpected response (expected array):", raw);
+        raw = [];
+      }
+      _cartItems = raw;
       var badge = document.getElementById("cart-badge");
       if (badge) {
         badge.textContent = _cartItems.length;
@@ -3027,7 +3091,7 @@ window.addEventListener("load", function() {
       }).join("");
       updateCartSelection();
     } catch (e) {
-      console.log("Billing cart load error:", e);
+      console.error("[billing-cart] load error:", e);
       listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--red);font-size:13px;">Could not load cart. Please try again.</div>';
     }
   };
