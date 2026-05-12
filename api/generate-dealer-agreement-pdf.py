@@ -124,8 +124,13 @@ class handler(BaseHTTPRequestHandler):
 
         eff_raw = d.get('enrollment_effective_date') or d.get('effective_date') or ''
         eff = str(eff_raw)[:10] if eff_raw else ''
-        put(208, 471, eff)
-        put(20, 480, legal)
+        # "...is entered into as of __________ ("Effective Date")..." y_top=462.4
+        # Effective Date nudged up 5pt to sit ABOVE the underline (not on it), shifted right slightly
+        put(212, 466, eff)
+        # Dealer name fills the blank "_____ ("Dealer")" on the line below.
+        # Nudged UP 7pt and RIGHT 5pt so it sits on the underline (not below) and starts inside the line.
+        # Prefer legal business name when set (matches dealership info block).
+        put(25, 473, legal)
 
         c.showPage()
 
