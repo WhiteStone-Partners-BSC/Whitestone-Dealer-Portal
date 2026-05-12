@@ -1911,6 +1911,9 @@ window.addEventListener("load", function() {
             '<div style="display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:6px;padding:0 12px;border-left:1px solid var(--border);flex-shrink:0;background:white;">' +
               '<button type="button" onclick="event.stopPropagation(); if (typeof openDealerEnrollmentModal === \'function\') openDealerEnrollmentModal(\'' + esc(d.id) + '\',\'' + esc(d.dealership_name || "") + '\');" ' +
               'style="background:var(--gold);color:var(--navy);border:none;padding:8px 12px;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">📋 Enrollment</button>' +
+              (d.slug && String(d.slug).trim()
+                ? '<button type="button" class="btn-qr" onclick="event.stopPropagation(); if (typeof showDealerQR === \'function\') showDealerQR(\'' + esc(d.id) + '\');" title="Generate QR code for box campaign">📱 QR</button>'
+                : '<button type="button" class="btn-qr disabled" disabled title="Set a slug for this dealer first">📱 QR</button>') +
               (d.enrollment_status === "submitted" ? '<button type="button" onclick="event.stopPropagation(); if (typeof markDealerAgreementSigned === \'function\') markDealerAgreementSigned(\'' + esc(d.id) + '\',\'' + esc(d.dealership_name || "") + '\');" ' +
               'style="background:white;color:var(--navy);border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">Mark Agreement Signed</button>' : "") +
             '</div>' +
@@ -1929,6 +1932,9 @@ window.addEventListener("load", function() {
           '<div style="display:flex;align-items:center;gap:0.5rem;flex-shrink:0;flex-wrap:wrap;">' +
             '<button type="button" onclick="if (typeof openDealerEnrollmentModal === \'function\') openDealerEnrollmentModal(\'' + esc(d.id) + '\',\'' + esc(d.dealership_name || "") + '\');" ' +
             'style="background:var(--gold);color:var(--navy);border:none;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">📋 Enrollment</button>' +
+            (d.slug && String(d.slug).trim()
+              ? '<button type="button" class="btn-qr" onclick="if (typeof showDealerQR === \'function\') showDealerQR(\'' + esc(d.id) + '\');" title="Generate QR code for box campaign">📱 QR</button>'
+              : '<button type="button" class="btn-qr disabled" disabled title="Set a slug for this dealer first">📱 QR</button>') +
             (d.enrollment_status === "submitted" ? '<button type="button" onclick="if (typeof markDealerAgreementSigned === \'function\') markDealerAgreementSigned(\'' + esc(d.id) + '\',\'' + esc(d.dealership_name || "") + '\');" ' +
             'style="background:white;color:var(--navy);border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">Mark Agreement Signed</button>' : "") +
             '<button type="button" onclick="reactivateDealer(\'' + esc(d.id) + '\')" style="font-size:11.5px;color:var(--green-text);background:none;border:1px solid var(--green-text);padding:4px 12px;border-radius:4px;cursor:pointer;font-family:inherit;">Reactivate</button>' +
@@ -4000,6 +4006,23 @@ window.addEventListener("load", function() {
       </button>
     </div>
 
+  </div>
+</div>
+
+<!-- QR Code Modal — for dealer box campaign -->
+<div id="qrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this && typeof closeQRModal==='function')closeQRModal()">
+  <div style="background:#fff;max-width:480px;width:100%;padding:40px;text-align:center;border-radius:4px;font-family:'DM Sans',sans-serif;">
+    <div id="qrModalDealerName" style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:300;color:#0c1e2e;margin-bottom:8px;"></div>
+    <div id="qrModalRecipient" style="font-size:12px;letter-spacing:0.15em;text-transform:uppercase;color:#4a6278;margin-bottom:24px;"></div>
+
+    <div id="qrCodeCanvas" style="display:flex;justify-content:center;margin:0 auto 24px;padding:20px;background:#fff;border:1px solid #e4eaf0;"></div>
+
+    <div id="qrModalUrl" style="font-size:11px;color:#6b8599;margin-bottom:24px;word-break:break-all;font-family:monospace;"></div>
+
+    <div style="display:flex;gap:12px;justify-content:center;">
+      <button type="button" onclick="if(typeof downloadQR==='function')downloadQR('png')" style="padding:14px 24px;background:#0c1e2e;color:#fff;border:none;font-size:12px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;cursor:pointer;">Download PNG</button>
+      <button type="button" onclick="if(typeof closeQRModal==='function')closeQRModal()" style="padding:14px 24px;background:transparent;color:#4a6278;border:1px solid #e4eaf0;font-size:12px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;cursor:pointer;">Close</button>
+    </div>
   </div>
 </div>
 

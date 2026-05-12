@@ -3080,6 +3080,141 @@ function fetchDealersSupabase() {
     .catch(function() { return []; });
 }
 
+// ============== QR CODE GENERATOR (for dealer box campaign) ==============
+var qrLibLoaded = false;
+var currentQRDealer = null;
+
+function loadQRLib() {
+  return new Promise(function(resolve, reject) {
+    if (qrLibLoaded || typeof window.QRCode !== "undefined") {
+      qrLibLoaded = true;
+      resolve();
+      return;
+    }
+    var script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+    script.onload = function() {
+      qrLibLoaded = true;
+      resolve();
+    };
+    script.onerror = function() {
+      reject(new Error("Could not load QR library"));
+    };
+    document.head.appendChild(script);
+  });
+}
+
+function findDealerForQR(dealerId) {
+  var id = String(dealerId);
+  function fromList(arr) {
+    if (!Array.isArray(arr)) return null;
+    for (var i = 0; i < arr.length; i++) {
+      if (String(arr[i].id) === id) return arr[i];
+    }
+    return null;
+  }
+  return (
+    fromList(dealerRowsCache) ||
+    fromList(window.allDealers) ||
+    fromList(window.allDealersData) ||
+    null
+  );
+}
+
+window.showDealerQR = async function(dealerId) {
+  try {
+    await loadQRLib();
+  } catch (e) {
+    alert("Could not load QR code library. Check your connection and try again.");
+    return;
+  }
+
+  var dealer = findDealerForQR(dealerId);
+  if (!dealer) {
+    alert("Dealer not found in current view. Reload the page and try again.");
+    return;
+  }
+
+  var slugTrim = dealer.slug != null ? String(dealer.slug).trim() : "";
+  if (!slugTrim) {
+    alert('This dealer has no slug set. Edit the dealer and set a slug (e.g. "lake-city-marine") before generating a QR.');
+    return;
+  }
+
+  currentQRDealer = dealer;
+  var url = "https://whitestone-partners.com/dealer/" + slugTrim;
+  var displayName =
+    dealer.dba ||
+    dealer.legal_business_name ||
+    dealer.dealership_name ||
+    slugTrim;
+  var recipient = [dealer.box_recipient_first_name, dealer.box_recipient_last_name].filter(Boolean).join(" ");
+
+  var nameEl = document.getElementById("qrModalDealerName");
+  var recEl = document.getElementById("qrModalRecipient");
+  var urlEl = document.getElementById("qrModalUrl");
+  var wrap = document.getElementById("qrCodeCanvas");
+  var modal = document.getElementById("qrModal");
+  if (!nameEl || !recEl || !urlEl || !wrap || !modal) {
+    alert("QR modal is not available on this page.");
+    return;
+  }
+
+  nameEl.textContent = displayName;
+  recEl.textContent = recipient ? "Recipient: " + recipient : "No recipient name set";
+  urlEl.textContent = url;
+
+  wrap.innerHTML = "";
+  new window.QRCode(wrap, {
+    text: url,
+    width: 320,
+    height: 320,
+    colorDark: "#000000",
+    colorLight: "#ffffff",
+    correctLevel: window.QRCode.CorrectLevel.H
+  });
+
+  modal.style.display = "flex";
+};
+
+window.closeQRModal = function() {
+  var modal = document.getElementById("qrModal");
+  if (modal) modal.style.display = "none";
+  currentQRDealer = null;
+};
+
+window.downloadQR = function(format) {
+  if (!currentQRDealer) return;
+  var slug = currentQRDealer.slug != null ? String(currentQRDealer.slug).trim() : "";
+  if (!slug) return;
+
+  var canvas = document.querySelector("#qrCodeCanvas canvas");
+  if (!canvas) {
+    alert("QR code not generated yet.");
+    return;
+  }
+
+  if (format && String(format).toLowerCase() !== "png") {
+    alert("Only PNG download is supported.");
+    return;
+  }
+
+  var dataUrl = canvas.toDataURL("image/png");
+  var a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = "whitestone-qr-" + slug + ".png";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};
+
+document.addEventListener("keydown", function(e) {
+  if (e.key !== "Escape") return;
+  var modal = document.getElementById("qrModal");
+  if (!modal || modal.style.display !== "flex") return;
+  window.closeQRModal();
+});
+
 function adminFetchAllContracts() {
   return fetch(SUPABASE_URL + "/rest/v1/contracts?select=*&order=created_at.desc", {
     headers: supabaseHeaders()
@@ -6893,17 +7028,25 @@ document.addEventListener("DOMContentLoaded", function() {
     try {
       var rows = await fetchDealersSupabase();
       dealerRowsCache = rows;
+      window.allDealers = rows;
       tbody.innerHTML = "";
       rows.forEach(function(d) {
         if (d.is_admin) return;
         var tr = document.createElement("tr");
+        var slugOk = d.slug != null && String(d.slug).trim() !== "";
+        var did = escHtml(String(d.id));
+        var qrBtn = slugOk
+          ? "<button type='button' class='btn-qr' onclick=\"showDealerQR('" + did + "')\" title='Generate QR code for box campaign'>\uD83D\uDCF1 QR</button>"
+          : "<button type='button' class='btn-qr disabled' disabled title='Set a slug for this dealer first'>\uD83D\uDCF1 QR</button>";
         tr.innerHTML =
           "<td><strong>" + escHtml(d.username) + "</strong></td>" +
           "<td>" + escHtml(d.dealership_name) + "</td>" +
           "<td><span class='" + (d.active ? "badge-active" : "badge-inactive") + "'>" + (d.active ? "Active" : "Inactive") + "</span></td>" +
-          "<td><button class='btn-sm btn-remove' type='button' data-dealer-id='" + escHtml(String(d.id)) + "' data-username='" + escHtml(d.username) + "'" +
+          "<td><div style='display:flex;flex-wrap:wrap;gap:8px;align-items:center;'>" +
+          qrBtn +
+          "<button class='btn-sm btn-remove' type='button' data-dealer-id='" + did + "' data-username='" + escHtml(d.username) + "'" +
           (d.username === "admin" ? " disabled style='opacity:0.4;cursor:not-allowed;'" : "") +
-          ">Remove</button></td>";
+          ">Remove</button></div></td>";
         tbody.appendChild(tr);
       });
       tbody.querySelectorAll(".btn-remove").forEach(function(btn) {

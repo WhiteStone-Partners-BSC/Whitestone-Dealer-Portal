@@ -216,6 +216,28 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .btn-sm{padding:5px 12px;border-radius:3px;font-size:11px;font-weight:500;cursor:pointer;font-family:"DM Sans",sans-serif;border:none;transition:opacity 0.2s;}
 .btn-sm:hover{opacity:0.8;}
 .btn-remove{background:#ffebee;color:#c0392b;}
+.btn-qr {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #0c1e2e;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: background 0.2s;
+  font-family: "DM Sans", sans-serif;
+  border-radius: 3px;
+}
+.btn-qr:hover:not(:disabled):not(.disabled) {
+  background: #b8963e;
+}
+.btn-qr.disabled,
+.btn-qr:disabled {
+  background: #ccc;
+  color: #666;
+  cursor: not-allowed;
+}
 .add-dealer-form{background:var(--silver-bg);border:1px solid var(--border);border-radius:8px;padding:1.5rem;margin-top:1.5rem;}
 .add-dealer-form h4{font-family:"DM Sans",sans-serif;font-size:13px;font-weight:500;color:var(--navy);margin-bottom:1rem;}
 .add-dealer-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:0.75rem;align-items:end;}
