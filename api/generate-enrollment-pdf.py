@@ -19,7 +19,8 @@ class handler(BaseHTTPRequestHandler):
 
         # Fetch contract from Supabase
         supabase_url = os.environ.get('SUPABASE_URL', '')
-        supabase_key = os.environ.get('SUPABASE_ANON_KEY', '')
+        supabase_key = (os.environ.get('SUPABASE_SERVICE_KEY') or
+                        os.environ.get('SUPABASE_ANON_KEY', ''))
 
         url = (supabase_url + '/rest/v1/contracts'
                + '?id=eq.' + urllib.parse.quote(contract_id)
