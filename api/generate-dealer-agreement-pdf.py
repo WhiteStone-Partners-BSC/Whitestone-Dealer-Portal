@@ -124,13 +124,15 @@ class handler(BaseHTTPRequestHandler):
 
         eff_raw = d.get('enrollment_effective_date') or d.get('effective_date') or ''
         eff = str(eff_raw)[:10] if eff_raw else ''
+        # Intro paragraph: switch to 8pt to fit inside the underline blanks
+        c.setFont('Helvetica', 8)
         # "...is entered into as of __________ ("Effective Date")..." y_top=462.4
-        # Effective Date nudged up 5pt to sit ABOVE the underline (not on it), shifted right slightly
-        put(212, 466, eff)
-        # Dealer name fills the blank "_____ ("Dealer")" on the line below.
-        # Nudged UP 7pt and RIGHT 5pt so it sits on the underline (not below) and starts inside the line.
-        # Prefer legal business name when set (matches dealership info block).
+        # Effective Date shifted LEFT to clear the ("Effective Date") label that follows the blank
+        put(195, 466, eff)
+        # Dealer name fills the blank "_____ ("Dealer")" on the line below — 8pt fits the line width
         put(25, 473, legal)
+        # Restore default font for any subsequent draws on this page
+        c.setFont('Helvetica', 9)
 
         c.showPage()
 
@@ -138,8 +140,14 @@ class handler(BaseHTTPRequestHandler):
         c.setFont('Helvetica', 9)
         put(244, 157, '10')
 
+        # Signatures (page 2). Whitestone signature line at y_top=583.3, BY at y_top=591.9
+        # Dealer signature line at y_top=617.6, BY at y_top=626.1
+        # We pre-fill ONLY the dealer "BY" name (printed). Signatures stay blank for in-person sign.
         primary = ((d.get('contact_first_name') or '') + ' ' + (d.get('contact_last_name') or '')).strip()
-        put(76, 635, primary)
+        # 8pt font + nudge UP and RIGHT so name lands on the BY: underline (not below it)
+        c.setFont('Helvetica', 8)
+        put(180, 628, primary)
+        c.setFont('Helvetica', 9)
 
         c.save()
         buf1.seek(0)
