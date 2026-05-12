@@ -2919,8 +2919,15 @@ window.addEventListener("load", function() {
       var url = URL.createObjectURL(blob);
       var a = document.createElement("a");
       a.href = url;
-      a.download =
-        "WP_Enrollment_" + (contractId ? String(contractId).substring(0, 8) : "form") + ".pdf";
+      // Build a descriptive filename
+      var fname = document.getElementById("e-fname") ? document.getElementById("e-fname").value.trim() : "";
+      var lname = document.getElementById("e-lname") ? document.getElementById("e-lname").value.trim() : "";
+      var hin = document.getElementById("e-hin") ? document.getElementById("e-hin").value.trim() : "";
+      var today = new Date().toISOString().slice(0, 10);
+      var customerPart = (fname + "_" + lname).replace(/[^a-zA-Z0-9_]/g, "").substring(0, 20);
+      var hinPart = hin.replace(/[^a-zA-Z0-9]/g, "").substring(0, 15);
+      var filename = "WP_Enrollment_" + customerPart + "_" + hinPart + "_" + today + ".pdf";
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
