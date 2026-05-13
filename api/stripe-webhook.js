@@ -89,7 +89,7 @@ export default async function handler(req, res) {
               paid_at: new Date().toISOString()
             },
             typeof pi.amount_received === 'number'
-              ? { stripe_charge_amount: pi.amount_received / 100, wholesale_price: pi.amount_received / 100 }
+              ? { wholesale_price: pi.amount_received / 100 }
               : {}
           )
         )
