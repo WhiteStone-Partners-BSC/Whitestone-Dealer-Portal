@@ -3406,7 +3406,7 @@ window.addEventListener("load", function() {
         }
         var response = await fetch("/api/create-stripe-customer", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: (typeof authHeaders === "function") ? authHeaders() : { "Content-Type": "application/json" },
           body: JSON.stringify({
             dealerName: currentDealer.name,
             email: currentDealer.email,
