@@ -47,9 +47,10 @@ function authHeaders(extraHeaders) {
 
 async function sendResendEmail(subject, htmlContent) {
   try {
+    var hdrs = typeof authHeaders === "function" ? authHeaders() : { "Content-Type": "application/json" };
     await fetch("/api/send-email", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: hdrs,
       body: JSON.stringify({
         subject: subject,
         html: htmlContent
@@ -70,9 +71,10 @@ async function sendOverdueNotificationEmail(item, day) {
         : { day20_notice_sent: true, day20_notice_sent_at: new Date().toISOString() }
       )
     });
+    var hdrsEmail = typeof authHeaders === "function" ? authHeaders() : { "Content-Type": "application/json" };
     await fetch("/api/send-email", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: hdrsEmail,
       body: JSON.stringify({
         to: currentDealer && currentDealer.email ? currentDealer.email : null,
         type: day === 20 ? "overdue_day20" : "overdue_day10",

@@ -3,6 +3,44 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // --- AUTHENTICATION GATE ---
+  // Reject unauthenticated requests immediately.
+  const authHeader = req.headers.authorization || req.headers.Authorization || '';
+  const jwt = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!jwt) {
+    return res.status(401).json({ error: 'Missing Authorization header' });
+  }
+
+  // Verify the JWT against Supabase's auth endpoint.
+  // This returns the user record if the token is valid, 401 otherwise.
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('send-email: SUPABASE_URL or SUPABASE_ANON_KEY env vars missing');
+    return res.status(500).json({ error: 'Server misconfigured' });
+  }
+
+  try {
+    const verifyRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        apikey: supabaseAnonKey,
+      },
+    });
+    if (!verifyRes.ok) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+    await verifyRes.json();
+  } catch (err) {
+    console.error('send-email: JWT verification failed', err);
+    return res.status(401).json({ error: 'Token verification failed' });
+  }
+
+  // At this point we have a verified Supabase user. Caller is authenticated.
+  // We don't need to look up the dealer row — the email recipient is hardcoded server-side anyway.
+  // Proceed with the existing send-email logic below.
+  // --- END AUTHENTICATION GATE ---
+
   var apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: 'Email service not configured' });
