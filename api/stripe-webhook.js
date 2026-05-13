@@ -67,9 +67,10 @@ export default async function handler(req, res) {
 
     if (contractId) {
       var supabaseUrl = process.env.SUPABASE_URL || 'https://ypuohmiynnmbnlqfctlg.supabase.co';
-      var supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+      var supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
       if (!supabaseKey) {
-        supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwdW9obWl5bm5tYm5scWZjdGxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwODU4NzEsImV4cCI6MjA5MTY2MTg3MX0.HzrF_OCr2T9rKV9am90B2OvIQKjq28pObheMRps82AI';
+        console.error('stripe-webhook: SUPABASE_SERVICE_KEY and SUPABASE_ANON_KEY both missing');
+        return res.status(500).json({ error: 'Server misconfigured' });
       }
 
       var patchRes = await fetch(supabaseUrl + '/rest/v1/contracts?id=eq.' + encodeURIComponent(contractId), {
