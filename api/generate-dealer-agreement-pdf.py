@@ -33,6 +33,68 @@ class handler(BaseHTTPRequestHandler):
             raise ValueError(f'Dealer not found: {dealer_id}')
         return data[0]
 
+    def _verify_caller_owns_dealer(self, jwt_token, target_dealer_id):
+        """
+        Returns (allowed: bool, status_code: int, error: str|None).
+        - allowed=True: caller is authenticated AND owns the dealer record (or is admin)
+        - allowed=False: 401 if no/bad JWT, 403 if ownership check fails
+        """
+        if not jwt_token:
+            return False, 401, 'Missing Authorization header'
+
+        supabase_url = os.environ.get('SUPABASE_URL', '').rstrip('/')
+        anon_key = os.environ.get('SUPABASE_ANON_KEY', '')
+        if not supabase_url or not anon_key:
+            return False, 500, 'Server misconfigured (missing SUPABASE env)'
+
+        # Step 1: Verify JWT against Supabase auth endpoint
+        try:
+            verify_req = urllib_request.Request(
+                f"{supabase_url}/auth/v1/user",
+                headers={'Authorization': f'Bearer {jwt_token}', 'apikey': anon_key},
+            )
+            with urllib_request.urlopen(verify_req, timeout=10) as r:
+                auth_user = json.loads(r.read().decode('utf-8'))
+        except HTTPError as e:
+            if e.code == 401:
+                return False, 401, 'Invalid or expired token'
+            return False, 401, f'Token verification failed (HTTP {e.code})'
+        except Exception as e:
+            return False, 401, f'Token verification failed: {e}'
+
+        auth_uid = auth_user.get('id')
+        if not auth_uid:
+            return False, 401, 'No user id in token'
+
+        # Step 2: Look up the caller's dealer row keyed by auth_id
+        service_key = os.environ.get('SUPABASE_SERVICE_KEY') or anon_key
+        q_auth = urllib_parse.quote(str(auth_uid), safe='')
+        try:
+            dealer_lookup = urllib_request.Request(
+                f"{supabase_url}/rest/v1/dealers?auth_id=eq.{q_auth}&select=id,is_admin,active",
+                headers={'apikey': service_key, 'Authorization': f'Bearer {service_key}'},
+            )
+            with urllib_request.urlopen(dealer_lookup, timeout=10) as r:
+                rows = json.loads(r.read().decode('utf-8'))
+        except Exception as e:
+            return False, 401, f'Could not look up dealer: {e}'
+
+        if not rows:
+            return False, 403, 'No dealer record for this user'
+        caller_dealer = rows[0]
+        if not caller_dealer.get('active'):
+            return False, 403, 'Dealer account is inactive'
+
+        # Step 3: Admin can access ANY dealer agreement
+        if caller_dealer.get('is_admin'):
+            return True, 200, None
+
+        # Step 4: Non-admin can only access THEIR OWN dealer agreement
+        if str(target_dealer_id) == str(caller_dealer.get('id')):
+            return True, 200, None
+
+        return False, 403, 'You do not have access to this dealer agreement'
+
     def _fill_pdf(self, d):
         # Imports INSIDE the method — Vercel cold-start pattern
         from pypdf import PdfReader, PdfWriter
@@ -182,6 +244,15 @@ class handler(BaseHTTPRequestHandler):
                 return
 
             dealer = self._fetch_dealer(dealer_id)
+
+            auth_header = self.headers.get('Authorization') or self.headers.get('authorization') or ''
+            jwt_token = auth_header.replace('Bearer ', '').replace('bearer ', '').strip()
+
+            allowed, code, err = self._verify_caller_owns_dealer(jwt_token, dealer_id)
+            if not allowed:
+                self._send_json(code, {'error': err})
+                return
+
             pdf_bytes = self._fill_pdf(dealer)
 
             safe = ''.join(ch if ch.isalnum() else '_' for ch in (dealer.get('dealership_name') or 'Dealer'))
