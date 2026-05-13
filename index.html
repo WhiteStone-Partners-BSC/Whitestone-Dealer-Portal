@@ -2954,7 +2954,7 @@ window.addEventListener("load", function() {
     try {
       var response = await fetch("/api/generate-enrollment-pdf", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: (typeof authHeaders === "function") ? authHeaders() : { "Content-Type": "application/json" },
         body: JSON.stringify({ contractId: contractId })
       });
       if (!response.ok) throw new Error("PDF generation failed: " + response.status);

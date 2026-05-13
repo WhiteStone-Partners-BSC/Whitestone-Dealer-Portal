@@ -4,6 +4,7 @@ import json
 import os
 import urllib.request
 import urllib.parse
+import urllib.error
 
 
 class handler(BaseHTTPRequestHandler):
@@ -24,6 +25,69 @@ class handler(BaseHTTPRequestHandler):
             return data[0] if data else {}
         except Exception:
             return {}
+
+    def _verify_caller_owns_contract(self, jwt_token, contract):
+        """
+        Returns a tuple (allowed: bool, status_code: int, error: str|None).
+        - allowed=True: caller is authenticated AND owns the contract (or is admin)
+        - allowed=False: 401 if no/bad JWT, 403 if owns-check fails
+        """
+        if not jwt_token:
+            return False, 401, 'Missing Authorization header'
+
+        supabase_url = os.environ.get('SUPABASE_URL', '')
+        anon_key = os.environ.get('SUPABASE_ANON_KEY', '')
+        if not supabase_url or not anon_key:
+            return False, 500, 'Server misconfigured (missing SUPABASE env)'
+
+        # Step 1: Verify JWT against Supabase auth endpoint
+        try:
+            verify_req = urllib.request.Request(
+                f"{supabase_url}/auth/v1/user",
+                headers={'Authorization': f'Bearer {jwt_token}', 'apikey': anon_key},
+            )
+            with urllib.request.urlopen(verify_req, timeout=10) as r:
+                auth_user = json.loads(r.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                return False, 401, 'Invalid or expired token'
+            return False, 401, f'Token verification failed (HTTP {e.code})'
+        except Exception as e:
+            return False, 401, f'Token verification failed: {e}'
+
+        auth_uid = auth_user.get('id')
+        if not auth_uid:
+            return False, 401, 'No user id in token'
+
+        # Step 2: Look up the dealer row keyed by auth_id, with is_admin flag
+        service_key = os.environ.get('SUPABASE_SERVICE_KEY') or anon_key
+        q_auth = urllib.parse.quote(str(auth_uid), safe='')
+        try:
+            dealer_lookup = urllib.request.Request(
+                f"{supabase_url}/rest/v1/dealers?auth_id=eq.{q_auth}&select=id,is_admin,active",
+                headers={'apikey': service_key, 'Authorization': f'Bearer {service_key}'},
+            )
+            with urllib.request.urlopen(dealer_lookup, timeout=10) as r:
+                rows = json.loads(r.read().decode('utf-8'))
+        except Exception as e:
+            return False, 401, f'Could not look up dealer: {e}'
+
+        if not rows:
+            return False, 403, 'No dealer record for this user'
+        dealer_row = rows[0]
+        if not dealer_row.get('active'):
+            return False, 403, 'Dealer account is inactive'
+
+        # Step 3: Admin can access anyone's contract
+        if dealer_row.get('is_admin'):
+            return True, 200, None
+
+        # Step 4: Non-admin can only access their own contract
+        contract_dealer_id = contract.get('dealer_id')
+        if str(contract_dealer_id) == str(dealer_row.get('id')):
+            return True, 200, None
+
+        return False, 403, 'You do not have access to this contract'
 
     def do_POST(self):
         # Read body
@@ -62,6 +126,15 @@ class handler(BaseHTTPRequestHandler):
             return
 
         c = rows[0]
+
+        auth_header = self.headers.get('Authorization') or self.headers.get('authorization') or ''
+        jwt_token = auth_header.replace('Bearer ', '').replace('bearer ', '').strip()
+
+        allowed, code, err = self._verify_caller_owns_contract(jwt_token, c)
+        if not allowed:
+            self._json(code, {'error': err})
+            return
+
         dealer = self._fetch_dealer(c.get('dealer_id'))
         c['dealership_name'] = dealer.get('dealership_name', '') or c.get('dealership_name', '')
         c['dealership_address'] = dealer.get('address', '') or ''
