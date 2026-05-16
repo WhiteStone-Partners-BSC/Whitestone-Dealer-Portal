@@ -2263,7 +2263,7 @@ var PRICING_RETAIL_3YR = 9297;
 
 function pricingDefaultServices() {
   return [
-    { name: "Summer Prep", retail: 299, marketAvg: 299, hours: null, yearly: true },
+    { name: "De-Winterization", retail: 299, marketAvg: 299, hours: null, yearly: true },
     { name: "Impeller Service", retail: 399, marketAvg: 380, hours: 50, yearly: true },
     { name: "Engine Oil Service", retail: 398, marketAvg: 326, hours: 50, yearly: true },
     { name: "Fuel Filter Service", retail: 298, marketAvg: 185, hours: 150, yearly: false },
@@ -4148,7 +4148,7 @@ function downloadCustomerContract() {
 "    <table class=\"services-table\">\n" +
 "      <thead><tr><th>#</th><th>Service</th><th>Frequency</th></tr></thead>\n" +
 "      <tbody>\n" +
-"        <tr><td class=\"num\">01</td><td>Summer Prep</td><td class=\"freq\">Yearly</td></tr>\n" +
+"        <tr><td class=\"num\">01</td><td>De-Winterization</td><td class=\"freq\">Yearly</td></tr>\n" +
 "        <tr><td class=\"num\">02</td><td>Impeller Service</td><td class=\"freq\">Start of season / every 50 hrs</td></tr>\n" +
 "        <tr><td class=\"num\">03</td><td>Engine Oil Service</td><td class=\"freq\">Yearly / every 50 hrs</td></tr>\n" +
 "        <tr><td class=\"num\">04</td><td>Fuel Filter Service</td><td class=\"freq\">Every 150 hrs</td></tr>\n" +
