@@ -181,7 +181,7 @@ export default async function handler(req, res) {
         <div style="background:#f8f5ee;border:1px solid #e0c97a;border-left:4px solid #b8963e;border-radius:6px;padding:1.25rem 1.5rem;">
           <div style="font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#b8963e;margin-bottom:0.75rem;">What's Covered</div>
           <div style="font-size:13px;color:#3d5870;line-height:1.8;">
-            Summer Prep · Impeller Service · Engine Oil Service · Fuel Filter Service · Transmission Oil Service · Outdrive Service · Shaft Alignment · Winterization · V-Drive Service · Ballast Cartridge Service
+            De-Winterization · Impeller Service · Engine Oil Service · Fuel Filter Service · Transmission Oil Service · Outdrive Service · Shaft Alignment · Winterization · V-Drive Service · Ballast Cartridge Service
           </div>
         </div>
       </td></tr>
