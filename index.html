@@ -2133,7 +2133,13 @@ window.addEventListener("load", function() {
 
     document.getElementById("dp-enrollment-btn").onclick = function() {
       if (typeof openDealerEnrollmentModal === "function") {
+        // Close the dealer detail panel first so the enrollment modal isn't hidden behind it
+        if (typeof closeDealerPanel === "function") {
+          closeDealerPanel();
+        }
         openDealerEnrollmentModal(dealer.id, dealer.dealership_name || "");
+      } else {
+        alert('Enrollment modal is unavailable. Please refresh the page and try again.');
       }
     };
     document.getElementById("dp-qr-btn").onclick = function() {
@@ -2141,7 +2147,12 @@ window.addEventListener("load", function() {
     };
     document.getElementById("dp-mark-signed-btn").onclick = function() {
       if (typeof markDealerAgreementSigned === "function") {
+        if (typeof closeDealerPanel === "function") {
+          closeDealerPanel();
+        }
         markDealerAgreementSigned(dealer.id, dealer.dealership_name || "");
+      } else {
+        alert('Mark-signed flow is unavailable. Please refresh and try again.');
       }
     };
     document.getElementById("dp-reactivate-btn").onclick = function() {
