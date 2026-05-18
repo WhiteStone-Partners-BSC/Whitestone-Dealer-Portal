@@ -7266,9 +7266,14 @@ window.submitDealerEnrollment = async function(ev) {
     let pdfErrorMessage = null;
     let pdfFilename = null;
     try {
+      const session = await window.supabase.auth.getSession();
+      const accessToken = session?.data?.session?.access_token;
       const pdfRes = await fetch('/api/generate-dealer-agreement-pdf', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + accessToken
+        },
         body: JSON.stringify({ dealerId: dealer.id }),
       });
       if (pdfRes.ok) {
@@ -7661,9 +7666,14 @@ window.generateDealerAgreementPDF = async function(dealerId) {
   var saved = await saveDealerEnrollmentData(dealerId);
   if (!saved) return;
   try {
+    var session = await window.supabase.auth.getSession();
+    var accessToken = session && session.data && session.data.session ? session.data.session.access_token : null;
     var res = await fetch("/api/generate-dealer-agreement-pdf", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + accessToken
+      },
       body: JSON.stringify({ dealerId: dealerId })
     });
     if (!res.ok) {
