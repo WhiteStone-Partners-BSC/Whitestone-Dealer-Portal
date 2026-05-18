@@ -2259,11 +2259,38 @@ window.addEventListener("load", function() {
     if (e.target === this && typeof closeDealerEnrollModal === "function") closeDealerEnrollModal();
   });
 
-  if (typeof adminLoadDealersPanel === "function") {
-    adminLoadDealersPanel = async function() {
-      if (!currentDealer || !currentDealer.isAdmin) return;
-      await adminLoadDealerTable();
-    };
+  // Install the adminLoadDealersPanel override as soon as the original is defined.
+  // dealer-portal.js may define it AFTER DOMContentLoaded fires, so we retry.
+  (function installDealersPanelOverride() {
+    var attempts = 0;
+    var maxAttempts = 50; // 50 * 100ms = 5 seconds max
+    var timer = setInterval(function() {
+      attempts++;
+      if (typeof window.adminLoadDealersPanel === "function") {
+        window.adminLoadDealersPanel = async function() {
+          if (!currentDealer || !currentDealer.isAdmin) return;
+          await adminLoadDealerTable();
+        };
+        clearInterval(timer);
+      } else if (attempts >= maxAttempts) {
+        clearInterval(timer);
+        console.warn("[index.html] adminLoadDealersPanel never appeared — override not installed");
+      }
+    }, 100);
+  })();
+
+  // Backup: when the admin Dealers tab button is clicked, also fire adminLoadDealerTable directly.
+  // This is defensive — if the override above didn't install for any reason, this still works.
+  var dealersTabBtn = document.querySelector('[data-admin-panel="dealers"]');
+  if (dealersTabBtn) {
+    dealersTabBtn.addEventListener("click", function() {
+      // Wait a tick so the panel becomes visible first, then load.
+      setTimeout(function() {
+        if (currentDealer && currentDealer.isAdmin && typeof adminLoadDealerTable === "function") {
+          adminLoadDealerTable();
+        }
+      }, 50);
+    });
   }
 });
 </script>
