@@ -166,6 +166,9 @@ function buildDealerSession(dealer, session) {
     authId: authUserId || dealer.auth_id || null,
     username: dealer.username,
     name: dealer.dealership_name,
+    dealership_name: dealer.dealership_name,
+    city: dealer.city || dealer.business_city || "",
+    state: dealer.state || dealer.business_state || "",
     email: dealer.email || (session && session.user ? session.user.email : ""),
     isAdmin: dealer.is_admin === true,
     token: session ? session.access_token : window.authToken || null,
@@ -4591,6 +4594,16 @@ document.addEventListener("DOMContentLoaded", function() {
     pricingDestroyProfitChart();
   }
 
+  function applyDealerPersonalization() {
+    if (!currentDealer || currentDealer.isAdmin) return;
+    var dealerName = currentDealer.dealership_name || currentDealer.name;
+    if (dealerName) {
+      document.title = dealerName + " — Whitestone Dealer Portal";
+      var greetingEl = document.getElementById("dealer-dashboard-greeting");
+      if (greetingEl) greetingEl.textContent = "Welcome back, " + dealerName;
+    }
+  }
+
   function onLoginSuccess() {
     window.currentDealer = currentDealer;
     if (currentDealer) window.authToken = currentDealer.token || window.authToken || null;
@@ -4621,6 +4634,8 @@ document.addEventListener("DOMContentLoaded", function() {
       var sbd = document.querySelector('.sidebar-nav-item[data-panel="dashboard"]');
       if (sbd) sbd.classList.add("active");
       window.switchTab("dashboard");
+      applyDealerPersonalization();
+      updateSidebarInfo();
       checkOverdueBanners();
       if (typeof checkOnboardingStatus === "function") checkOnboardingStatus();
     }
@@ -5357,8 +5372,20 @@ document.addEventListener("DOMContentLoaded", function() {
     var tierEl = document.getElementById("sidebar-dealer-tier");
     if (nameEl && currentDealer) nameEl.textContent = currentDealer.name;
     if (tierEl && currentDealer) {
-      var contracts = dealerContractCount > 0 ? dealerContractCount : countUniqueCustomers(allTickets || []);
-      tierEl.textContent = contracts >= 5 ? getTierMeta(contracts).title : "—";
+      var city = currentDealer.city || "";
+      var state = currentDealer.state || "";
+      if (city && state) {
+        tierEl.textContent = city + ", " + state;
+        tierEl.style.display = "";
+      } else if (city) {
+        tierEl.textContent = city;
+        tierEl.style.display = "";
+      } else if (state) {
+        tierEl.textContent = state;
+        tierEl.style.display = "";
+      } else {
+        tierEl.style.display = "none";
+      }
     }
   }
 
