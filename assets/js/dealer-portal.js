@@ -7260,9 +7260,11 @@ window.submitDealerEnrollment = async function(ev) {
       console.warn('Audit log write failed (non-fatal):', auditErr);
     }
 
-    // 7. Try to generate the agreement PDF (best-effort — template may not exist yet)
+    // 7. Generate the agreement PDF
     if (btn) btn.textContent = 'Generating agreement PDF...';
     let pdfDownloaded = false;
+    let pdfErrorMessage = null;
+    let pdfFilename = null;
     try {
       const pdfRes = await fetch('/api/generate-dealer-agreement-pdf', {
         method: 'POST',
@@ -7273,39 +7275,48 @@ window.submitDealerEnrollment = async function(ev) {
         const blob = await pdfRes.blob();
         const safeName = (dealer.dealership_name || 'Dealer').replace(/[^a-z0-9]+/gi, '_');
         const dateStr = new Date().toISOString().split('T')[0];
-        const filename = `WP_DealerAgreement_${safeName}_${dateStr}.pdf`;
+        pdfFilename = `WP_DealerAgreement_${safeName}_${dateStr}.pdf`;
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = filename;
+        a.download = pdfFilename;
+        document.body.appendChild(a);  // CRITICAL: must be in DOM for download to fire reliably
         a.click();
+        a.remove();
         URL.revokeObjectURL(url);
         pdfDownloaded = true;
       } else {
-        const pdfErrText = await pdfRes.text();
-        console.warn('PDF generation returned ' + pdfRes.status + ':', pdfErrText);
+        pdfErrorMessage = await pdfRes.text();
+        console.error('PDF generation returned ' + pdfRes.status + ':', pdfErrorMessage);
       }
     } catch (pdfErr) {
-      console.warn('PDF generation failed (non-fatal):', pdfErr);
+      pdfErrorMessage = pdfErr.message || String(pdfErr);
+      console.error('PDF generation failed:', pdfErr);
     }
 
-    // 8. Close modal, notify user
+    // 8. Close modal, notify user with clear separate success/failure messages
     if (typeof closeDealerEnrollModal === 'function') {
       closeDealerEnrollModal();
     } else {
       document.getElementById('add-dealer-modal')?.classList.remove('show');
     }
 
-    const pdfMsg = pdfDownloaded
-      ? 'Agreement PDF downloaded.'
-      : 'Note: Agreement PDF could not be generated (template may be missing). Dealer was still created.';
-
-    alert(
-      `Dealer "${dealer.dealership_name}" created successfully.\n\n` +
-      pdfMsg +
-      `\n\nNext: configure pricing in the Pricing tab. ` +
-      `Dealer cannot enroll customers until pricing is confirmed and enrollment_status is 'active'.`
-    );
+    if (pdfDownloaded) {
+      alert(
+        '✅ Dealer "' + dealer.dealership_name + '" created successfully.\n\n' +
+        'The agreement PDF has been downloaded to your Downloads folder as:\n' +
+        pdfFilename + '\n\n' +
+        'Next: configure pricing in the Pricing tab. ' +
+        "Dealer cannot enroll customers until pricing is confirmed and enrollment_status is 'active'."
+      );
+    } else {
+      alert(
+        'Dealer "' + dealer.dealership_name + '" was created successfully, but the agreement PDF could not be generated.\n\n' +
+        'Error: ' + (pdfErrorMessage ? pdfErrorMessage.substring(0, 300) : 'Unknown error') + '\n\n' +
+        "You can try generating the PDF again later from the dealer's detail view.\n\n" +
+        'Next: configure pricing in the Pricing tab.'
+      );
+    }
 
     // 9. Refresh the dealers list if a refresh fn exists
     if (typeof refreshDealersList === 'function') {
