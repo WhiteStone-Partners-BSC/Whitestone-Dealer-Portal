@@ -1512,7 +1512,6 @@
       <button type="button" id="dp-enrollment-btn" class="dp-btn-gold" style="display:none;">📋 View Enrollment Agreement</button>
       <button type="button" id="dp-qr-btn" class="dp-btn-outline" style="display:none;">📱 Generate QR Code</button>
       <button type="button" id="dp-mark-signed-btn" class="dp-btn-outline" style="display:none;">Mark Agreement Signed</button>
-      <button type="button" id="dp-generate-contract-btn" class="dp-btn-primary" style="display:none;">Generate Contract PDF</button>
       <button type="button" id="dp-reactivate-btn" class="dp-btn-success" style="display:none;">Reactivate</button>
       <button type="button" id="dp-deactivate-btn" class="dp-btn-danger" style="display:none;">Deactivate</button>
     </div>
@@ -2118,26 +2117,6 @@ window.addEventListener("load", function() {
       document.getElementById("dp-pricing-info").innerHTML = '<div style="font-size:13px;color:var(--light);">No pricing set yet. Use the Pricing tab to configure.</div>';
     }
 
-    document.getElementById("dp-generate-contract-btn").onclick = function() {
-      if (typeof pricingState !== "undefined") {
-        pricingState.dealerId = dealer.id || null;
-        pricingState.dealerName = dealer.dealership_name;
-        if (pricingData) {
-          pricingState.currentRates = {
-            reimbursement_rate: pricingData.reimbursement_rate,
-            commission_pct: pricingData.commission_pct,
-            contract_retail_1yr: pricingData.contract_retail_1yr,
-            contract_retail_2yr: pricingData.contract_retail_2yr,
-            contract_retail_3yr: pricingData.contract_retail_3yr
-          };
-          pricingState.confirmed = pricingData.confirmed;
-          pricingState.pricingId = pricingData.id;
-        }
-        if (typeof generateDealerContractPDF === "function") generateDealerContractPDF();
-      }
-      closeDealerPanel();
-    };
-
     document.getElementById("dp-deactivate-btn").onclick = function() {
       deactivateDealer(dealer.id, dealer.dealership_name);
     };
@@ -2149,7 +2128,6 @@ window.addEventListener("load", function() {
     showDpBtn("dp-enrollment-btn", true);
     showDpBtn("dp-qr-btn", !!(dealer.slug && String(dealer.slug).trim()));
     showDpBtn("dp-mark-signed-btn", dealer.enrollment_status === "submitted");
-    showDpBtn("dp-generate-contract-btn", true);
     showDpBtn("dp-reactivate-btn", dealer.active === false);
     showDpBtn("dp-deactivate-btn", dealer.active !== false && dealer.username !== "admin" && !dealer.is_admin);
 
