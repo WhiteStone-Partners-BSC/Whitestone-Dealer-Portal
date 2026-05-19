@@ -296,7 +296,7 @@
         </div>
         <div class="fr">
           <div class="fg"><label>Year</label><input type="text" id="t-year" placeholder="e.g. 2023"></div>
-          <div class="fg"><label>Hull ID (HIN) <span class="req-star">*</span></label><input type="text" id="t-hin" placeholder="e.g. MALIA23K304" autocomplete="off" style="text-transform:uppercase;"><div id="t-hin-status" style="font-size:12px;margin-top:4px;"></div></div>
+          <div class="fg"><label>Hull ID (HIN) <span class="req-star">*</span></label><input type="text" id="t-hin" placeholder="e.g. MALIA23K304" autocomplete="off" minlength="12" maxlength="12" pattern="[A-Za-z0-9]{12}" title="HIN must be exactly 12 alphanumeric characters" required style="text-transform:uppercase;"><div id="t-hin-status" style="font-size:12px;margin-top:4px;"></div></div>
         </div>
         <div class="fr">
           <div class="fg"><label>Engine Hours</label><input type="text" id="t-hours" placeholder="e.g. 312"></div>
@@ -397,7 +397,7 @@
           <div class="card" style="margin-bottom:1rem;">
             <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:1rem;">Section 3 — Vessel Information</div>
             <div style="display:grid;grid-template-columns:1fr 80px 1fr 1fr 120px;gap:0.75rem;margin-bottom:0.75rem;">
-              <div><label class="form-label">Hull ID (HIN) *</label><input id="e-hin" class="form-input" type="text" placeholder="MALIA23K304" required style="font-family:monospace;"></div>
+              <div><label class="form-label">Hull ID (HIN) *</label><input id="e-hin" class="form-input" type="text" placeholder="MALIA23K304" minlength="12" maxlength="12" pattern="[A-Za-z0-9]{12}" title="HIN must be exactly 12 alphanumeric characters" required style="font-family:monospace;"></div>
               <div><label class="form-label">Year *</label><input id="e-year" class="form-input" type="text" placeholder="2024" maxlength="4" required></div>
               <div><label class="form-label">Make *</label><input id="e-make" class="form-input" type="text" placeholder="Malibu" required></div>
               <div><label class="form-label">Model *</label><input id="e-model" class="form-input" type="text" placeholder="23 LSV" required></div>
@@ -3055,6 +3055,15 @@ window.addEventListener("load", function() {
     }
     var hinErrEl = document.getElementById("e-hin-error");
     var hinVal = normalizeHin(getVal("e-hin"));
+    hinVal = (hinVal || "").trim().toUpperCase();
+    if (hinVal.length !== 12) {
+      alert("HIN must be exactly 12 characters. Got: " + hinVal.length + ". Please double-check the HIN on the boat's hull.");
+      return;
+    }
+    if (!/^[A-Za-z0-9]{12}$/.test(hinVal)) {
+      alert("HIN must be 12 alphanumeric characters (letters and numbers only — no spaces or special characters).");
+      return;
+    }
     if (hinErrEl) {
       hinErrEl.style.display = "none";
       hinErrEl.textContent = "";
@@ -4227,6 +4236,17 @@ window.addEventListener("load", function() {
     if (typeof window.refreshBillingCartBadge === "function") await window.refreshBillingCartBadge();
     window.showEnrollSuccess(customerName, customerName + " has been enrolled successfully.", contractId);
   };
+
+  ['t-hin', 'e-hin'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', function() {
+        var pos = this.selectionStart;
+        this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        this.setSelectionRange(pos, pos);
+      });
+    }
+  });
 
   if (typeof currentDealer !== "undefined" && currentDealer && !currentDealer.isAdmin) {
     dealerLoadRateCard();

@@ -5953,6 +5953,15 @@ document.addEventListener("DOMContentLoaded", function() {
     if (!fname || !lname) { alert("Please enter the customer name."); return; }
     if (!currentDealer || !currentDealer.id) { alert("Session error. Please sign in again."); return; }
     var hinVal = normalizeHin(document.getElementById("t-hin").value);
+    hinVal = (hinVal || "").trim().toUpperCase();
+    if (hinVal.length !== 12) {
+      alert("HIN must be exactly 12 characters. Got: " + hinVal.length + ". Please double-check the HIN on the boat's hull.");
+      return;
+    }
+    if (!/^[A-Za-z0-9]{12}$/.test(hinVal)) {
+      alert("HIN must be 12 alphanumeric characters (letters and numbers only — no spaces or special characters).");
+      return;
+    }
     var hinResult = await verifyHINForTicket(hinVal);
     if (!hinResult.valid) {
       alert(hinResult.message);
@@ -6091,6 +6100,15 @@ document.addEventListener("DOMContentLoaded", function() {
     var email = document.getElementById("e-email").value;
     var hinErrEl = document.getElementById("e-hin-error");
     var hinVal = normalizeHin(document.getElementById("e-hin").value);
+    hinVal = (hinVal || "").trim().toUpperCase();
+    if (hinVal.length !== 12) {
+      alert("HIN must be exactly 12 characters. Got: " + hinVal.length + ". Please double-check the HIN on the boat's hull.");
+      return;
+    }
+    if (!/^[A-Za-z0-9]{12}$/.test(hinVal)) {
+      alert("HIN must be 12 alphanumeric characters (letters and numbers only — no spaces or special characters).");
+      return;
+    }
     if (hinErrEl) {
       hinErrEl.style.display = "none";
       hinErrEl.textContent = "";
