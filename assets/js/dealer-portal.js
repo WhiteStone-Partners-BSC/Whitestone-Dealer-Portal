@@ -6280,29 +6280,181 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 
   async function claimsMarkDealerPaid(dealershipName) {
+    if (!dealershipName) return;
     try {
+      var dealerLookup = await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?dealership_name=eq." + encodeURIComponent(dealershipName) + "&select=id&limit=1",
+        { headers: supabaseHeaders() }
+      );
+      var dealerRows = await dealerLookup.json();
+      if (!dealerLookup.ok || !Array.isArray(dealerRows) || !dealerRows[0]) {
+        alert("Could not find dealer record for " + dealershipName + ".");
+        return;
+      }
+      var dealerId = dealerRows[0].id;
+
       var resT = await fetch(SUPABASE_URL + "/rest/v1/tickets?status=eq.approved&select=id", { headers: supabaseHeaders() });
       var approved = await resT.json();
       var approvedIds = new Set((Array.isArray(approved) ? approved : []).map(function(x) { return x.id; }));
+
       var resR = await fetch(
-        SUPABASE_URL + "/rest/v1/reimbursements?dealership_name=eq." + encodeURIComponent(dealershipName) + "&status=eq.pending&select=*",
+        SUPABASE_URL + "/rest/v1/reimbursements?dealership_name=eq." + encodeURIComponent(dealershipName) + "&status=eq.pending&select=*&order=created_at.asc",
         { headers: supabaseHeaders() }
       );
       var reims = await resR.json();
-      if (!resR.ok) throw new Error();
-      var list = (Array.isArray(reims) ? reims : []).filter(function(r) { return approvedIds.has(r.ticket_id); });
-      var today = new Date().toISOString().split("T")[0];
-      for (var i = 0; i < list.length; i++) {
-        await fetch(SUPABASE_URL + "/rest/v1/reimbursements?id=eq." + encodeURIComponent(list[i].id), {
-          method: "PATCH",
-          headers: supabaseHeaders({ Prefer: "return=minimal" }),
-          body: JSON.stringify({ status: "paid", paid_date: today })
-        });
-        await writeAuditLog("reimbursement", list[i].id, "reimbursement_paid", { status: "pending" }, { status: "paid", paid_date: today }, list[i].dealership_name || dealershipName, null, null);
+      if (!resR.ok) {
+        alert("Could not load reimbursements. Please try again.");
+        return;
       }
-      await claimsLoadTab();
+      var eligible = (Array.isArray(reims) ? reims : []).filter(function(r) { return approvedIds.has(r.ticket_id); });
+      if (eligible.length === 0) {
+        alert("No eligible pending reimbursements found for " + dealershipName + ".");
+        return;
+      }
+
+      var paymentRef = prompt(
+        "Enter the payment reference for this payout to " + dealershipName + ".\n\n" +
+        "Examples: ACH#12345, Check#0142, Zelle confirmation, etc.\n\n" +
+        "This will appear on the receipt PDF and is required for the audit trail."
+      );
+      if (paymentRef === null) return;
+      paymentRef = paymentRef.trim();
+      if (!paymentRef) {
+        alert("Payment reference cannot be empty. Payout cancelled.");
+        return;
+      }
+
+      var oldest = eligible[0];
+      var cycleStart = (oldest.created_at || new Date().toISOString()).substring(0, 10);
+      var todayStr = new Date().toISOString().split("T")[0];
+
+      var totalAmount = eligible.reduce(function(sum, r) { return sum + (parseFloat(r.amount) || 0); }, 0);
+      var ticketCount = eligible.length;
+
+      var paidBy = (currentDealer && currentDealer.name) ? currentDealer.name : "admin";
+      var batchRes = await fetch(SUPABASE_URL + "/rest/v1/payout_batches", {
+        method: "POST",
+        headers: supabaseHeaders({ Prefer: "return=representation" }),
+        body: JSON.stringify({
+          dealer_id: dealerId,
+          dealership_name: dealershipName,
+          cycle_start: cycleStart,
+          cycle_end: todayStr,
+          total_amount: totalAmount,
+          ticket_count: ticketCount,
+          payment_reference: paymentRef,
+          paid_by: paidBy
+        })
+      });
+      if (!batchRes.ok) {
+        var batchErr = await batchRes.text();
+        alert("Could not create payout batch.\n\nError: " + batchErr.substring(0, 300));
+        return;
+      }
+      var batchRows = await batchRes.json();
+      var batch = Array.isArray(batchRows) ? batchRows[0] : batchRows;
+      if (!batch || !batch.id) {
+        alert("Payout batch creation succeeded but no ID was returned.");
+        return;
+      }
+      var batchId = batch.id;
+
+      var patchFailures = 0;
+      for (var i = 0; i < eligible.length; i++) {
+        try {
+          var patchRes = await fetch(SUPABASE_URL + "/rest/v1/reimbursements?id=eq." + encodeURIComponent(eligible[i].id), {
+            method: "PATCH",
+            headers: supabaseHeaders({ Prefer: "return=minimal" }),
+            body: JSON.stringify({ status: "paid", paid_date: todayStr, payout_batch_id: batchId })
+          });
+          if (!patchRes.ok) patchFailures++;
+        } catch (e) {
+          patchFailures++;
+        }
+      }
+      if (patchFailures > 0) {
+        console.warn("Some reimbursements failed to update: " + patchFailures + " of " + eligible.length);
+      }
+
+      var pdfDownloaded = false;
+      var pdfFilename = null;
+      var pdfError = null;
+      try {
+        var session = await window.supabase.auth.getSession();
+        var accessToken = session && session.data && session.data.session ? session.data.session.access_token : null;
+        var pdfRes = await fetch("/api/generate-payout-receipt-pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + accessToken },
+          body: JSON.stringify({ payoutBatchId: batchId })
+        });
+        if (pdfRes.ok) {
+          var blob = await pdfRes.blob();
+          var storagePath = pdfRes.headers.get("X-Receipt-Storage-Path");
+          pdfFilename = storagePath || ("PayoutReceipt_" + dealershipName.replace(/[^a-z0-9]+/gi, "_") + "_" + todayStr + ".pdf");
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = pdfFilename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          pdfDownloaded = true;
+        } else {
+          pdfError = await pdfRes.text();
+          console.error("PDF generation returned " + pdfRes.status + ":", pdfError);
+        }
+      } catch (e) {
+        pdfError = e.message || String(e);
+        console.error("PDF generation failed:", e);
+      }
+
+      try {
+        await writeAuditLog(
+          "payout_batch",
+          batchId,
+          "dealer_payout_completed",
+          null,
+          {
+            dealership_name: dealershipName,
+            total_amount: totalAmount,
+            ticket_count: ticketCount,
+            payment_reference: paymentRef,
+            cycle_start: cycleStart,
+            cycle_end: todayStr
+          },
+          dealershipName,
+          null,
+          "Payout of $" + totalAmount.toFixed(2) + " to " + dealershipName + " (ref: " + paymentRef + ")"
+        );
+      } catch (e) {
+        console.warn("Audit log write failed (non-fatal):", e);
+      }
+
+      if (typeof claimsLoadTab === "function") {
+        await claimsLoadTab();
+      }
+
+      if (pdfDownloaded) {
+        alert(
+          "Payout completed for " + dealershipName + ".\n\n" +
+          "Total: $" + totalAmount.toFixed(2) + " across " + ticketCount + " tickets\n" +
+          "Payment reference: " + paymentRef + "\n\n" +
+          "Receipt downloaded: " + pdfFilename + "\n" +
+          "(Also saved to payout-receipts storage)"
+        );
+      } else {
+        alert(
+          "Payout completed for " + dealershipName + ", but the receipt PDF could not be generated.\n\n" +
+          "Total: $" + totalAmount.toFixed(2) + " across " + ticketCount + " tickets\n" +
+          "Payment reference: " + paymentRef + "\n\n" +
+          "Error: " + (pdfError ? pdfError.substring(0, 300) : "Unknown") + "\n\n" +
+          "You can regenerate the receipt later from the payout history."
+        );
+      }
     } catch (e) {
-      alert("Could not update. Please try again.");
+      console.error("claimsMarkDealerPaid error:", e);
+      alert("Could not complete payout. Please try again. Check the browser console for details.");
     }
   }
 
