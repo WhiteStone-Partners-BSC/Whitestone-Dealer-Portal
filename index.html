@@ -947,9 +947,15 @@
           <div id="claims-unpaid-body" class="claims-body">Loading…</div>
         </div>
         <div class="card claims-section-card">
-          <div class="card-title">Reimbursement history</div>
-          <div class="card-sub">Paid reimbursements, most recent first.</div>
+          <div class="card-title">Payout history</div>
+          <div class="card-sub">Completed payout batches, most recent first.</div>
           <div id="claims-history-total" class="claims-year-total"></div>
+          <div style="display:flex;gap:0.75rem;align-items:center;margin:0.75rem 0;flex-wrap:wrap;">
+            <label for="claims-history-dealer-filter" style="font-size:12px;color:var(--mid);text-transform:uppercase;letter-spacing:0.06em;">Filter by dealer:</label>
+            <select id="claims-history-dealer-filter" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:13px;min-width:200px;">
+              <option value="">All dealers</option>
+            </select>
+          </div>
           <div id="claims-history-body" class="claims-body">Loading…</div>
         </div>
       </div>

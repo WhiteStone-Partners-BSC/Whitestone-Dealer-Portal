@@ -6566,52 +6566,184 @@ document.addEventListener("DOMContentLoaded", function() {
   async function claimsLoadHistory() {
     var el = document.getElementById("claims-history-body");
     var totalEl = document.getElementById("claims-history-total");
+    var filterEl = document.getElementById("claims-history-dealer-filter");
     if (!el) return;
     el.innerHTML = "Loading…";
     if (totalEl) totalEl.textContent = "";
     try {
-      var res = await fetch(SUPABASE_URL + "/rest/v1/reimbursements?status=eq.paid&select=*&order=paid_date.desc", {
-        headers: supabaseHeaders()
-      });
-      var rows = await res.json();
-      if (!res.ok) throw new Error();
-      var arr = Array.isArray(rows) ? rows : [];
-      var y = new Date().getFullYear();
-      var ytd = 0;
-      arr.forEach(function(r) {
-        if (r.paid_date && String(r.paid_date).indexOf(String(y)) === 0) ytd += parseFloat(r.amount) || 0;
-      });
-      if (totalEl) totalEl.textContent = "Total paid out year-to-date (" + y + "): $" + Math.round(ytd).toLocaleString();
-      if (arr.length === 0) {
-        el.innerHTML = "<div class='renewals-empty'>No paid reimbursements yet.</div>";
+      var batchRes = await fetch(
+        SUPABASE_URL + "/rest/v1/payout_batches?select=*&order=paid_at.desc",
+        { headers: supabaseHeaders() }
+      );
+      if (!batchRes.ok) throw new Error("Could not load payout batches");
+      var batches = await batchRes.json();
+      if (!Array.isArray(batches) || batches.length === 0) {
+        el.innerHTML = "<div class='renewals-empty'>No completed payouts yet.</div>";
+        if (totalEl) totalEl.textContent = "";
+        if (filterEl) filterEl.innerHTML = '<option value="">All dealers</option>';
         return;
       }
-      var ticketIds = arr.map(function(r) { return r.ticket_id; }).filter(Boolean);
-      var ticketMap = {};
-      if (ticketIds.length) {
-        var uniq = Array.from(new Set(ticketIds.map(String)));
-        var inList = uniq.join(",");
-        var tres = await fetch(
-          SUPABASE_URL + "/rest/v1/tickets?id=in.(" + inList + ")&select=id,ticket_number",
-          { headers: supabaseHeaders() }
-        );
-        var trows = await tres.json();
-        if (Array.isArray(trows)) trows.forEach(function(t) { ticketMap[t.id] = t.ticket_number; });
+
+      var y = new Date().getFullYear();
+      var ytd = 0;
+      batches.forEach(function(b) {
+        if (b.paid_at && String(b.paid_at).indexOf(String(y)) === 0) ytd += parseFloat(b.total_amount) || 0;
+      });
+      if (totalEl) totalEl.textContent = "Total paid out year-to-date (" + y + "): $" + Math.round(ytd).toLocaleString();
+
+      if (filterEl) {
+        var currentFilter = filterEl.value || "";
+        var uniqueDealers = Array.from(new Set(batches.map(function(b) { return b.dealership_name; }).filter(Boolean))).sort();
+        var optionsHtml = '<option value="">All dealers</option>';
+        uniqueDealers.forEach(function(d) {
+          var sel = d === currentFilter ? " selected" : "";
+          optionsHtml += '<option value="' + escHtml(d) + '"' + sel + ">" + escHtml(d) + "</option>";
+        });
+        filterEl.innerHTML = optionsHtml;
+        if (!filterEl._wired) {
+          filterEl.addEventListener("change", function() {
+            claimsLoadHistory();
+          });
+          filterEl._wired = true;
+        }
       }
+
+      var activeFilter = filterEl ? filterEl.value : "";
+      var filtered = activeFilter
+        ? batches.filter(function(b) { return b.dealership_name === activeFilter; })
+        : batches;
+
+      if (filtered.length === 0) {
+        el.innerHTML = "<div class='renewals-empty'>No payouts found for that dealer.</div>";
+        return;
+      }
+
       var html = "";
-      arr.forEach(function(r) {
-        var pd = r.paid_date ? new Date(r.paid_date).toLocaleDateString() : "—";
-        var tn = ticketMap[r.ticket_id] || "—";
-        html += "<div class='claims-history-row'>";
-        html += "<span>" + escHtml(r.dealership_name || "—") + "</span>";
-        html += "<span>$" + Math.round(parseFloat(r.amount) || 0).toLocaleString() + "</span>";
-        html += "<span>" + escHtml(pd) + "</span>";
-        html += "<span>" + escHtml(String(tn)) + "</span>";
+      filtered.forEach(function(b) {
+        var batchId = b.id;
+        var paidDate = b.paid_at ? new Date(b.paid_at).toLocaleDateString() : "—";
+        var cycle = (b.cycle_start || "—") + " to " + (b.cycle_end || "—");
+        var amount = parseFloat(b.total_amount) || 0;
+        var hasReceipt = !!b.receipt_storage_path;
+        html += '<div class="payout-batch-row" data-batch-id="' + escHtml(batchId) + '" style="padding:1rem;border:1px solid var(--border);border-radius:8px;margin-bottom:0.75rem;background:white;">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:start;gap:1rem;flex-wrap:wrap;">';
+        html += '<div style="flex:1;min-width:200px;">';
+        html += '<div style="font-weight:600;color:var(--navy);font-size:14px;">' + escHtml(b.dealership_name || "—") + "</div>";
+        html += '<div style="color:var(--mid);font-size:12px;margin-top:0.25rem;">Paid ' + escHtml(paidDate) + " &middot; Ref: " + escHtml(b.payment_reference || "—") + "</div>";
+        html += '<div style="color:var(--mid);font-size:11px;margin-top:0.15rem;">Cycle: ' + escHtml(cycle) + " &middot; Paid by: " + escHtml(b.paid_by || "—") + "</div>";
+        html += "</div>";
+        html += '<div style="text-align:right;">';
+        html += '<div style="font-weight:600;color:var(--navy);font-size:16px;">$' + Math.round(amount).toLocaleString() + "</div>";
+        html += '<div style="color:var(--mid);font-size:12px;">' + (b.ticket_count || 0) + " tickets</div>";
+        html += "</div>";
+        html += "</div>";
+        html += '<div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap;">';
+        if (hasReceipt) {
+          html += '<button type="button" class="btn-view-receipt" data-receipt-path="' + escHtml(b.receipt_storage_path) + '" data-batch-id="' + escHtml(batchId) + '" style="background:var(--navy);color:white;border:none;padding:6px 14px;border-radius:4px;font-size:12px;cursor:pointer;">View Receipt</button>';
+        }
+        html += '<button type="button" class="btn-view-batch-details" data-batch-id="' + escHtml(batchId) + '" style="background:white;border:1px solid var(--border);color:var(--navy);padding:6px 14px;border-radius:4px;font-size:12px;cursor:pointer;">View Tickets</button>';
+        html += "</div>";
+        html += '<div class="batch-details-expand" data-batch-id="' + escHtml(batchId) + '" style="display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);"></div>';
         html += "</div>";
       });
       el.innerHTML = html;
+
+      el.querySelectorAll(".btn-view-receipt").forEach(function(btn) {
+        btn.addEventListener("click", async function() {
+          var path = btn.getAttribute("data-receipt-path");
+          if (!path) return;
+          btn.disabled = true;
+          var origText = btn.textContent;
+          btn.textContent = "Opening…";
+          try {
+            var signedRes = await fetch(SUPABASE_URL + "/storage/v1/object/sign/payout-receipts/" + encodeURIComponent(path), {
+              method: "POST",
+              headers: supabaseHeaders(),
+              body: JSON.stringify({ expiresIn: 60 })
+            });
+            if (!signedRes.ok) {
+              var errText = await signedRes.text();
+              alert("Could not generate receipt link.\n\nError: " + errText.substring(0, 300));
+              return;
+            }
+            var signedJson = await signedRes.json();
+            var signedUrl = signedJson.signedURL || signedJson.signedUrl;
+            if (signedUrl) {
+              if (signedUrl.indexOf("http") !== 0) {
+                signedUrl = SUPABASE_URL + "/storage/v1" + signedUrl;
+              }
+              window.open(signedUrl, "_blank");
+            } else {
+              alert("Receipt URL not returned by Storage.");
+            }
+          } catch (e) {
+            alert("Could not open receipt: " + (e.message || String(e)));
+          } finally {
+            btn.disabled = false;
+            btn.textContent = origText;
+          }
+        });
+      });
+
+      el.querySelectorAll(".btn-view-batch-details").forEach(function(btn) {
+        btn.addEventListener("click", async function() {
+          var batchId = btn.getAttribute("data-batch-id");
+          var expandDiv = el.querySelector('.batch-details-expand[data-batch-id="' + batchId + '"]');
+          if (!expandDiv) return;
+          if (expandDiv.style.display === "block") {
+            expandDiv.style.display = "none";
+            btn.textContent = "View Tickets";
+            return;
+          }
+          btn.disabled = true;
+          btn.textContent = "Loading…";
+          try {
+            var reimRes = await fetch(
+              SUPABASE_URL + "/rest/v1/reimbursements?payout_batch_id=eq." + encodeURIComponent(batchId) + "&select=id,ticket_id,amount",
+              { headers: supabaseHeaders() }
+            );
+            var reims = await reimRes.json();
+            var ticketIds = (Array.isArray(reims) ? reims : []).map(function(r) { return r.ticket_id; }).filter(Boolean);
+            var tMap = {};
+            if (ticketIds.length) {
+              var inList = ticketIds.map(encodeURIComponent).join(",");
+              var tRes = await fetch(
+                SUPABASE_URL + "/rest/v1/tickets?id=in.(" + inList + ")&select=id,ticket_number,customer_first_name,customer_last_name,service_type,service_date,boat_make,boat_model",
+                { headers: supabaseHeaders() }
+              );
+              var tRows = await tRes.json();
+              if (Array.isArray(tRows)) tRows.forEach(function(t) { tMap[t.id] = t; });
+            }
+            var detailsHtml = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+            detailsHtml += '<thead><tr><th style="text-align:left;padding:6px;color:var(--mid);font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border);">Ticket #</th><th style="text-align:left;padding:6px;color:var(--mid);font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border);">Customer</th><th style="text-align:left;padding:6px;color:var(--mid);font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border);">Service</th><th style="text-align:left;padding:6px;color:var(--mid);font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border);">Date</th><th style="text-align:right;padding:6px;color:var(--mid);font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border);">Amount</th></tr></thead><tbody>';
+            (Array.isArray(reims) ? reims : []).forEach(function(r) {
+              var t = tMap[r.ticket_id] || {};
+              var cust = ((t.customer_first_name || "") + " " + (t.customer_last_name || "")).trim() || "—";
+              var svc = (t.service_type || "—");
+              var svcShort = svc.length > 40 ? svc.substring(0, 38) + "…" : svc;
+              detailsHtml += "<tr>";
+              detailsHtml += '<td style="padding:6px;border-bottom:1px solid var(--border);">' + escHtml(t.ticket_number || "—") + "</td>";
+              detailsHtml += '<td style="padding:6px;border-bottom:1px solid var(--border);">' + escHtml(cust) + "</td>";
+              detailsHtml += '<td style="padding:6px;border-bottom:1px solid var(--border);">' + escHtml(svcShort) + "</td>";
+              detailsHtml += '<td style="padding:6px;border-bottom:1px solid var(--border);">' + escHtml(t.service_date || "—") + "</td>";
+              detailsHtml += '<td style="padding:6px;border-bottom:1px solid var(--border);text-align:right;">$' + (parseFloat(r.amount) || 0).toFixed(2) + "</td>";
+              detailsHtml += "</tr>";
+            });
+            detailsHtml += "</tbody></table>";
+            expandDiv.innerHTML = detailsHtml;
+            expandDiv.style.display = "block";
+            btn.textContent = "Hide Tickets";
+          } catch (e) {
+            expandDiv.innerHTML = '<div style="color:var(--mid);font-style:italic;">Could not load batch details.</div>';
+            expandDiv.style.display = "block";
+            btn.textContent = "Hide Tickets";
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
     } catch (e) {
-      el.innerHTML = "<div class='renewals-empty'>Could not load history.</div>";
+      el.innerHTML = "<div class='renewals-empty'>Could not load payout history. Please try again.</div>";
       if (totalEl) totalEl.textContent = "";
     }
   }
