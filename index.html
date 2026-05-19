@@ -3259,10 +3259,34 @@ window.addEventListener("load", function() {
   window.cancelCartItem = async function(itemId, customerName, contractId) {
     if (!confirm("Cancel the contract for " + customerName + "? This will undo the enrollment with no fee. The customer will not be covered.")) return;
     try {
-      await fetch(SUPABASE_URL + "/rest/v1/invoice_items?id=eq." + itemId, { method: "DELETE", headers: authHeaders() });
-      if (contractId) {
-        await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + contractId, { method: "DELETE", headers: authHeaders() });
+      var invRes = await fetch(SUPABASE_URL + "/rest/v1/invoice_items?id=eq." + encodeURIComponent(String(itemId)), {
+        method: "PATCH",
+        headers: authHeaders({ Prefer: "return=representation" }),
+        body: JSON.stringify({ status: "cancelled" })
+      });
+      if (!invRes.ok) {
+        var invErr = await invRes.text();
+        alert("Could not cancel this item.\n\nError: " + invErr.substring(0, 300));
+        return;
       }
+      var invData = await invRes.json();
+      if (!Array.isArray(invData) || invData.length === 0) {
+        alert("Could not cancel this item. The invoice item may not exist or you may not have permission.");
+        return;
+      }
+
+      if (contractId) {
+        var conRes = await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + encodeURIComponent(String(contractId)), {
+          method: "PATCH",
+          headers: authHeaders({ Prefer: "return=representation" }),
+          body: JSON.stringify({ status: "cancelled" })
+        });
+        if (!conRes.ok) {
+          var conErr = await conRes.text();
+          console.warn("Invoice item cancelled but contract PATCH failed:", conErr);
+        }
+      }
+
       await writeAuditLog("invoice", itemId, "cart_cancelled", null, { customer: customerName }, currentDealer.name, null, "Cart item cancelled (no fee): " + customerName);
       await loadBillingCart();
       if (typeof window.loadCustomersTab === "function") await window.loadCustomersTab();
