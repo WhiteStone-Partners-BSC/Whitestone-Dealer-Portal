@@ -6350,6 +6350,18 @@ document.addEventListener("DOMContentLoaded", function() {
           rejectTicket(btn.getAttribute("data-tid"));
         });
       });
+      el.querySelectorAll(".claims-queue-row").forEach(function(row) {
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function(e) {
+          if (e.target.closest(".btn-claims-approve") || e.target.closest(".btn-claims-reject")) {
+            return;
+          }
+          var ticketId = row.getAttribute("data-ticket-id");
+          if (ticketId && typeof window.openTicketDetailPanel === "function") {
+            window.openTicketDetailPanel(ticketId);
+          }
+        });
+      });
     } catch (e) {
       el.innerHTML = "<div class='renewals-empty'>Could not load claims. Please try again.</div>";
     }

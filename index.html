@@ -1518,6 +1518,190 @@
   </div>
 </div>
 
+<style id="ticket-detail-panel-styles">
+  #ticket-detail-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100vh;
+    background: var(--light, #f5f7fa);
+    transition: opacity 0.2s ease;
+    overflow-y: auto;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+  }
+  #ticket-detail-panel.open { opacity: 1; pointer-events: auto; }
+  #ticket-detail-panel .tdp-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 2.5rem 4rem;
+  }
+  #ticket-detail-panel .tdp-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--navy, #0c1e2e);
+    background: none;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: 1.5rem;
+    padding: 0.5rem 0;
+    font-family: inherit;
+  }
+  #ticket-detail-panel .tdp-back-btn:hover { opacity: 0.7; }
+  #ticket-detail-panel h2.tdp-title {
+    font-family: Georgia, serif;
+    font-size: 32px;
+    font-weight: 300;
+    color: var(--navy, #0c1e2e);
+    margin: 0 0 0.5rem;
+  }
+  #ticket-detail-panel .tdp-subtitle {
+    color: var(--mid, #6b8599);
+    font-size: 14px;
+    margin: 0 0 2rem;
+  }
+  #ticket-detail-panel .tdp-card {
+    background: white;
+    border: 1px solid var(--border, #e0e6ed);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  #ticket-detail-panel .tdp-card-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold, #b8963e);
+    margin-bottom: 1rem;
+  }
+  #ticket-detail-panel .tdp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+  }
+  #ticket-detail-panel .tdp-field label {
+    display: block;
+    font-size: 11px;
+    color: var(--mid, #6b8599);
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  #ticket-detail-panel .tdp-field p {
+    margin: 0;
+    color: var(--navy, #0c1e2e);
+    font-size: 14px;
+    font-weight: 500;
+  }
+  #ticket-detail-panel .tdp-services {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.75rem 0;
+  }
+  #ticket-detail-panel .tdp-service-pill {
+    background: var(--navy, #0c1e2e);
+    color: white;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 12px;
+  }
+  #ticket-detail-panel .tdp-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  #ticket-detail-panel .tdp-history-table th {
+    text-align: left;
+    padding: 8px 12px;
+    background: var(--light, #f5f7fa);
+    border-bottom: 1px solid var(--border, #e0e6ed);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--mid, #6b8599);
+  }
+  #ticket-detail-panel .tdp-history-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border, #e0e6ed);
+    vertical-align: top;
+  }
+  #ticket-detail-panel .tdp-history-table tr.tdp-current-row td {
+    background: rgba(184, 150, 62, 0.06);
+    font-weight: 500;
+  }
+  #ticket-detail-panel .tdp-history-empty {
+    color: var(--mid, #6b8599);
+    font-style: italic;
+    padding: 1rem 0;
+  }
+  #ticket-detail-panel .tdp-status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  #ticket-detail-panel .tdp-status-pending { background: #fef3c7; color: #92400e; }
+  #ticket-detail-panel .tdp-status-approved { background: #d1fae5; color: #065f46; }
+  #ticket-detail-panel .tdp-status-rejected { background: #fee2e2; color: #991b1b; }
+  #ticket-detail-panel .tdp-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border, #e0e6ed);
+  }
+  #ticket-detail-panel .tdp-btn-approve,
+  #ticket-detail-panel .tdp-btn-reject {
+    padding: 10px 24px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+  }
+  #ticket-detail-panel .tdp-btn-approve { background: #065f46; color: white; }
+  #ticket-detail-panel .tdp-btn-reject { background: #991b1b; color: white; }
+  #ticket-detail-panel .tdp-btn-approve:hover { opacity: 0.9; }
+  #ticket-detail-panel .tdp-btn-reject:hover { opacity: 0.9; }
+</style>
+
+<div id="ticket-detail-panel" role="dialog" aria-modal="true" aria-labelledby="tdp-title">
+  <div class="tdp-container">
+    <button type="button" class="tdp-back-btn" onclick="closeTicketDetailPanel()">← Back to Claims</button>
+    <h2 id="tdp-title" class="tdp-title">Ticket</h2>
+    <p id="tdp-subtitle" class="tdp-subtitle">—</p>
+
+    <div class="tdp-card">
+      <div class="tdp-card-label">CURRENT TICKET</div>
+      <div id="tdp-current-content">Loading…</div>
+    </div>
+
+    <div class="tdp-card">
+      <div class="tdp-card-label">SERVICE HISTORY FOR THIS VESSEL</div>
+      <div id="tdp-history-content">Loading…</div>
+    </div>
+
+    <div id="tdp-actions-row" class="tdp-actions-row">
+      <button type="button" id="tdp-approve-btn" class="tdp-btn-approve">Approve Ticket</button>
+      <button type="button" id="tdp-reject-btn" class="tdp-btn-reject">Reject Ticket</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add Dealer Modal — full new dealer enrollment -->
 <div id="add-dealer-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;align-items:center;justify-content:center;padding:1rem;">
   <div class="add-dealer-enroll-inner" style="background:white;border-radius:12px;padding:1.75rem;width:92%;max-height:90vh;overflow-y:auto;">
@@ -2169,6 +2353,128 @@ window.addEventListener("load", function() {
     document.body.style.overflow = "";
   };
 
+  window.openTicketDetailPanel = async function(ticketId) {
+    if (!ticketId) return;
+    var esc = typeof escHtml === "function" ? escHtml : function(s) {
+      return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    };
+    try {
+      var ticketRes = await fetch(SUPABASE_URL + "/rest/v1/tickets?id=eq." + encodeURIComponent(ticketId) + "&select=*&limit=1", { headers: authHeaders() });
+      var ticketRows = await ticketRes.json();
+      if (!ticketRes.ok || !Array.isArray(ticketRows) || !ticketRows[0]) {
+        alert("Could not load ticket details.");
+        return;
+      }
+      var t = ticketRows[0];
+
+      var historyRows = [];
+      if (t.hin && String(t.hin).trim()) {
+        var histRes = await fetch(
+          SUPABASE_URL + "/rest/v1/tickets?hin=eq." + encodeURIComponent(String(t.hin).trim()) +
+            "&select=id,ticket_number,service_type,service_date,engine_hours,status,reimbursement_amount,rejection_reason,technician,service_notes,created_at" +
+            "&order=service_date.desc.nullslast,created_at.desc",
+          { headers: authHeaders() }
+        );
+        if (histRes.ok) {
+          var histJson = await histRes.json();
+          historyRows = Array.isArray(histJson) ? histJson : [];
+        }
+      }
+
+      document.getElementById("tdp-title").textContent = t.ticket_number || "Ticket";
+      var customerName = ((t.customer_first_name || "") + " " + (t.customer_last_name || "")).trim() || "—";
+      var boatStr = [t.boat_make, t.boat_model, t.boat_year].filter(Boolean).join(" ");
+      document.getElementById("tdp-subtitle").textContent = customerName + (boatStr ? " · " + boatStr : "") + (t.hin ? " · HIN " + t.hin : "");
+
+      var services = (t.service_type || "").split(",").map(function(s) { return s.trim(); }).filter(Boolean);
+      var pillsHtml = services.map(function(s) { return '<span class="tdp-service-pill">' + esc(s) + "</span>"; }).join("");
+      var statusClass = "tdp-status-" + (t.status || "pending");
+      var statusLabel = (t.status || "pending").toUpperCase();
+      var currentHtml = "";
+      if (pillsHtml) currentHtml += '<div class="tdp-services">' + pillsHtml + "</div>";
+      currentHtml += '<div class="tdp-grid">';
+      currentHtml += '<div class="tdp-field"><label>Status</label><p><span class="tdp-status-badge ' + statusClass + '">' + esc(statusLabel) + "</span></p></div>";
+      currentHtml += '<div class="tdp-field"><label>Service Date</label><p>' + esc(t.service_date || "—") + "</p></div>";
+      currentHtml += '<div class="tdp-field"><label>Engine Hours</label><p>' + esc(t.engine_hours || "—") + "</p></div>";
+      currentHtml += '<div class="tdp-field"><label>Technician</label><p>' + esc(t.technician || "—") + "</p></div>";
+      currentHtml += '<div class="tdp-field"><label>Reimbursement</label><p>$' + esc(String(t.reimbursement_amount || 0)) + "</p></div>";
+      currentHtml += '<div class="tdp-field"><label>Dealership</label><p>' + esc(t.dealership_name || "—") + "</p></div>";
+      currentHtml += '<div class="tdp-field"><label>Customer Email</label><p>' + esc(t.customer_email || "—") + "</p></div>";
+      currentHtml += '<div class="tdp-field"><label>Customer Phone</label><p>' + esc(t.customer_phone || "—") + "</p></div>";
+      currentHtml += "</div>";
+      if (t.service_notes) {
+        currentHtml += '<div style="margin-top:1rem;"><label style="font-size:11px;color:var(--mid);text-transform:uppercase;letter-spacing:0.06em;">Service Notes</label><p style="margin:0.25rem 0 0;color:var(--navy);font-size:14px;">' + esc(t.service_notes) + "</p></div>";
+      }
+      document.getElementById("tdp-current-content").innerHTML = currentHtml;
+
+      var histHtml = "";
+      if (!historyRows || historyRows.length === 0 || (historyRows.length === 1 && historyRows[0].id === t.id)) {
+        histHtml = '<div class="tdp-history-empty">No prior service history for this vessel.</div>';
+      } else {
+        histHtml = '<table class="tdp-history-table"><thead><tr>';
+        histHtml += "<th>Date</th><th>Ticket #</th><th>Service</th><th>Hours</th><th>Status</th><th>Reimburse</th>";
+        histHtml += "</tr></thead><tbody>";
+        historyRows.forEach(function(h) {
+          var isCurrent = h.id === t.id;
+          var rowClass = isCurrent ? "tdp-current-row" : "";
+          var hStatusClass = "tdp-status-" + (h.status || "pending");
+          var hStatusLabel = (h.status || "pending").toUpperCase();
+          histHtml += '<tr class="' + rowClass + '">';
+          histHtml += "<td>" + esc(h.service_date || (h.created_at ? h.created_at.substring(0, 10) : "—"));
+          if (isCurrent) histHtml += ' <strong style="color:var(--gold);">(this ticket)</strong>';
+          histHtml += "</td>";
+          histHtml += "<td>" + esc(h.ticket_number || "—") + "</td>";
+          histHtml += "<td>" + esc(h.service_type || "—") + "</td>";
+          histHtml += "<td>" + esc(h.engine_hours || "—") + "</td>";
+          histHtml += '<td><span class="tdp-status-badge ' + hStatusClass + '">' + esc(hStatusLabel) + "</span>";
+          if (h.rejection_reason) {
+            histHtml += '<br><span style="font-size:11px;color:var(--mid);">' + esc(h.rejection_reason) + "</span>";
+          }
+          histHtml += "</td>";
+          histHtml += "<td>$" + esc(String(h.reimbursement_amount || 0)) + "</td>";
+          histHtml += "</tr>";
+        });
+        histHtml += "</tbody></table>";
+      }
+      document.getElementById("tdp-history-content").innerHTML = histHtml;
+
+      var approveBtn = document.getElementById("tdp-approve-btn");
+      var rejectBtn = document.getElementById("tdp-reject-btn");
+      if (t.status === "pending") {
+        approveBtn.style.display = "";
+        rejectBtn.style.display = "";
+        approveBtn.onclick = async function() {
+          if (!confirm("Approve this ticket and authorize reimbursement of $" + (t.reimbursement_amount || 0) + "?")) return;
+          if (typeof claimsApprove === "function") {
+            await claimsApprove(t.id);
+            closeTicketDetailPanel();
+          }
+        };
+        rejectBtn.onclick = async function() {
+          if (typeof rejectTicket === "function") {
+            await rejectTicket(t.id);
+            closeTicketDetailPanel();
+          }
+        };
+      } else {
+        approveBtn.style.display = "none";
+        rejectBtn.style.display = "none";
+      }
+
+      document.getElementById("ticket-detail-panel").classList.add("open");
+      document.body.style.overflow = "hidden";
+    } catch (e) {
+      console.error("openTicketDetailPanel error:", e);
+      alert("Could not open ticket details.");
+    }
+  };
+
+  window.closeTicketDetailPanel = function() {
+    var panel = document.getElementById("ticket-detail-panel");
+    if (panel) panel.classList.remove("open");
+    document.body.style.overflow = "";
+  };
+
   window.deactivateDealer = async function(id, name) {
     if (!confirm("Deactivate " + name + "? They will lose portal access.")) return;
     await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(id), {
@@ -2304,8 +2610,15 @@ window.addEventListener("load", function() {
 
   document.addEventListener("keydown", function(e) {
     if (e.key === "Escape") {
-      var panel = document.getElementById("dealer-detail-panel");
-      if (panel && panel.classList.contains("open")) closeDealerPanel();
+      var dealerPanel = document.getElementById("dealer-detail-panel");
+      if (dealerPanel && dealerPanel.classList.contains("open")) {
+        closeDealerPanel();
+        return;
+      }
+      var ticketPanel = document.getElementById("ticket-detail-panel");
+      if (ticketPanel && ticketPanel.classList.contains("open")) {
+        closeTicketDetailPanel();
+      }
     }
   });
 
