@@ -216,7 +216,8 @@ function mapTicketFromRow(row) {
     serviceNotes: row.service_notes || "",
     status: row.status || "pending",
     rejectionReason: row.rejection_reason || "",
-    reimbursementAmount: row.reimbursement_amount
+    reimbursementAmount: row.reimbursement_amount,
+    requestedAmount: row.requested_amount
   };
 }
 
@@ -301,8 +302,16 @@ function getTicketStatusBadge(status) {
 function dealerTicketStatusBlockHtml(t) {
   var st = (t.status || "pending").toLowerCase();
   var html = '<div style="margin-top:0.65rem;display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;">' + getTicketStatusBadge(t.status) + "</div>";
-  if (st === "approved") {
-    html += '<div style="margin-top:0.35rem;font-size:12px;color:var(--mid);">$150 reimbursement</div>';
+  if (st === "pending") {
+    var req = parseFloat(t.requestedAmount);
+    if (!isNaN(req) && req > 0) {
+      html += '<div style="margin-top:0.35rem;font-size:12px;color:var(--mid);">Requested: $' + req.toFixed(2) + " — Pending approval</div>";
+    }
+  } else if (st === "approved") {
+    var approved = parseFloat(t.reimbursementAmount);
+    if (!isNaN(approved) && approved > 0) {
+      html += '<div style="margin-top:0.35rem;font-size:12px;color:var(--mid);">Approved: $' + approved.toFixed(2) + "</div>";
+    }
   }
   return html;
 }
@@ -315,12 +324,14 @@ function ticketRejectionNoticeHtml(t) {
       '<div style="margin-top:0.75rem;background:#fff0f0;border:1px solid #ffb3b3;border-left:3px solid var(--red);border-radius:6px;padding:0.75rem 1rem;font-size:13px;color:#c0392b;">' +
       '<span style="font-weight:600;">Rejected: </span>' +
       escHtml(rr) +
+      '<div style="font-size:11px;color:var(--mid);margin-top:0.5rem;">Questions about this rejection? Email <a href="mailto:support@whitestone-partners.com" style="color:var(--gold);">support@whitestone-partners.com</a> to discuss.</div>' +
       "</div>"
     );
   }
   return (
     '<div style="margin-top:0.75rem;background:#fff0f0;border:1px solid #ffb3b3;border-left:3px solid var(--red);border-radius:6px;padding:0.75rem 1rem;font-size:13px;color:#c0392b;">' +
     '<span style="font-weight:600;">Rejected</span> — Contact support@whitestone-partners.com for details.' +
+    '<div style="font-size:11px;color:var(--mid);margin-top:0.5rem;">Questions about this rejection? Email <a href="mailto:support@whitestone-partners.com" style="color:var(--gold);">support@whitestone-partners.com</a> to discuss.</div>' +
     "</div>"
   );
 }
@@ -5911,6 +5922,16 @@ document.addEventListener("DOMContentLoaded", function() {
         console.warn("Could not verify Winterization history:", e);
       }
     }
+    var requestedAmountRaw = (document.getElementById("t-requested-amount").value || "").trim();
+    var requestedAmount = parseFloat(requestedAmountRaw);
+    if (!requestedAmountRaw || isNaN(requestedAmount) || requestedAmount <= 0) {
+      alert("Please enter a valid requested reimbursement amount (greater than $0).");
+      return;
+    }
+    if (requestedAmount > 5000) {
+      alert("Requested amount is unusually high. Please contact support@whitestone-partners.com before submitting a request over $5,000.");
+      return;
+    }
     var hinResult = await verifyHINForTicket(hinVal);
     if (!hinResult.valid) {
       alert(hinResult.message);
@@ -5940,7 +5961,7 @@ document.addEventListener("DOMContentLoaded", function() {
       service_date: document.getElementById("t-date").value,
       service_notes: document.getElementById("t-notes").value,
       status: "pending",
-      reimbursement_amount: 150
+      requested_amount: requestedAmount
     };
     try {
       var res = await fetch(SUPABASE_URL + "/rest/v1/tickets", {
@@ -5958,11 +5979,11 @@ document.addEventListener("DOMContentLoaded", function() {
           ticket_id: newTicket.id,
           dealer_id: currentDealer.id,
           dealership_name: currentDealer.name,
-          amount: 150,
+          amount: requestedAmount,
           status: "pending"
         })
       });
-      await writeAuditLog("ticket", newTicket.id, "ticket_submitted", null, { hin: hinVal, services: services }, currentDealer.name, fname + " " + lname, null);
+      await writeAuditLog("ticket", newTicket.id, "ticket_submitted", null, { hin: hinVal, services: services, requested_amount: requestedAmount }, currentDealer.name, fname + " " + lname, null);
       if (typeof window.onboardingMarkStep === "function") await window.onboardingMarkStep("first_ticket");
       var ticketEmailHtml =
         '<!DOCTYPE html><html><body style="font-family:DM Sans,sans-serif;background:#f0f4f8;margin:0;padding:2rem;">' +
@@ -6193,14 +6214,27 @@ document.addEventListener("DOMContentLoaded", function() {
 
   async function claimsApprove(ticketId) {
     try {
+      var readRes = await fetch(SUPABASE_URL + "/rest/v1/tickets?id=eq." + encodeURIComponent(ticketId) + "&select=requested_amount", { headers: supabaseHeaders() });
+      var rows = await readRes.json();
+      var requestedAmt = parseFloat((rows && rows[0] && rows[0].requested_amount) || 0);
+
       var url = SUPABASE_URL + "/rest/v1/tickets?id=eq." + encodeURIComponent(ticketId);
       var r1 = await fetch(url, {
         method: "PATCH",
         headers: supabaseHeaders({ Prefer: "return=minimal" }),
-        body: JSON.stringify({ status: "approved" })
+        body: JSON.stringify({ status: "approved", reimbursement_amount: requestedAmt })
       });
       if (!r1.ok) throw new Error();
-      await writeAuditLog("ticket", ticketId, "ticket_approved", { status: "pending" }, { status: "approved" }, "admin", null, null);
+
+      if (requestedAmt > 0) {
+        await fetch(SUPABASE_URL + "/rest/v1/reimbursements?ticket_id=eq." + encodeURIComponent(ticketId), {
+          method: "PATCH",
+          headers: supabaseHeaders({ Prefer: "return=minimal" }),
+          body: JSON.stringify({ amount: requestedAmt })
+        });
+      }
+
+      await writeAuditLog("ticket", ticketId, "ticket_approved", { status: "pending" }, { status: "approved", reimbursement_amount: requestedAmt }, "admin", null, null);
       await claimsLoadTab();
     } catch (e) {
       alert("Could not approve. Please try again.");
@@ -6454,7 +6488,9 @@ document.addEventListener("DOMContentLoaded", function() {
         if (t.roNumber || row.ro_number) {
           html += '<div style="font-size:11px;color:var(--mid);margin-top:0.25rem;">RO# ' + escHtml(t.roNumber || row.ro_number) + "</div>";
         }
-        html += "<div style='margin-top:0.5rem;font-weight:600;color:var(--navy);'>$150 reimbursement</div>";
+        var reqAmt = parseFloat(row.requested_amount || t.requestedAmount || 0);
+        var amtLabel = reqAmt > 0 ? "$" + reqAmt.toFixed(2) + " requested" : "Amount pending";
+        html += "<div style='margin-top:0.5rem;font-weight:600;color:var(--navy);'>" + amtLabel + "</div>";
         html += "<div class='claims-queue-actions'>";
         html += "<button type='button' class='btn-claims-approve' data-tid='" + escHtml(String(row.id)) + "'>Approve</button>";
         html += "<button type='button' class='btn-claims-reject' data-tid='" + escHtml(String(row.id)) + "'>Reject</button>";
