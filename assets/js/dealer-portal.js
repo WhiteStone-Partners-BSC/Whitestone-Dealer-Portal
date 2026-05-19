@@ -2445,9 +2445,7 @@ function pricingUpdateLockStatus() {
     lockEl.textContent = "● Draft pricing — not confirmed";
   }
   var unlockBtn = document.getElementById("pricing-unlock-btn");
-  var genBtn = document.getElementById("pricing-generate-btn");
   if (unlockBtn) unlockBtn.style.display = pricingState.confirmed ? "inline-block" : "none";
-  if (genBtn) genBtn.style.display = pricingState.confirmed ? "inline-block" : "none";
 }
 
 function pricingBuildChanges() {
@@ -3999,104 +3997,6 @@ async function pricingLoadHistory() {
   }
 }
 
-function generateDealerContractPDF() {
-  var dealer = pricingState.dealerName;
-  var rates = pricingState.currentRates || pricingDefaultRates();
-  if (!dealer) return;
-  var now = new Date();
-  var dateStr = now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  var version = "v" + now.getFullYear() + ("0" + (now.getMonth() + 1)).slice(-2) + ("0" + now.getDate()).slice(-2);
-  var pct = String(rates.commission_pct != null ? rates.commission_pct : "");
-  var r1 = Math.round(rates.contract_retail_1yr || 0).toLocaleString();
-  var r2 = Math.round(rates.contract_retail_2yr || 0).toLocaleString();
-  var r3 = Math.round(rates.contract_retail_3yr || 0).toLocaleString();
-  var reimb = Math.round(rates.reimbursement_rate || 0).toLocaleString();
-  var dealerEsc = escHtml(dealer);
-  var html = "<!DOCTYPE html>\n" +
-"<html>\n" +
-"<head>\n" +
-"<meta charset=\"UTF-8\">\n" +
-"<title>Whitestone Partners — Dealer Services Agreement</title>\n" +
-"<style>\n" +
-"  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Sans:wght@300;400;500&display=swap');\n" +
-"  * { box-sizing: border-box; margin: 0; padding: 0; }\n" +
-"  body { font-family: 'DM Sans', Georgia, serif; font-size: 10.5pt; line-height: 1.7; color: #1a1a1a; background: white; }\n" +
-"  .page { max-width: 750px; margin: 0 auto; padding: 60px 70px; }\n" +
-"  .header { text-align: center; border-bottom: 3px solid #0c1e2e; padding-bottom: 28px; margin-bottom: 32px; }\n" +
-"  .header-logo-text { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26pt; font-weight: 300; color: #0c1e2e; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }\n" +
-"  .header-sub { font-size: 8pt; letter-spacing: 0.2em; text-transform: uppercase; color: #b8963e; margin-bottom: 16px; }\n" +
-"  .doc-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 18pt; font-weight: 600; color: #0c1e2e; margin-bottom: 6px; }\n" +
-"  .doc-meta { font-size: 8.5pt; color: #6b8599; }\n" +
-"  .conf-badge { display: inline-block; background: #0c1e2e; color: white; font-size: 7.5pt; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase; padding: 4px 14px; border-radius: 2px; margin-top: 10px; }\n" +
-"  .section { margin-bottom: 28px; }\n" +
-"  .section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 13pt; font-weight: 600; color: #0c1e2e; border-bottom: 1.5px solid #b8963e; padding-bottom: 5px; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.06em; }\n" +
-"  .section-number { color: #b8963e; margin-right: 8px; }\n" +
-"  .clause { margin-bottom: 10px; }\n" +
-"  .clause-num { font-weight: 600; color: #0c1e2e; margin-right: 6px; }\n" +
-"  p { margin-bottom: 10px; font-size: 10pt; }\n" +
-"  .pricing-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 9.5pt; }\n" +
-"  .pricing-table th { background: #0c1e2e; color: white; padding: 7px 12px; text-align: left; font-size: 8pt; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }\n" +
-"  .pricing-table td { padding: 7px 12px; border-bottom: 1px solid #eef0f3; }\n" +
-"  .pricing-table tr:nth-child(even) td { background: #f8f9fb; }\n" +
-"  .highlight-box { background: #f0f4f8; border: 1px solid #c5d4e0; border-left: 4px solid #0c1e2e; border-radius: 4px; padding: 14px 18px; margin: 14px 0; font-size: 9.5pt; }\n" +
-"  .party-line { font-size: 10.5pt; margin-bottom: 6px; }\n" +
-"  .party-label { font-weight: 600; color: #0c1e2e; }\n" +
-"  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #dde3ea; display: flex; justify-content: space-between; align-items: center; }\n" +
-"  .footer-left { font-size: 7.5pt; color: #9aafbf; }\n" +
-"  .footer-right { font-size: 7.5pt; color: #b8963e; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }\n" +
-"  .gold-bar { height: 4px; background: linear-gradient(90deg, #b8963e, #d4ac52, #b8963e); }\n" +
-"  @media print { body { font-size: 10pt; } .page { padding: 40px 50px; } }\n" +
-"</style>\n" +
-"</head>\n" +
-"<body>\n" +
-"<div class=\"gold-bar\"></div>\n" +
-"<div class=\"page\">\n" +
-"  <div class=\"header\">\n" +
-"    <div class=\"header-logo-text\">Whitestone Partners</div>\n" +
-"    <div class=\"header-sub\">Certified Marine Dealer Program</div>\n" +
-"    <div class=\"doc-title\">Dealer Services Agreement</div>\n" +
-"    <div class=\"doc-meta\">Confidential — For authorized dealer use only · Generated " + escHtml(dateStr) + " · " + escHtml(version) + "</div>\n" +
-"    <div><span class=\"conf-badge\">Confidential</span></div>\n" +
-"  </div>\n" +
-"  <div class=\"section\">\n" +
-"    <div class=\"party-line\"><span class=\"party-label\">Dealer:</span> " + dealerEsc + "</div>\n" +
-"    <div class=\"party-line\"><span class=\"party-label\">Agreement date:</span> " + escHtml(dateStr) + "</div>\n" +
-"  </div>\n" +
-"  <div class=\"section\">\n" +
-"    <div class=\"section-title\"><span class=\"section-number\">2.1</span>Dealer commission</div>\n" +
-"    <p>The dealer earns a one-time commission of <strong>" + escHtml(pct) + "%</strong> on qualifying contract sales in accordance with Whitestone Partners program rules.</p>\n" +
-"    <table class=\"pricing-table\">\n" +
-"      <thead><tr><th>Term</th><th>Contract retail price</th></tr></thead>\n" +
-"      <tbody>\n" +
-"        <tr><td>1-year contract</td><td>$" + escHtml(r1) + "</td></tr>\n" +
-"        <tr><td>2-year contract</td><td>$" + escHtml(r2) + "</td></tr>\n" +
-"        <tr><td>3-year contract</td><td>$" + escHtml(r3) + "</td></tr>\n" +
-"      </tbody>\n" +
-"    </table>\n" +
-"  </div>\n" +
-"  <div class=\"section\">\n" +
-"    <div class=\"section-title\"><span class=\"section-number\">2.2</span>Service reimbursements</div>\n" +
-"    <p>The dealer is reimbursed at a rate of <strong>$" + escHtml(reimb) + "</strong> per approved service ticket submitted through the Whitestone Partners portal.</p>\n" +
-"    <div class=\"highlight-box\"><strong>Documentation:</strong> Service records must be logged in the Whitestone Partners system for reimbursement eligibility.</div>\n" +
-"  </div>\n" +
-"  <div class=\"footer\">\n" +
-"    <div class=\"footer-left\">Whitestone Partners LLC &nbsp;|&nbsp; St. George, Utah &nbsp;|&nbsp; support@whitestone-partners.com</div>\n" +
-"    <div class=\"footer-right\">Dealer copy</div>\n" +
-"  </div>\n" +
-"</div>\n" +
-"<div class=\"gold-bar\"></div>\n" +
-"<script>\n" +
-"  window.onload = function() { window.print(); }\n" +
-"</script>\n" +
-"</body>\n" +
-"</html>";
-  var printWindow = window.open("", "_blank", "width=900,height=700");
-  if (printWindow) {
-    printWindow.document.write(html);
-    printWindow.document.close();
-  }
-  writeAuditLog("pricing", pricingState.pricingId, "contract_generated", null, { dealer: dealer, version: version, date: dateStr }, dealer, null, "Dealer contract PDF generated");
-}
 
 function downloadCustomerContract() {
   var html = "<!DOCTYPE html>\n" +
@@ -5895,15 +5795,6 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   }
 
-  var generateBtn = document.getElementById("pricing-generate-btn");
-  if (generateBtn) {
-    generateBtn.addEventListener("click", function() {
-      if (!pricingState.dealerName) { alert("Please select a dealer first."); return; }
-      if (!pricingState.confirmed) { alert("Please confirm pricing before generating a contract."); return; }
-      generateDealerContractPDF();
-    });
-  }
-
   async function updateTicketContractIndicator() {
     var hinEl = document.getElementById("t-hin");
     var el = document.getElementById("t-hin-status");
@@ -5977,6 +5868,49 @@ document.addEventListener("DOMContentLoaded", function() {
       alert("RO Number is required. Please enter your internal Repair Order number for this service.");
       return;
     }
+    var sels = document.querySelectorAll(".tb.sel");
+    var services = Array.from(sels).map(function(b) { return b.textContent.trim(); }).join(", ");
+    // Validation: Winterization service is limited to once per calendar year per vessel (HIN).
+    // "De-Winterization" is a separate service (spring opening) — must NOT match.
+    var servicesArr = (services || "").split(",").map(function(s) { return s.trim(); }).filter(Boolean);
+    var hasWinterization = servicesArr.some(function(s) {
+      return /(^|[^A-Za-z-])Winterization($|[^A-Za-z])/.test(s);
+    });
+    if (hasWinterization) {
+      var currentYear = new Date().getFullYear();
+      var yearStart = currentYear + "-01-01";
+      var yearEnd = (currentYear + 1) + "-01-01";
+      try {
+        var existingRes = await fetch(
+          SUPABASE_URL + "/rest/v1/tickets" +
+            "?hin=eq." + encodeURIComponent(hinVal) +
+            "&service_date=gte." + yearStart +
+            "&service_date=lt." + yearEnd +
+            "&status=in.(pending,approved)" +
+            "&select=id,ticket_number,service_type,service_date,status&limit=10",
+          { headers: authHeaders() }
+        );
+        if (existingRes.ok) {
+          var existing = await existingRes.json();
+          var conflictingTicket = (Array.isArray(existing) ? existing : []).find(function(t) {
+            var st = t.service_type || "";
+            return /(^|[^A-Za-z-])Winterization($|[^A-Za-z])/.test(st);
+          });
+          if (conflictingTicket) {
+            alert(
+              "Cannot submit Winterization service.\n\n" +
+              "A Winterization has already been " + (conflictingTicket.status === "approved" ? "approved" : "submitted") +
+              " for this vessel (HIN " + hinVal + ") in " + currentYear + ".\n\n" +
+              "Existing ticket: " + conflictingTicket.ticket_number + " (service date " + conflictingTicket.service_date + ").\n\n" +
+              "Only one Winterization per vessel per calendar year is allowed under the maintenance contract."
+            );
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("Could not verify Winterization history:", e);
+      }
+    }
     var hinResult = await verifyHINForTicket(hinVal);
     if (!hinResult.valid) {
       alert(hinResult.message);
@@ -5986,8 +5920,6 @@ document.addEventListener("DOMContentLoaded", function() {
     btn.disabled = true; btn.textContent = "Submitting...";
     document.getElementById("t-ok").style.display = "none";
     document.getElementById("t-err").style.display = "none";
-    var sels = document.querySelectorAll(".tb.sel");
-    var services = Array.from(sels).map(function(b) { return b.textContent.trim(); }).join(", ");
     var ticketNum = "WSP-" + new Date().getFullYear() + "-" + Math.floor(1000 + Math.random() * 9000);
     var body = {
       ticket_number: ticketNum,

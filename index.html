@@ -1158,7 +1158,6 @@
         <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;margin-bottom:1.5rem;">
           <button id="ws-confirm-btn" style="background:var(--navy);color:white;border:none;padding:12px 28px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:0.04em;">Review & Confirm Pricing</button>
           <button id="ws-unlock-btn" style="display:none;background:transparent;color:var(--mid);border:1px solid var(--border);padding:12px 20px;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">🔓 Unlock Pricing</button>
-          <button id="ws-generate-btn" style="display:none;background:var(--gold);color:var(--navy);border:none;padding:12px 24px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Generate Contract PDF</button>
         </div>
 
         <div class="card">
@@ -2733,17 +2732,14 @@ window.addEventListener("load", function() {
       el.style.cssText = "display:block;background:#fff0f0;color:var(--red);border:1px solid #fcc;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;";
       el.textContent = "🔒 Locked — confirmed";
       document.getElementById("ws-unlock-btn").style.display = "inline-block";
-      document.getElementById("ws-generate-btn").style.display = "inline-block";
     } else if (wholesaleState.confirmed) {
       el.style.cssText = "display:block;background:#f0f9f4;color:var(--green);border:1px solid #a8d5b5;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;";
       el.textContent = "✓ Confirmed";
       document.getElementById("ws-unlock-btn").style.display = "inline-block";
-      document.getElementById("ws-generate-btn").style.display = "inline-block";
     } else {
       el.style.cssText = "display:block;background:#fff5f0;color:var(--amber);border:1px solid #f0d060;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;";
       el.textContent = "● Draft — not confirmed";
       document.getElementById("ws-unlock-btn").style.display = "none";
-      document.getElementById("ws-generate-btn").style.display = "none";
     }
     var disabled = !!wholesaleState.locked;
     var claims = document.getElementById("ws-claims-slider");
@@ -4045,23 +4041,6 @@ window.addEventListener("load", function() {
     document.getElementById("pricing-unlock-modal").style.display = "none";
     wsUpdateLockStatus();
     await writeAuditLog("pricing", wholesaleState.pricingId, "pricing_unlocked", null, null, wholesaleState.dealerName, null, "Pricing unlocked for editing by admin");
-  });
-
-  document.getElementById("ws-generate-btn").addEventListener("click", function() {
-    if (!wholesaleState.confirmed) { alert("Please confirm pricing first."); return; }
-    if (typeof pricingState !== "undefined") {
-      pricingState.dealerName = wholesaleState.dealerName;
-      pricingState.confirmed = wholesaleState.confirmed;
-      pricingState.pricingId = wholesaleState.pricingId;
-      pricingState.currentRates = {
-        commission_pct: wholesaleState.targetMargin,
-        contract_retail_1yr: wholesaleState.ws1,
-        contract_retail_2yr: wholesaleState.ws2,
-        contract_retail_3yr: wholesaleState.ws3,
-        reimbursement_rate: wholesaleServices.reduce(function(a, s) { return a + s.cost; }, 0) / wholesaleServices.length
-      };
-    }
-    if (typeof generateDealerContractPDF === "function") generateDealerContractPDF();
   });
 
   var originalPricingInitOnTab = window.pricingInitOnTab;
