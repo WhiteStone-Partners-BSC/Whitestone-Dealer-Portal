@@ -7231,8 +7231,26 @@ window.submitDealerEnrollment = async function(ev) {
     });
 
     if (!dealerRes.ok) {
-      const errText = await dealerRes.text();
-      throw new Error(`Failed to create dealer (HTTP ${dealerRes.status}): ${errText}`);
+      const errBody = await dealerRes.text();
+      // Detect Postgres unique constraint violation on username (login email)
+      let friendlyMsg;
+      try {
+        const errJson = JSON.parse(errBody);
+        if (errJson.code === '23505' && /dealers_username_key/.test(errJson.message || '')) {
+          friendlyMsg = 'A dealer with that login email already exists. Please use a different email address.';
+        } else if (errJson.code === '23505' && /dealers_email_key/.test(errJson.message || '')) {
+          friendlyMsg = 'A dealer with that email address already exists. Please use a different email.';
+        } else if (errJson.code === '23505') {
+          friendlyMsg = 'A dealer with one of these values already exists: ' + (errJson.message || 'duplicate value').substring(0, 200);
+        } else if (errJson.code === '42501') {
+          friendlyMsg = 'Permission denied. You may need to sign in as an admin or refresh the page.';
+        } else {
+          friendlyMsg = 'Could not create dealer: ' + (errJson.message || errBody.substring(0, 300));
+        }
+      } catch (parseErr) {
+        friendlyMsg = 'Could not create dealer (HTTP ' + dealerRes.status + '): ' + errBody.substring(0, 300);
+      }
+      throw new Error(friendlyMsg);
     }
 
     const dealerData = await dealerRes.json();
