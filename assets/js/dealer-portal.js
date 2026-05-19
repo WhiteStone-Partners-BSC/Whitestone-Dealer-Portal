@@ -210,6 +210,7 @@ function mapTicketFromRow(row) {
     boatModel: row.boat_model || "",
     year: row.boat_year || "",
     hin: String(hinRaw).trim().toUpperCase(),
+    roNumber: row.ro_number || "",
     engineHours: row.engine_hours || "",
     technician: row.technician || "",
     serviceNotes: row.service_notes || "",
@@ -5962,6 +5963,11 @@ document.addEventListener("DOMContentLoaded", function() {
       alert("HIN must be 12 alphanumeric characters (letters and numbers only — no spaces or special characters).");
       return;
     }
+    var roNumber = (document.getElementById("t-ro-number").value || "").trim();
+    if (!roNumber) {
+      alert("RO Number is required. Please enter your internal Repair Order number for this service.");
+      return;
+    }
     var hinResult = await verifyHINForTicket(hinVal);
     if (!hinResult.valid) {
       alert(hinResult.message);
@@ -5987,6 +5993,7 @@ document.addEventListener("DOMContentLoaded", function() {
       boat_model: document.getElementById("t-model").value,
       boat_year: document.getElementById("t-year").value,
       hin: hinVal,
+      ro_number: roNumber,
       engine_hours: document.getElementById("t-hours").value,
       service_type: services || "General Service",
       service_date: document.getElementById("t-date").value,
@@ -6503,6 +6510,9 @@ document.addEventListener("DOMContentLoaded", function() {
         html += "<div><strong>" + escHtml((t.firstName || "") + " " + (t.lastName || "")) + "</strong></div>";
         html += "<div style='font-size:12px;color:var(--mid);margin-top:0.25rem;'>" + escHtml(boat) + "</div>";
         if (pillsHtml) html += "<div class='ticket-services' style='margin-top:0.5rem;'>" + pillsHtml + "</div>";
+        if (t.roNumber || row.ro_number) {
+          html += '<div style="font-size:11px;color:var(--mid);margin-top:0.25rem;">RO# ' + escHtml(t.roNumber || row.ro_number) + "</div>";
+        }
         html += "<div style='margin-top:0.5rem;font-weight:600;color:var(--navy);'>$150 reimbursement</div>";
         html += "<div class='claims-queue-actions'>";
         html += "<button type='button' class='btn-claims-approve' data-tid='" + escHtml(String(row.id)) + "'>Approve</button>";

@@ -298,6 +298,11 @@
           <div class="fg"><label>Year</label><input type="text" id="t-year" placeholder="e.g. 2023"></div>
           <div class="fg"><label>Hull ID (HIN) <span class="req-star">*</span></label><input type="text" id="t-hin" placeholder="e.g. MALIA23K304" autocomplete="off" minlength="12" maxlength="12" pattern="[A-Za-z0-9]{12}" title="HIN must be exactly 12 alphanumeric characters" required style="text-transform:uppercase;"><div id="t-hin-status" style="font-size:12px;margin-top:4px;"></div></div>
         </div>
+        <div class="fg">
+          <label for="t-ro-number">RO Number <span style="color:var(--gold);">*</span></label>
+          <input type="text" id="t-ro-number" name="ro_number" placeholder="e.g. RO-2026-0145 or 4587" autocomplete="off" maxlength="50" required title="Enter your internal Repair Order number for this service">
+          <small style="display:block;color:var(--mid);font-size:11px;margin-top:0.25rem;">Your internal RO# from your shop management system. Required for accounting reconciliation.</small>
+        </div>
         <div class="fr">
           <div class="fg"><label>Engine Hours</label><input type="text" id="t-hours" placeholder="e.g. 312"></div>
           <div class="fg"><label>Service Date</label><input type="date" id="t-date"></div>
@@ -2377,7 +2382,7 @@ window.addEventListener("load", function() {
       if (t.hin && String(t.hin).trim()) {
         var histRes = await fetch(
           SUPABASE_URL + "/rest/v1/tickets?hin=eq." + encodeURIComponent(String(t.hin).trim()) +
-            "&select=id,ticket_number,service_type,service_date,engine_hours,status,reimbursement_amount,rejection_reason,technician,service_notes,created_at" +
+            "&select=id,ticket_number,ro_number,service_type,service_date,engine_hours,status,reimbursement_amount,rejection_reason,technician,service_notes,created_at" +
             "&order=service_date.desc.nullslast,created_at.desc",
           { headers: authHeaders() }
         );
@@ -2402,6 +2407,7 @@ window.addEventListener("load", function() {
       currentHtml += '<div class="tdp-field"><label>Status</label><p><span class="tdp-status-badge ' + statusClass + '">' + esc(statusLabel) + "</span></p></div>";
       currentHtml += '<div class="tdp-field"><label>Service Date</label><p>' + esc(t.service_date || "—") + "</p></div>";
       currentHtml += '<div class="tdp-field"><label>Engine Hours</label><p>' + esc(t.engine_hours || "—") + "</p></div>";
+      currentHtml += '<div class="tdp-field"><label>RO Number</label><p>' + esc(t.ro_number || "—") + "</p></div>";
       currentHtml += '<div class="tdp-field"><label>Technician</label><p>' + esc(t.technician || "—") + "</p></div>";
       currentHtml += '<div class="tdp-field"><label>Reimbursement</label><p>$' + esc(String(t.reimbursement_amount || 0)) + "</p></div>";
       currentHtml += '<div class="tdp-field"><label>Dealership</label><p>' + esc(t.dealership_name || "—") + "</p></div>";
@@ -2418,7 +2424,7 @@ window.addEventListener("load", function() {
         histHtml = '<div class="tdp-history-empty">No prior service history for this vessel.</div>';
       } else {
         histHtml = '<table class="tdp-history-table"><thead><tr>';
-        histHtml += "<th>Date</th><th>Ticket #</th><th>Service</th><th>Hours</th><th>Status</th><th>Reimburse</th>";
+        histHtml += "<th>Date</th><th>Ticket #</th><th>RO#</th><th>Service</th><th>Hours</th><th>Status</th><th>Reimburse</th>";
         histHtml += "</tr></thead><tbody>";
         historyRows.forEach(function(h) {
           var isCurrent = h.id === t.id;
@@ -2430,6 +2436,7 @@ window.addEventListener("load", function() {
           if (isCurrent) histHtml += ' <strong style="color:var(--gold);">(this ticket)</strong>';
           histHtml += "</td>";
           histHtml += "<td>" + esc(h.ticket_number || "—") + "</td>";
+          histHtml += "<td>" + esc(h.ro_number || "—") + "</td>";
           histHtml += "<td>" + esc(h.service_type || "—") + "</td>";
           histHtml += "<td>" + esc(h.engine_hours || "—") + "</td>";
           histHtml += '<td><span class="tdp-status-badge ' + hStatusClass + '">' + esc(hStatusLabel) + "</span>";
