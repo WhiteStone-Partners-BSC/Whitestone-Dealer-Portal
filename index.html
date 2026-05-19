@@ -423,6 +423,33 @@
           </div>
 
           <div class="card" style="margin-bottom:1rem;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:1rem;">Engine Baseline at Enrollment</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+              <div>
+                <label class="form-label" for="e-engine-hours">Engine Hours at Enrollment *</label>
+                <input id="e-engine-hours" name="engine_hours_at_enrollment" class="form-input" type="number" placeholder="e.g. 312" min="0" max="20000" step="0.1" required title="Current engine hours on the vessel at time of enrollment">
+                <small style="display:block;color:var(--mid);font-size:11px;margin-top:0.25rem;">Baseline hours — used to verify service intervals on future tickets.</small>
+              </div>
+              <div>
+                <label class="form-label" for="e-engine-hp">Engine Horsepower *</label>
+                <input id="e-engine-hp" name="engine_horsepower" class="form-input" type="number" placeholder="e.g. 450" min="1" max="2000" step="1" required>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;align-items:end;">
+              <div>
+                <label class="form-label" for="e-engine-make-model">Engine Make / Model *</label>
+                <input id="e-engine-make-model" name="engine_make_model" class="form-input" type="text" placeholder="e.g. Indmar Raptor 575" maxlength="100" required>
+              </div>
+              <div style="padding-bottom:0.4rem;">
+                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:13px;font-weight:500;color:var(--navy);">
+                  <input type="checkbox" id="e-engine-supercharged" name="engine_is_supercharged" style="width:auto;margin:0;">
+                  <span>Supercharged engine</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:1rem;">
             <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:1rem;">Section 4 — Engine Information</div>
             <div style="font-size:12px;color:var(--mid);margin-bottom:0.5rem;">Engine 1</div>
             <div style="display:grid;grid-template-columns:1fr 80px 1fr 1fr 80px;gap:0.75rem;margin-bottom:1rem;">
@@ -597,6 +624,7 @@
           <div style="display:flex;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Email + Phone</span><span id="ec-contact" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
           <div style="display:flex;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Lienholder</span><span id="ec-lienholder" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
           <div style="display:flex;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Vessel</span><span id="ec-vessel" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
+          <div style="display:flex;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Engine baseline</span><span id="ec-engine-baseline" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
           <div style="display:flex;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Engine 1</span><span id="ec-engine1" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
           <div id="ec-engine2-row" style="display:none;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Engine 2</span><span id="ec-engine2" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
           <div style="display:flex;justify-content:space-between;gap:0.75rem;"><span style="color:var(--light);">Contract</span><span id="ec-contract-type" style="font-weight:500;color:var(--navy);text-align:right;"></span></div>
@@ -3079,6 +3107,24 @@ window.addEventListener("load", function() {
       alert("HIN must be 12 alphanumeric characters (letters and numbers only — no spaces or special characters).");
       return;
     }
+    var engineHoursRaw = (document.getElementById("e-engine-hours").value || "").trim();
+    var engineHours = parseFloat(engineHoursRaw);
+    if (!engineHoursRaw || isNaN(engineHours) || engineHours < 0) {
+      alert("Please enter the engine hours at enrollment (0 or higher).");
+      return;
+    }
+    var engineHpRaw = (document.getElementById("e-engine-hp").value || "").trim();
+    var engineHp = parseInt(engineHpRaw, 10);
+    if (!engineHpRaw || isNaN(engineHp) || engineHp < 1) {
+      alert("Please enter the engine horsepower.");
+      return;
+    }
+    var engineMakeModel = (document.getElementById("e-engine-make-model").value || "").trim();
+    if (!engineMakeModel) {
+      alert("Please enter the engine make and model.");
+      return;
+    }
+    var engineSupercharged = document.getElementById("e-engine-supercharged").checked === true;
     if (hinErrEl) {
       hinErrEl.style.display = "none";
       hinErrEl.textContent = "";
@@ -3152,6 +3198,17 @@ window.addEventListener("load", function() {
     document.getElementById("ec-contact").textContent = email + " | " + phone;
     document.getElementById("ec-lienholder").textContent = hasLienholder ? (lienName || "Provided") : "None";
     document.getElementById("ec-vessel").textContent = year + " " + make + " " + model + " — HIN: " + (hinVal || "—") + " (" + condition + ")";
+    var ecBaseline = document.getElementById("ec-engine-baseline");
+    if (ecBaseline) {
+      ecBaseline.textContent =
+        engineMakeModel +
+        " · " +
+        engineHp +
+        " HP · " +
+        engineHours +
+        " hrs" +
+        (engineSupercharged ? " · Supercharged" : "");
+    }
     document.getElementById("ec-engine1").textContent = eng1Make + " " + eng1Model + " Serial# " + eng1Serial + " (" + eng1Year + " " + eng1Hours + "hrs)";
     var engine2Row = document.getElementById("ec-engine2-row");
     var engine2Text = document.getElementById("ec-engine2");
@@ -3259,6 +3316,10 @@ window.addEventListener("load", function() {
             engine1_make:             eng1Make,
             engine1_model:            eng1Model,
             engine1_hours:            eng1Hours,
+            engine_hours_at_enrollment: engineHours,
+            engine_horsepower:          engineHp,
+            engine_make_model:          engineMakeModel,
+            engine_is_supercharged:     engineSupercharged,
             dual_engine:              hasDual,
             engine2_serial:           hasDual ? eng2Serial : null,
             engine2_year:             hasDual ? eng2Year : null,
@@ -3746,6 +3807,7 @@ window.addEventListener("load", function() {
     var fields = [
       "e-fname", "e-lname", "e-mi", "e-address", "e-email", "e-city", "e-state", "e-zip", "e-phone", "e-agreement-date",
       "e-make", "e-model", "e-year", "e-hin", "e-condition",
+      "e-engine-hours", "e-engine-hp", "e-engine-make-model",
       "e-lien-name", "e-lien-address", "e-lien-city", "e-lien-state", "e-lien-zip", "e-lien-phone",
       "e-eng1-serial", "e-eng1-year", "e-eng1-make", "e-eng1-model", "e-eng1-hours",
       "e-eng2-serial", "e-eng2-year", "e-eng2-make", "e-eng2-model", "e-eng2-hours"
@@ -3762,6 +3824,8 @@ window.addEventListener("load", function() {
     if (hasLienholder) hasLienholder.checked = false;
     var hasEngine2 = document.getElementById("has-engine2");
     if (hasEngine2) hasEngine2.checked = false;
+    var engineSuperchargedEl = document.getElementById("e-engine-supercharged");
+    if (engineSuperchargedEl) engineSuperchargedEl.checked = false;
     if (typeof window.toggleLienholder === "function") window.toggleLienholder(false);
     if (typeof window.toggleEngine2 === "function") window.toggleEngine2(false);
     var hinErr = document.getElementById("e-hin-error");
@@ -4125,6 +4189,12 @@ window.addEventListener("load", function() {
     var eng1Model  = (document.getElementById("e-eng1-model") || {}).value || "";
     var eng1Hours  = parseInt((document.getElementById("e-eng1-hours") || {}).value, 10) || null;
 
+    var engineHoursRawPay = (document.getElementById("e-engine-hours") || {}).value || "";
+    var engineHoursPay = parseFloat(String(engineHoursRawPay).trim());
+    var engineHpPay = parseInt((document.getElementById("e-engine-hp") || {}).value, 10) || null;
+    var engineMakeModelPay = (document.getElementById("e-engine-make-model") || {}).value || "";
+    var engineSuperchargedPay = document.getElementById("e-engine-supercharged") && document.getElementById("e-engine-supercharged").checked === true;
+
     var hasDual    = document.getElementById("has-engine2") && document.getElementById("has-engine2").checked;
     var eng2Serial = hasDual ? (document.getElementById("e-eng2-serial") || {}).value || "" : "";
     var eng2Year   = hasDual ? parseInt((document.getElementById("e-eng2-year") || {}).value, 10) || null : null;
@@ -4180,6 +4250,10 @@ window.addEventListener("load", function() {
       engine1_make:             eng1Make,
       engine1_model:            eng1Model,
       engine1_hours:            eng1Hours,
+      engine_hours_at_enrollment: engineHoursPay,
+      engine_horsepower:          engineHpPay,
+      engine_make_model:          engineMakeModelPay,
+      engine_is_supercharged:     engineSuperchargedPay,
       dual_engine:              hasDual,
       engine2_serial:           hasDual ? eng2Serial : null,
       engine2_year:             hasDual ? eng2Year : null,
