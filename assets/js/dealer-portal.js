@@ -10,6 +10,26 @@ var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 var currentDealer = null;
 window.authToken = null;
 window.currentDealer = null;
+
+// Sprint 3 Commit 4a — Role-based sidebar visibility.
+// Maps role -> set of panel names this role is permitted to access.
+// Roles not in this map (or null/undefined) fall back to showing ALL tabs (legacy behavior).
+var RBAC_VISIBLE_PANELS = {
+  principal: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "settings"],
+  org_admin: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "settings"],
+  location_manager: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "settings"],
+  sales: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "settings"],
+  service: ["dashboard", "customers", "ticket", "history", "resources", "faq", "support", "settings"],
+  accountant: ["dashboard", "customers", "history", "billing-cart", "resources", "faq", "support", "settings"]
+};
+
+function rbacCanAccessPanel(role, panelName) {
+  if (!role) return true;
+  var allowed = RBAC_VISIBLE_PANELS[role];
+  if (!allowed) return true;
+  return allowed.indexOf(panelName) !== -1;
+}
+window.rbacCanAccessPanel = rbacCanAccessPanel;
 var allTickets = [];
 var adminNetworkTickets = [];
 var adminDashboardMetrics = { count: 0, revenue: 0 };
@@ -4731,6 +4751,14 @@ document.addEventListener("DOMContentLoaded", function() {
       updateSidebarInfo();
       checkOverdueBanners();
       if (typeof checkOnboardingStatus === "function") checkOnboardingStatus();
+      (async function() {
+        try {
+          var role = await resolveCurrentUserRole();
+          applyRbacSidebarVisibility(role);
+        } catch (e) {
+          console.warn("RBAC visibility setup skipped:", e);
+        }
+      })();
     }
   }
 
@@ -5239,6 +5267,14 @@ document.addEventListener("DOMContentLoaded", function() {
 
   function switchTab(name) {
     if (currentDealer && currentDealer.isAdmin) return;
+    // Sprint 3 Commit 4a: Forbidden-tab redirect.
+    var rbacRole = window._rbacRole || null;
+    if (rbacRole && !rbacCanAccessPanel(rbacRole, name)) {
+      console.warn("Access denied to panel:", name, "— redirecting to dashboard.");
+      if (name !== "dashboard") {
+        return switchTab("dashboard");
+      }
+    }
     document.querySelectorAll("#dealer-main-content .tab-panel").forEach(function(p) {
       p.classList.remove("active");
       p.style.display = "none";
@@ -5672,6 +5708,49 @@ document.addEventListener("DOMContentLoaded", function() {
       renderCustomerCards();
     });
   }
+
+  function applyRbacSidebarVisibility(role) {
+    if (!role || !RBAC_VISIBLE_PANELS[role]) {
+      document.querySelectorAll(".sidebar-nav-item[data-panel]").forEach(function(btn) {
+        btn.style.display = "";
+      });
+      return;
+    }
+    var allowed = RBAC_VISIBLE_PANELS[role];
+    document.querySelectorAll(".sidebar-nav-item[data-panel]").forEach(function(btn) {
+      var panel = btn.getAttribute("data-panel");
+      if (allowed.indexOf(panel) !== -1) {
+        btn.style.display = "";
+      } else {
+        btn.style.display = "none";
+      }
+    });
+  }
+  window.applyRbacSidebarVisibility = applyRbacSidebarVisibility;
+
+  async function resolveCurrentUserRole() {
+    try {
+      var sessionRes = await window.supabase.auth.getSession();
+      var authId = sessionRes && sessionRes.data && sessionRes.data.session && sessionRes.data.session.user ? sessionRes.data.session.user.id : null;
+      if (!authId) {
+        window._rbacRole = null;
+        return null;
+      }
+      var res = await fetch(
+        SUPABASE_URL + "/rest/v1/users?auth_id=eq." + encodeURIComponent(authId) + "&status=eq.active&select=role&limit=1",
+        { headers: supabaseHeaders() }
+      );
+      var rows = await res.json();
+      var role = Array.isArray(rows) && rows[0] ? rows[0].role : null;
+      window._rbacRole = role;
+      return role;
+    } catch (e) {
+      console.error("resolveCurrentUserRole error", e);
+      window._rbacRole = null;
+      return null;
+    }
+  }
+  window.resolveCurrentUserRole = resolveCurrentUserRole;
 
   async function loadSettingsTab() {
     var bodyEl = document.getElementById("settings-profile-body");
