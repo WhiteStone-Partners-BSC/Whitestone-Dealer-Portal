@@ -134,6 +134,8 @@ class handler(BaseHTTPRequestHandler):
                 headers={
                     "Authorization": f"Bearer {resend_key}",
                     "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "User-Agent": "Whitestone-Partners/1.0 (+https://whitestone-partners.com)",
                 },
             )
             with urllib_request.urlopen(req, timeout=10) as r:
