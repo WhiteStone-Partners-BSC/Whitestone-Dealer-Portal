@@ -2414,7 +2414,12 @@ window.addEventListener("load", function() {
       return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     };
     try {
-      var ticketRes = await fetch(SUPABASE_URL + "/rest/v1/tickets?id=eq." + encodeURIComponent(ticketId) + "&select=*&limit=1", { headers: authHeaders() });
+      var ticketRes = await fetch(
+        SUPABASE_URL + "/rest/v1/tickets?id=eq." + encodeURIComponent(ticketId) +
+          "&select=id,ticket_number,ro_number,service_type,service_date,engine_hours,status,reimbursement_amount,requested_amount,rejection_reason,technician,service_notes,dealership_name,customer_first_name,customer_last_name,customer_email,customer_phone,boat_make,boat_model,boat_year,hin,created_at,triage_color,triage_reasons,triage_market_total,triage_computed_at" +
+          "&limit=1",
+        { headers: authHeaders() }
+      );
       var ticketRows = await ticketRes.json();
       if (!ticketRes.ok || !Array.isArray(ticketRows) || !ticketRows[0]) {
         alert("Could not load ticket details.");
@@ -2464,6 +2469,99 @@ window.addEventListener("load", function() {
       currentHtml += '<div class="tdp-field"><label>Customer Email</label><p>' + esc(t.customer_email || "—") + "</p></div>";
       currentHtml += '<div class="tdp-field"><label>Customer Phone</label><p>' + esc(t.customer_phone || "—") + "</p></div>";
       currentHtml += "</div>";
+
+      if (t.triage_color || (t.triage_reasons && t.triage_reasons.length > 0)) {
+        var color = t.triage_color || "unknown";
+        var colorBorder = {
+          green: "#2D8F3F",
+          yellow: "#D4A017",
+          red: "#C0392B",
+          unknown: "var(--mid)"
+        }[color];
+        var colorBg = {
+          green: "#E8F5EA",
+          yellow: "#FFF8E1",
+          red: "#FBEAE8",
+          unknown: "transparent"
+        }[color];
+        var colorLabel = {
+          green: "GREEN — Looks clean",
+          yellow: "YELLOW — Review recommended",
+          red: "RED — Needs attention",
+          unknown: "NOT YET TRIAGED"
+        }[color];
+
+        var computedAgo = "";
+        if (t.triage_computed_at) {
+          var computedDate = new Date(t.triage_computed_at);
+          var nowMs = Date.now();
+          var diffMs = nowMs - computedDate.getTime();
+          var diffMin = Math.floor(diffMs / 60000);
+          if (diffMin < 1) computedAgo = "Triaged just now";
+          else if (diffMin < 60) computedAgo = "Triaged " + diffMin + " min ago";
+          else if (diffMin < 1440) computedAgo = "Triaged " + Math.floor(diffMin / 60) + " hr ago";
+          else computedAgo = "Triaged " + Math.floor(diffMin / 1440) + " day(s) ago";
+        }
+
+        currentHtml += '<div style="margin-top:1.5rem;padding:1rem;border-left:4px solid ' + colorBorder + ';background:' + colorBg + ';border-radius:6px;border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);">';
+
+        currentHtml += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">';
+        currentHtml += '<span style="background:' + colorBorder + ';color:white;font-size:12px;font-weight:600;padding:4px 14px;border-radius:14px;letter-spacing:0.06em;">' + colorLabel + '</span>';
+        if (computedAgo) {
+          currentHtml += '<span style="color:var(--mid);font-size:11px;">' + esc(computedAgo) + '</span>';
+        }
+        currentHtml += '</div>';
+
+        if (t.triage_market_total != null && t.triage_market_total > 0 && t.requested_amount) {
+          var reqAmt = parseFloat(t.requested_amount) || 0;
+          var mkt = parseFloat(t.triage_market_total) || 0;
+          var pctDelta = mkt > 0 ? ((reqAmt - mkt) / mkt) * 100 : 0;
+          var pctSign = pctDelta >= 0 ? "+" : "";
+          currentHtml += '<div style="background:white;padding:0.6rem 0.75rem;border-radius:4px;margin-bottom:0.75rem;border:1px solid var(--border);">';
+          currentHtml += '<div style="font-size:11px;color:var(--mid);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem;">Market comparison</div>';
+          currentHtml += '<div style="font-size:13px;color:var(--navy);">';
+          currentHtml += 'Requested <strong>$' + reqAmt.toFixed(2) + '</strong> · Market total <strong>$' + mkt.toFixed(2) + '</strong> · Delta <strong>' + pctSign + pctDelta.toFixed(1) + '%</strong>';
+          currentHtml += '</div>';
+          currentHtml += '</div>';
+        }
+
+        if (Array.isArray(t.triage_reasons) && t.triage_reasons.length > 0) {
+          currentHtml += '<div style="font-size:11px;color:var(--mid);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.4rem;">Rule evaluation</div>';
+          currentHtml += '<div style="display:flex;flex-direction:column;gap:0.4rem;">';
+
+          var ruleLabel = {
+            data_complete: "Required data",
+            "30_day": "30-day rule",
+            "25_hour": "25-hour rule",
+            price: "Price comparison"
+          };
+          var statusIcon = {
+            pass: { icon: "✓", color: "#2D8F3F" },
+            fail: { icon: "✗", color: "#C0392B" },
+            yellow: { icon: "!", color: "#D4A017" },
+            skipped: { icon: "—", color: "#888" }
+          };
+
+          t.triage_reasons.forEach(function(reason) {
+            var label = ruleLabel[reason.rule] || reason.rule;
+            var iconCfg = statusIcon[reason.status] || statusIcon.skipped;
+            currentHtml += '<div style="display:flex;align-items:flex-start;gap:0.6rem;background:white;padding:0.5rem 0.6rem;border-radius:4px;border:1px solid var(--border);">';
+            currentHtml += '<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:' + iconCfg.color + ';color:white;font-size:11px;font-weight:700;flex-shrink:0;">' + iconCfg.icon + '</span>';
+            currentHtml += '<div style="flex:1;">';
+            currentHtml += '<div style="font-size:12px;font-weight:600;color:var(--navy);">' + esc(label) + ' <span style="color:' + iconCfg.color + ';font-weight:500;text-transform:uppercase;font-size:10px;letter-spacing:0.05em;">' + esc(reason.status) + '</span></div>';
+            currentHtml += '<div style="font-size:12px;color:var(--mid);margin-top:0.2rem;">' + esc(reason.detail || "") + '</div>';
+            currentHtml += '</div>';
+            currentHtml += '</div>';
+          });
+
+          currentHtml += '</div>';
+        } else if (!t.triage_color) {
+          currentHtml += '<div style="font-size:12px;color:var(--mid);font-style:italic;">This ticket was submitted before the triage system. No automatic classification available.</div>';
+        }
+
+        currentHtml += '</div>';
+      }
+
       if (t.service_notes) {
         currentHtml += '<div style="margin-top:1rem;"><label style="font-size:11px;color:var(--mid);text-transform:uppercase;letter-spacing:0.06em;">Service Notes</label><p style="margin:0.25rem 0 0;color:var(--navy);font-size:14px;">' + esc(t.service_notes) + "</p></div>";
       }
