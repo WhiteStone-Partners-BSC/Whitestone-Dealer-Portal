@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accept Invitation — Whitestone Partners</title>
+  <link rel="icon" href="/favicon.ico">
+  <style>
+    :root {
+      --navy: #0F2A44;
+      --gold: #C5A56E;
+      --mid: #6B7280;
+      --border: #E5E7EB;
+      --error: #C0392B;
+      --success: #2D8F3F;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #F9FAFB;
+      color: #222;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .accept-card {
+      background: white;
+      border-radius: 8px;
+      max-width: 500px;
+      width: calc(100% - 32px);
+      padding: 32px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      margin: 16px;
+    }
+    .accept-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .accept-header h1 {
+      color: var(--navy);
+      font-size: 24px;
+      margin: 0 0 8px 0;
+    }
+    .accept-header p {
+      color: var(--mid);
+      margin: 0;
+      font-size: 14px;
+    }
+    .invitation-summary {
+      background: #F3F4F6;
+      border-left: 4px solid var(--gold);
+      padding: 14px 16px;
+      border-radius: 4px;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+    .invitation-summary strong { color: var(--navy); }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      color: var(--mid);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--navy);
+    }
+    .submit-btn {
+      width: 100%;
+      background: var(--navy);
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .status {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .status.error { background: #FEF2F2; color: var(--error); }
+    .status.success { background: #F0FDF4; color: var(--success); }
+    .password-hint {
+      font-size: 11px;
+      color: var(--mid);
+      margin-top: 4px;
+    }
+    .error-page {
+      text-align: center;
+      padding: 16px 0;
+    }
+    .error-page h2 {
+      color: var(--navy);
+      font-size: 20px;
+    }
+    .error-page p { color: var(--mid); margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <div class="accept-card">
+    <div class="accept-header">
+      <h1>Whitestone Partners</h1>
+      <p>Accept Your Invitation</p>
+    </div>
+    <div id="accept-content">
+      <div style="text-align: center; color: var(--mid); padding: 24px 0;">Loading invitation…</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    (function() {
+      var SUPABASE_URL = "https://ypuohmiynnmbnlqfctlg.supabase.co";
+      var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwdW9obWl5bm5tYm5scWZjdGxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwODU4NzEsImV4cCI6MjA5MTY2MTg3MX0.HzrF_OCr2T9rKV9am90B2OvIQKjq28pObheMRps82AI";
+
+      var ROLE_LABELS = {
+        org_admin: "Org Admin",
+        location_manager: "Location Manager",
+        sales: "Sales",
+        service: "Service",
+        accountant: "Accountant"
+      };
+
+      function $(id) { return document.getElementById(id); }
+      function escHtml(s) {
+        return String(s == null ? "" : s).replace(/[&<>"']/g, function(c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      }
+
+      function showError(title, message) {
+        $("accept-content").innerHTML =
+          '<div class="error-page">' +
+          "<h2>" + escHtml(title) + "</h2>" +
+          "<p>" + escHtml(message) + "</p>" +
+          '<p style="font-size:12px;">Contact <a href="mailto:support@whitestone-partners.com">support@whitestone-partners.com</a> if you need help.</p>' +
+          "</div>";
+      }
+
+      function getToken() {
+        var params = new URLSearchParams(window.location.search);
+        return params.get("token") || "";
+      }
+
+      async function loadInvitation() {
+        var token = getToken();
+        if (!token) {
+          showError("No invitation token", "This page requires a valid invitation link. Check the email we sent you.");
+          return;
+        }
+        try {
+          var url = SUPABASE_URL + "/rest/v1/user_invitations?invitation_token=eq." + encodeURIComponent(token) +
+            "&accepted_at=is.null&select=id,email,role,organization_id,expires_at";
+          var res = await fetch(url, {
+            headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY }
+          });
+          var rows = await res.json();
+          if (!Array.isArray(rows) || rows.length === 0) {
+            showError("Invitation not found", "This invitation has expired or already been used. Contact your administrator to request a new invitation.");
+            return;
+          }
+          var inv = rows[0];
+          if (new Date(inv.expires_at) <= new Date()) {
+            showError("Invitation expired", "This invitation has expired. Contact your administrator to request a new one.");
+            return;
+          }
+          var orgRes = await fetch(
+            SUPABASE_URL + "/rest/v1/organizations?id=eq." + encodeURIComponent(inv.organization_id) + "&select=name",
+            { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } }
+          );
+          var orgs = await orgRes.json();
+          var orgName = Array.isArray(orgs) && orgs[0] ? orgs[0].name : "your organization";
+          renderForm(inv, orgName, token);
+        } catch (e) {
+          console.error("Load invitation error:", e);
+          showError("Could not load invitation", "Try refreshing the page. If the problem continues, contact support.");
+        }
+      }
+
+      function renderForm(inv, orgName, token) {
+        var friendlyRole = ROLE_LABELS[inv.role] || inv.role;
+        $("accept-content").innerHTML =
+          '<div class="invitation-summary">' +
+          "You've been invited to join <strong>" + escHtml(orgName) + "</strong> as a <strong>" + escHtml(friendlyRole) + "</strong>." +
+          '<br><br><span style="font-size:12px;color:var(--mid);">Email: ' + escHtml(inv.email) + "</span>" +
+          "</div>" +
+          '<div class="form-group">' +
+            '<label for="accept-name">Full Name</label>' +
+            '<input type="text" id="accept-name" maxlength="100" placeholder="Your full name">' +
+          "</div>" +
+          '<div class="form-group">' +
+            '<label for="accept-password">Choose a Password</label>' +
+            '<input type="password" id="accept-password" minlength="8">' +
+            '<div class="password-hint">Minimum 8 characters.</div>' +
+          "</div>" +
+          '<div class="form-group">' +
+            '<label for="accept-confirm">Confirm Password</label>' +
+            '<input type="password" id="accept-confirm" minlength="8">' +
+          "</div>" +
+          '<button type="button" id="accept-submit" class="submit-btn">Create Account</button>' +
+          '<div id="accept-status"></div>';
+        $("accept-submit").addEventListener("click", function() { submitAccept(inv, token); });
+      }
+
+      async function submitAccept(inv, token) {
+        var name = ($("accept-name").value || "").trim();
+        var pw = $("accept-password").value || "";
+        var confirm = $("accept-confirm").value || "";
+        var statusEl = $("accept-status");
+        var btn = $("accept-submit");
+        statusEl.className = "";
+        statusEl.textContent = "";
+
+        if (!name) { statusEl.className = "status error"; statusEl.textContent = "Please enter your name."; return; }
+        if (pw.length < 8) { statusEl.className = "status error"; statusEl.textContent = "Password must be at least 8 characters."; return; }
+        if (pw !== confirm) { statusEl.className = "status error"; statusEl.textContent = "Passwords do not match."; return; }
+
+        btn.disabled = true;
+        btn.textContent = "Creating account…";
+        try {
+          var res = await fetch("/api/accept-invitation", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: token, full_name: name, password: pw })
+          });
+          var body = await res.json();
+          if (!res.ok) {
+            statusEl.className = "status error";
+            statusEl.textContent = body.error || "Could not create account. Try again.";
+            btn.disabled = false;
+            btn.textContent = "Create Account";
+            return;
+          }
+          var client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          var loginRes = await client.auth.signInWithPassword({ email: inv.email, password: pw });
+          if (loginRes.error) {
+            statusEl.className = "status error";
+            statusEl.textContent = "Account created. Please sign in manually.";
+            setTimeout(function() { window.location.href = "/"; }, 2000);
+            return;
+          }
+          statusEl.className = "status success";
+          statusEl.textContent = "Account created. Redirecting…";
+          setTimeout(function() { window.location.href = "/"; }, 1200);
+        } catch (e) {
+          statusEl.className = "status error";
+          statusEl.textContent = "Network error. Try again.";
+          btn.disabled = false;
+          btn.textContent = "Create Account";
+        }
+      }
+
+      loadInvitation();
+    })();
+  </script>
+</body>
+</html>
