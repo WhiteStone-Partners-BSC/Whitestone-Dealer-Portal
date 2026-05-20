@@ -5796,27 +5796,12 @@ document.addEventListener("DOMContentLoaded", function() {
           loadSettingsInvitationsList(u.organization_id);
           wireInviteUserModal(u.organization_id);
           loadSettingsLocationsList(u.organization_id);
-          // RLS BUG: dealers INSERT rejected with 42501 even under wide-open policy.
-          // Sprint 3 Commit 3b-iv-cleanup hides the Add Location button until root cause
-          // is identified. The Locations LIST view still works correctly.
-          // To re-enable: uncomment below + restore the dealers_insert_principal SQL policy.
-          // if (u.role === "principal") {
-          //   document.getElementById("settings-add-location-btn").style.display = "inline-block";
-          //   wireAddLocationModal(u.organization_id);
-          // }
-          // Temporary placeholder so principals know new locations need manual setup
+          // Re-enabled in Sprint 3 Commit 3b-iv-rpc using SECURITY DEFINER function
+          // principal_add_location() — workaround for an undiagnosed Supabase RLS bug
+          // rejecting direct authenticated INSERTs on dealers.
           if (u.role === "principal") {
-            var locsCard = document.getElementById("settings-locations-card");
-            if (locsCard) {
-              var existingNote = document.getElementById("add-location-pending-note");
-              if (!existingNote) {
-                var note = document.createElement("div");
-                note.id = "add-location-pending-note";
-                note.style.cssText = "margin-top:0.75rem;padding:8px 12px;background:#FEF3C7;border-left:3px solid var(--gold);border-radius:4px;font-size:12px;color:var(--navy);";
-                note.innerHTML = "Need to add a new location? Email <a href=\"mailto:support@whitestone-partners.com\" style=\"color:var(--navy);font-weight:600;\">support@whitestone-partners.com</a> and we will get it set up.";
-                locsCard.appendChild(note);
-              }
-            }
+            if (addLocBtn) addLocBtn.style.display = "inline-block";
+            wireAddLocationModal(u.organization_id);
           }
         }
       }
@@ -6164,26 +6149,17 @@ document.addEventListener("DOMContentLoaded", function() {
       submitBtn.disabled = true;
       submitBtn.textContent = "Adding…";
       try {
-        // Generate placeholder username/password — legacy NOT NULL columns from pre-Supabase-Auth era.
-        // Real auth is via auth_id + Supabase Auth; these fields are dead.
-        var placeholderSuffix = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10);
-        var payload = {
-          dealership_name: name,
-          organization_id: orgId,
-          active: true,
-          is_admin: false,
-          username: "loc-" + placeholderSuffix,
-          password: "unused"
-        };
         var addr = (addressInput.value || "").trim();
         var phone = (phoneInput.value || "").trim();
-        if (addr) payload.address = addr;
-        if (phone) payload.phone = phone;
 
-        var res = await fetch(SUPABASE_URL + "/rest/v1/dealers", {
+        var res = await fetch(SUPABASE_URL + "/rest/v1/rpc/principal_add_location", {
           method: "POST",
-          headers: supabaseHeaders({ "Content-Type": "application/json", Prefer: "return=representation" }),
-          body: JSON.stringify(payload)
+          headers: supabaseHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            p_dealership_name: name,
+            p_address: addr || null,
+            p_phone: phone || null
+          })
         });
         if (res.ok) {
           statusEl.textContent = "Location added.";
@@ -6193,8 +6169,13 @@ document.addEventListener("DOMContentLoaded", function() {
             loadSettingsLocationsList(orgId);
           }, 1200);
         } else {
-          var errText = await res.text();
-          statusEl.textContent = "Could not add location. " + errText.substring(0, 150);
+          var errBody = await res.text();
+          var errMsg = "Could not add location.";
+          try {
+            var parsed = JSON.parse(errBody);
+            if (parsed.message) errMsg = parsed.message;
+          } catch (e) {}
+          statusEl.textContent = errMsg;
           statusEl.style.color = "var(--gold)";
           submitBtn.disabled = false;
           submitBtn.textContent = "Add Location";
