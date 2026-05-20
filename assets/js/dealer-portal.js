@@ -211,6 +211,10 @@ function mapTicketFromRow(row) {
     year: row.boat_year || "",
     hin: String(hinRaw).trim().toUpperCase(),
     roNumber: row.ro_number || "",
+    triageColor: row.triage_color || null,
+    triageReasons: Array.isArray(row.triage_reasons) ? row.triage_reasons : [],
+    triageMarketTotal: row.triage_market_total != null ? parseFloat(row.triage_market_total) : null,
+    triageComputedAt: row.triage_computed_at || null,
     engineHours: row.engine_hours || "",
     technician: row.technician || "",
     serviceNotes: row.service_notes || "",
@@ -6656,67 +6660,126 @@ document.addEventListener("DOMContentLoaded", function() {
 
   async function claimsLoadPending() {
     var el = document.getElementById("claims-pending-body");
+    var filterEl = document.getElementById("claims-pending-color-filter");
+    var summaryEl = document.getElementById("claims-pending-color-summary");
     if (!el) return;
     el.innerHTML = "Loading…";
+
     try {
-      var res = await fetch(SUPABASE_URL + "/rest/v1/tickets?status=eq.pending&select=*&order=created_at.desc", {
-        headers: supabaseHeaders()
-      });
+      var res = await fetch(
+        SUPABASE_URL + "/rest/v1/tickets?status=eq.pending&select=*&order=created_at.desc",
+        { headers: supabaseHeaders() }
+      );
+      if (!res.ok) throw new Error("Could not load pending tickets");
       var rows = await res.json();
-      if (!res.ok) throw new Error();
-      if (!Array.isArray(rows) || rows.length === 0) {
-        el.innerHTML = "<div class='renewals-empty'>No pending tickets.</div>";
+      if (!Array.isArray(rows)) rows = [];
+
+      var counts = { red: 0, yellow: 0, green: 0, none: 0 };
+      rows.forEach(function(r) {
+        var c = r.triage_color;
+        if (c === "red") counts.red++;
+        else if (c === "yellow") counts.yellow++;
+        else if (c === "green") counts.green++;
+        else counts.none++;
+      });
+      if (summaryEl) {
+        summaryEl.textContent =
+          counts.red + " red · " + counts.yellow + " yellow · " + counts.green + " green" +
+          (counts.none > 0 ? " · " + counts.none + " no color" : "");
+      }
+
+      if (filterEl && !filterEl._wired) {
+        filterEl.addEventListener("change", function() { claimsLoadPending(); });
+        filterEl._wired = true;
+      }
+
+      var activeFilter = filterEl ? filterEl.value : "";
+      var filtered = rows;
+      if (activeFilter === "null") {
+        filtered = rows.filter(function(r) { return !r.triage_color; });
+      } else if (activeFilter) {
+        filtered = rows.filter(function(r) { return r.triage_color === activeFilter; });
+      }
+
+      if (filtered.length === 0) {
+        el.innerHTML = "<div class='renewals-empty'>No pending tickets matching this filter.</div>";
         return;
       }
+
+      var colorBorder = {
+        green: "#2D8F3F",
+        yellow: "#D4A017",
+        red: "#C0392B",
+        null: "var(--border)"
+      };
+      var colorBg = {
+        green: "#E8F5EA",
+        yellow: "#FFF8E1",
+        red: "#FBEAE8",
+        null: "transparent"
+      };
+
+      function getInlineReason(reasons) {
+        if (!Array.isArray(reasons) || reasons.length === 0) return "";
+        var failed = reasons.find(function(r) { return r.status === "fail"; });
+        if (failed) return failed.detail || failed.rule;
+        var yellow = reasons.find(function(r) { return r.status === "yellow"; });
+        if (yellow) return yellow.detail || yellow.rule;
+        return "";
+      }
+
       var html = "";
-      rows.forEach(function(row) {
+      filtered.forEach(function(row) {
         var t = mapTicketFromRow(row);
-        var services = (t.serviceType || "").split(",").map(function(s) { return s.trim(); }).filter(Boolean);
-        var pillsHtml = services.map(function(s) { return "<span class='service-pill'>" + escHtml(s) + "</span>"; }).join("");
-        var boat = [t.boatMake, t.boatModel, t.year].filter(Boolean).join(" ");
-        var subDate = row.created_at ? new Date(row.created_at).toLocaleString() : "—";
-        html += "<div class='claims-queue-row' data-ticket-id='" + escHtml(String(row.id)) + "'>";
-        html += "<div class='claims-queue-head'><div><strong>" + escHtml(t.ticketNum) + "</strong> <span class='claims-queue-meta'>" + escHtml(t.dealership) + "</span></div>";
-        html += "<div>" + escHtml(subDate) + "</div></div>";
-        html += "<div><strong>" + escHtml((t.firstName || "") + " " + (t.lastName || "")) + "</strong></div>";
-        html += "<div style='font-size:12px;color:var(--mid);margin-top:0.25rem;'>" + escHtml(boat) + "</div>";
-        if (pillsHtml) html += "<div class='ticket-services' style='margin-top:0.5rem;'>" + pillsHtml + "</div>";
+        var color = t.triageColor || null;
+        var border = colorBorder[color] || colorBorder.null;
+        var bg = colorBg[color] || colorBg.null;
+        var reasonText = getInlineReason(t.triageReasons);
+        var badgeLabel = color ? color.toUpperCase() : "NO COLOR";
+        var badgeColor = colorBorder[color] || "var(--mid)";
+
+        html += '<div class="claims-queue-row" data-ticket-id="' + escHtml(String(t.id)) + '" ' +
+                'style="border-left:4px solid ' + border + ';background:' + bg + ';padding:1rem;border-radius:6px;margin-bottom:0.75rem;border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);cursor:pointer;">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:start;gap:1rem;flex-wrap:wrap;">';
+        html += '<div style="flex:1;min-width:200px;">';
+        html += '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.25rem;">';
+        html += '<span style="background:' + badgeColor + ';color:white;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;letter-spacing:0.05em;">' + badgeLabel + '</span>';
+        html += '<span style="font-weight:600;color:var(--navy);font-size:14px;">' + escHtml(t.ticketNum || "—") + '</span>';
+        html += '</div>';
+        html += '<div style="color:var(--navy);font-size:13px;margin-top:0.25rem;">' + escHtml(t.dealership || "—") + ' · ' + escHtml((t.firstName || "") + " " + (t.lastName || "")) + '</div>';
+        html += '<div style="color:var(--mid);font-size:12px;margin-top:0.15rem;">' + escHtml((t.boatMake || "") + " " + (t.boatModel || "") + " " + (t.year || "")) + '</div>';
+        html += '<div style="color:var(--mid);font-size:12px;margin-top:0.15rem;">' + escHtml(t.serviceType || "—") + '</div>';
         if (t.roNumber || row.ro_number) {
-          html += '<div style="font-size:11px;color:var(--mid);margin-top:0.25rem;">RO# ' + escHtml(t.roNumber || row.ro_number) + "</div>";
+          html += '<div style="font-size:11px;color:var(--mid);margin-top:0.15rem;">RO# ' + escHtml(t.roNumber || row.ro_number) + '</div>';
         }
+        if (reasonText) {
+          html += '<div style="font-size:11px;color:' + badgeColor + ';margin-top:0.4rem;font-style:italic;">' + escHtml(reasonText) + '</div>';
+        }
+        html += '</div>';
+        html += '<div style="text-align:right;">';
         var reqAmt = parseFloat(row.requested_amount || t.requestedAmount || 0);
         var amtLabel = reqAmt > 0 ? "$" + reqAmt.toFixed(2) + " requested" : "Amount pending";
-        html += "<div style='margin-top:0.5rem;font-weight:600;color:var(--navy);'>" + amtLabel + "</div>";
-        html += "<div class='claims-queue-actions'>";
-        html += "<button type='button' class='btn-claims-approve' data-tid='" + escHtml(String(row.id)) + "'>Approve</button>";
-        html += "<button type='button' class='btn-claims-reject' data-tid='" + escHtml(String(row.id)) + "'>Reject</button>";
-        html += "</div></div>";
+        html += '<div style="font-weight:600;color:var(--navy);font-size:14px;">' + amtLabel + '</div>';
+        if (t.triageMarketTotal != null && t.triageMarketTotal > 0) {
+          html += '<div style="color:var(--mid);font-size:11px;margin-top:0.2rem;">Market: $' + t.triageMarketTotal.toFixed(2) + '</div>';
+        }
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
       });
       el.innerHTML = html;
-      el.querySelectorAll(".btn-claims-approve").forEach(function(btn) {
-        btn.addEventListener("click", function() {
-          claimsApprove(btn.getAttribute("data-tid"));
-        });
-      });
-      el.querySelectorAll(".btn-claims-reject").forEach(function(btn) {
-        btn.addEventListener("click", function() {
-          rejectTicket(btn.getAttribute("data-tid"));
-        });
-      });
-      el.querySelectorAll(".claims-queue-row").forEach(function(row) {
-        row.style.cursor = "pointer";
-        row.addEventListener("click", function(e) {
-          if (e.target.closest(".btn-claims-approve") || e.target.closest(".btn-claims-reject")) {
-            return;
-          }
-          var ticketId = row.getAttribute("data-ticket-id");
-          if (ticketId && typeof window.openTicketDetailPanel === "function") {
-            window.openTicketDetailPanel(ticketId);
+
+      el.querySelectorAll(".claims-queue-row").forEach(function(rowEl) {
+        rowEl.addEventListener("click", function() {
+          var id = rowEl.getAttribute("data-ticket-id");
+          if (id && typeof window.openTicketDetailPanel === "function") {
+            window.openTicketDetailPanel(id);
           }
         });
       });
     } catch (e) {
-      el.innerHTML = "<div class='renewals-empty'>Could not load claims. Please try again.</div>";
+      console.error("claimsLoadPending error:", e);
+      el.innerHTML = "<div class='renewals-empty'>Could not load pending tickets. Please try again.</div>";
     }
   }
 
