@@ -221,6 +221,183 @@ function mapTicketFromRow(row) {
   };
 }
 
+// Sprint 2: triage function — computes green/yellow/red color for a ticket.
+// Pure function: no DB writes, no DOM changes.
+// Inputs:
+//   ticket: { engine_hours, service_type, service_date, requested_amount, hin, ro_number }
+//   contract: { enrollment_effective_date, engine_hours_at_enrollment }  (can be null)
+//   marketPrices: array of { service_name, standard_price } rows
+// Returns: { color, reasons, marketTotal, computedAt }
+window.computeTicketTriage = function(ticket, contract, marketPrices) {
+  var reasons = [];
+  var marketTotal = 0;
+  var unknownServices = [];
+  ticket = ticket || {};
+  contract = contract || null;
+  marketPrices = Array.isArray(marketPrices) ? marketPrices : [];
+
+  // --- Required data check ---
+  var dataIssues = [];
+  if (!ticket.hin || String(ticket.hin).length !== 12) dataIssues.push("HIN must be exactly 12 characters");
+  if (!ticket.ro_number || !String(ticket.ro_number).trim()) dataIssues.push("RO# missing");
+  if (!ticket.service_type || !String(ticket.service_type).trim()) dataIssues.push("Service type missing");
+  if (!ticket.service_date) dataIssues.push("Service date missing");
+  var reqAmt = parseFloat(ticket.requested_amount);
+  if (isNaN(reqAmt) || reqAmt <= 0) dataIssues.push("Requested amount must be greater than 0");
+  if (!contract) dataIssues.push("No matching contract found for this HIN");
+  else if (!contract.enrollment_effective_date) dataIssues.push("Contract has no enrollment effective date");
+  if (dataIssues.length > 0) {
+    reasons.push({ rule: "data_complete", status: "fail", detail: dataIssues.join("; ") });
+  } else {
+    reasons.push({ rule: "data_complete", status: "pass", detail: "All required fields present" });
+  }
+
+  // --- 30-day rule (strict) ---
+  if (contract && contract.enrollment_effective_date && ticket.service_date) {
+    var effDate = new Date(contract.enrollment_effective_date);
+    var svcDate = new Date(ticket.service_date);
+    if (!isNaN(effDate.getTime()) && !isNaN(svcDate.getTime())) {
+      var daysSince = Math.floor((svcDate - effDate) / (1000 * 60 * 60 * 24));
+      if (daysSince < 30) {
+        reasons.push({
+          rule: "30_day",
+          status: "fail",
+          detail: "Service performed " + daysSince + " day(s) after enrollment (minimum 30 required — hard line, no tolerance)"
+        });
+      } else {
+        reasons.push({
+          rule: "30_day",
+          status: "pass",
+          detail: daysSince + " day(s) since enrollment effective date"
+        });
+      }
+    }
+  }
+
+  // --- 25-hour rule (with 5-hour tolerance, except Winterize/De-Winterize) ---
+  var servicesRaw = (ticket.service_type || "").split(",").map(function(s) { return s.trim(); }).filter(Boolean);
+  var winterizeSet = { "Winterization": true, "De-Winterization": true };
+  var nonWinterizeServices = servicesRaw.filter(function(s) { return !winterizeSet[s]; });
+  if (nonWinterizeServices.length === 0) {
+    // Ticket is exclusively Winterize/De-Winterize → skip hour check
+    reasons.push({
+      rule: "25_hour",
+      status: "skipped",
+      detail: "Winterize/De-Winterize services exempt from 25-hour rule"
+    });
+  } else {
+    if (!contract || contract.engine_hours_at_enrollment == null) {
+      reasons.push({
+        rule: "25_hour",
+        status: "fail",
+        detail: "Cannot verify hour rule — engine hours baseline not captured at enrollment"
+      });
+    } else {
+      var ticketHours = parseFloat(ticket.engine_hours);
+      var baselineHours = parseFloat(contract.engine_hours_at_enrollment);
+      if (isNaN(ticketHours)) {
+        reasons.push({
+          rule: "25_hour",
+          status: "fail",
+          detail: "Ticket engine hours are missing or invalid"
+        });
+      } else {
+        var hoursSince = ticketHours - baselineHours;
+        if (hoursSince < 0) {
+          reasons.push({
+            rule: "25_hour",
+            status: "fail",
+            detail: "Ticket engine hours (" + ticketHours + ") is LESS than enrollment baseline (" + baselineHours + ") — data entry error"
+          });
+        } else if (hoursSince >= 25) {
+          reasons.push({
+            rule: "25_hour",
+            status: "pass",
+            detail: hoursSince.toFixed(1) + " hours since enrollment baseline (minimum 25)"
+          });
+        } else if (hoursSince >= 20) {
+          reasons.push({
+            rule: "25_hour",
+            status: "yellow",
+            detail: hoursSince.toFixed(1) + " hours since enrollment baseline (within 5-hour tolerance of 25 minimum)"
+          });
+        } else {
+          reasons.push({
+            rule: "25_hour",
+            status: "fail",
+            detail: hoursSince.toFixed(1) + " hours since enrollment baseline (minimum 25 required)"
+          });
+        }
+      }
+    }
+  }
+
+  // --- Price rule (multi-service aware) ---
+  if (servicesRaw.length > 0) {
+    var priceMap = {};
+    marketPrices.forEach(function(p) {
+      if (p && p.service_name) priceMap[p.service_name.toLowerCase()] = parseFloat(p.standard_price) || 0;
+    });
+    servicesRaw.forEach(function(s) {
+      var price = priceMap[s.toLowerCase()];
+      if (price == null) {
+        unknownServices.push(s);
+      } else {
+        marketTotal += price;
+      }
+    });
+    if (unknownServices.length === servicesRaw.length) {
+      // All services unknown → yellow
+      reasons.push({
+        rule: "price",
+        status: "yellow",
+        detail: "No market price data for: " + unknownServices.join(", ") + " — admin review required"
+      });
+    } else if (unknownServices.length > 0) {
+      // Some unknown → yellow even if known ones price out fine
+      reasons.push({
+        rule: "price",
+        status: "yellow",
+        detail: "Unknown service(s): " + unknownServices.join(", ") + ". Known services totaled $" + marketTotal.toFixed(2) + " — full comparison not possible"
+      });
+    } else if (!isNaN(reqAmt) && reqAmt > 0) {
+      var pctOver = ((reqAmt - marketTotal) / marketTotal) * 100;
+      if (reqAmt <= marketTotal) {
+        reasons.push({
+          rule: "price",
+          status: "pass",
+          detail: "Requested $" + reqAmt.toFixed(2) + " is at or below market total of $" + marketTotal.toFixed(2)
+        });
+      } else if (pctOver <= 15) {
+        reasons.push({
+          rule: "price",
+          status: "yellow",
+          detail: "Requested $" + reqAmt.toFixed(2) + " is " + pctOver.toFixed(1) + "% above market total of $" + marketTotal.toFixed(2) + " (within 15% tolerance)"
+        });
+      } else {
+        reasons.push({
+          rule: "price",
+          status: "fail",
+          detail: "Requested $" + reqAmt.toFixed(2) + " is " + pctOver.toFixed(1) + "% above market total of $" + marketTotal.toFixed(2) + " (exceeds 15% threshold)"
+        });
+      }
+    }
+  }
+
+  // --- Final color resolution ---
+  var hasFail = reasons.some(function(r) { return r.status === "fail"; });
+  var hasYellow = reasons.some(function(r) { return r.status === "yellow"; });
+  var color = hasFail ? "red" : (hasYellow ? "yellow" : "green");
+
+  return {
+    color: color,
+    reasons: reasons,
+    marketTotal: marketTotal,
+    unknownServices: unknownServices,
+    computedAt: new Date().toISOString()
+  };
+};
+
 function pad2(n) {
   return (n < 10 ? "0" : "") + n;
 }
