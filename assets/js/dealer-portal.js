@@ -6148,11 +6148,16 @@ document.addEventListener("DOMContentLoaded", function() {
       submitBtn.disabled = true;
       submitBtn.textContent = "Adding…";
       try {
+        // Generate placeholder username/password — legacy NOT NULL columns from pre-Supabase-Auth era.
+        // Real auth is via auth_id + Supabase Auth; these fields are dead.
+        var placeholderSuffix = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10);
         var payload = {
           dealership_name: name,
           organization_id: orgId,
           active: true,
-          is_admin: false
+          is_admin: false,
+          username: "loc-" + placeholderSuffix,
+          password: "unused"
         };
         var addr = (addressInput.value || "").trim();
         var phone = (phoneInput.value || "").trim();
