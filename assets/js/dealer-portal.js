@@ -5791,16 +5791,32 @@ document.addEventListener("DOMContentLoaded", function() {
         if (usersCard) usersCard.style.display = "block";
         if (invCard) invCard.style.display = "block";
         if (locCard) locCard.style.display = "block";
-        if (u.role === "principal" && addLocBtn) {
-          addLocBtn.style.display = "inline-block";
-        }
         if (u.organization_id) {
           loadSettingsUsersList(u.organization_id);
           loadSettingsInvitationsList(u.organization_id);
           wireInviteUserModal(u.organization_id);
           loadSettingsLocationsList(u.organization_id);
+          // RLS BUG: dealers INSERT rejected with 42501 even under wide-open policy.
+          // Sprint 3 Commit 3b-iv-cleanup hides the Add Location button until root cause
+          // is identified. The Locations LIST view still works correctly.
+          // To re-enable: uncomment below + restore the dealers_insert_principal SQL policy.
+          // if (u.role === "principal") {
+          //   document.getElementById("settings-add-location-btn").style.display = "inline-block";
+          //   wireAddLocationModal(u.organization_id);
+          // }
+          // Temporary placeholder so principals know new locations need manual setup
           if (u.role === "principal") {
-            wireAddLocationModal(u.organization_id);
+            var locsCard = document.getElementById("settings-locations-card");
+            if (locsCard) {
+              var existingNote = document.getElementById("add-location-pending-note");
+              if (!existingNote) {
+                var note = document.createElement("div");
+                note.id = "add-location-pending-note";
+                note.style.cssText = "margin-top:0.75rem;padding:8px 12px;background:#FEF3C7;border-left:3px solid var(--gold);border-radius:4px;font-size:12px;color:var(--navy);";
+                note.innerHTML = "Need to add a new location? Email <a href=\"mailto:support@whitestone-partners.com\" style=\"color:var(--navy);font-weight:600;\">support@whitestone-partners.com</a> and we will get it set up.";
+                locsCard.appendChild(note);
+              }
+            }
           }
         }
       }
