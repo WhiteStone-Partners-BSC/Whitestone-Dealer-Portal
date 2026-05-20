@@ -5678,6 +5678,11 @@ document.addEventListener("DOMContentLoaded", function() {
     if (!bodyEl) return;
     bodyEl.innerHTML = '<div style="color:var(--mid);font-style:italic;">Loading…</div>';
 
+    var usersCard = document.getElementById("settings-users-card");
+    var invCard = document.getElementById("settings-invitations-card");
+    if (usersCard) usersCard.style.display = "none";
+    if (invCard) invCard.style.display = "none";
+
     var ROLE_LABELS = {
       principal: "Principal",
       org_admin: "Org Admin",
@@ -5694,7 +5699,7 @@ document.addEventListener("DOMContentLoaded", function() {
         bodyEl.innerHTML = '<div style="color:var(--mid);">You are not signed in.</div>';
         return;
       }
-      var url = SUPABASE_URL + "/rest/v1/users?auth_id=eq." + encodeURIComponent(authId) + "&select=id,email,full_name,role,status&limit=1";
+      var url = SUPABASE_URL + "/rest/v1/users?auth_id=eq." + encodeURIComponent(authId) + "&select=id,email,full_name,role,status,organization_id&limit=1";
       var res = await fetch(url, { headers: supabaseHeaders() });
       var rows = await res.json();
 
@@ -5777,12 +5782,280 @@ document.addEventListener("DOMContentLoaded", function() {
           }
         });
       }
+
+      if (u.role === "principal" || u.role === "org_admin") {
+        if (usersCard) usersCard.style.display = "block";
+        if (invCard) invCard.style.display = "block";
+        if (u.organization_id) {
+          loadSettingsUsersList(u.organization_id);
+          loadSettingsInvitationsList(u.organization_id);
+          wireInviteUserModal(u.organization_id);
+        }
+      }
     } catch (e) {
       console.error("loadSettingsTab error:", e);
       bodyEl.innerHTML = '<div style="color:var(--mid);">Could not load profile. Please try again.</div>';
     }
   }
   window.loadSettingsTab = loadSettingsTab;
+
+  async function loadSettingsUsersList(orgId) {
+    var bodyEl = document.getElementById("settings-users-body");
+    if (!bodyEl) return;
+    bodyEl.innerHTML = '<div style="color:var(--mid);font-style:italic;">Loading…</div>';
+
+    var ROLE_LABELS = {
+      principal: "Principal",
+      org_admin: "Org Admin",
+      location_manager: "Location Manager",
+      sales: "Sales",
+      service: "Service",
+      accountant: "Accountant"
+    };
+    var STATUS_COLORS = {
+      active: "#2D8F3F",
+      invited: "#D4A017",
+      deactivated: "#888"
+    };
+
+    try {
+      var res = await fetch(
+        SUPABASE_URL + "/rest/v1/users?organization_id=eq." + encodeURIComponent(orgId) + "&select=id,email,full_name,role,status&order=role,email",
+        { headers: supabaseHeaders() }
+      );
+      var rows = await res.json();
+      if (!Array.isArray(rows)) rows = [];
+      rows = rows.filter(function(r) { return r.status !== "deactivated"; });
+      if (rows.length === 0) {
+        bodyEl.innerHTML = '<div style="color:var(--mid);">No users yet.</div>';
+        return;
+      }
+      var html = '<div style="display:flex;flex-direction:column;gap:0.5rem;">';
+      rows.forEach(function(r) {
+        var friendlyRole = ROLE_LABELS[r.role] || r.role;
+        var statusColor = STATUS_COLORS[r.status] || "var(--mid)";
+        var statusLabel = (r.status || "unknown").toUpperCase();
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem;border:1px solid var(--border);border-radius:6px;background:white;flex-wrap:wrap;gap:0.5rem;">';
+        html += '<div style="flex:1;min-width:200px;">';
+        html += '<div style="font-weight:600;color:var(--navy);font-size:14px;">' + escHtml(r.full_name || r.email) + "</div>";
+        if (r.full_name) html += '<div style="font-size:12px;color:var(--mid);">' + escHtml(r.email) + "</div>";
+        html += "</div>";
+        html += '<div style="display:flex;align-items:center;gap:0.75rem;">';
+        html += '<span style="font-size:12px;color:var(--navy);">' + escHtml(friendlyRole) + "</span>";
+        html += '<span style="background:' + statusColor + ';color:white;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;letter-spacing:0.05em;">' + escHtml(statusLabel) + "</span>";
+        html += "</div>";
+        html += "</div>";
+      });
+      html += "</div>";
+      bodyEl.innerHTML = html;
+    } catch (e) {
+      console.error("loadSettingsUsersList:", e);
+      bodyEl.innerHTML = '<div style="color:var(--mid);">Could not load users.</div>';
+    }
+  }
+
+  async function loadSettingsInvitationsList(orgId) {
+    var bodyEl = document.getElementById("settings-invitations-body");
+    if (!bodyEl) return;
+    bodyEl.innerHTML = '<div style="color:var(--mid);font-style:italic;">Loading…</div>';
+
+    var ROLE_LABELS = {
+      org_admin: "Org Admin",
+      location_manager: "Location Manager",
+      sales: "Sales",
+      service: "Service",
+      accountant: "Accountant"
+    };
+
+    try {
+      var res = await fetch(
+        SUPABASE_URL + "/rest/v1/user_invitations?organization_id=eq." + encodeURIComponent(orgId) + "&accepted_at=is.null&select=id,email,role,expires_at,created_at,invited_by_user_id&order=created_at.desc",
+        { headers: supabaseHeaders() }
+      );
+      var rows = await res.json();
+      if (!Array.isArray(rows) || rows.length === 0) {
+        bodyEl.innerHTML = '<div style="color:var(--mid);">No pending invitations.</div>';
+        return;
+      }
+      var html = '<div style="display:flex;flex-direction:column;gap:0.5rem;">';
+      rows.forEach(function(r) {
+        var friendlyRole = ROLE_LABELS[r.role] || r.role;
+        var expiresDate = r.expires_at ? new Date(r.expires_at).toLocaleDateString() : "—";
+        var sentDate = r.created_at ? new Date(r.created_at).toLocaleDateString() : "—";
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem;border:1px solid var(--border);border-radius:6px;background:white;flex-wrap:wrap;gap:0.5rem;">';
+        html += '<div style="flex:1;min-width:200px;">';
+        html += '<div style="font-weight:600;color:var(--navy);font-size:14px;">' + escHtml(r.email) + "</div>";
+        html += '<div style="font-size:12px;color:var(--mid);">' + escHtml(friendlyRole) + " · Sent " + escHtml(sentDate) + " · Expires " + escHtml(expiresDate) + "</div>";
+        html += "</div>";
+        html += '<button type="button" class="invite-cancel-row-btn" data-invitation-id="' + escHtml(String(r.id)) + '" style="background:white;border:1px solid var(--border);color:var(--navy);padding:6px 14px;border-radius:4px;font-size:12px;cursor:pointer;">Cancel</button>';
+        html += "</div>";
+      });
+      html += "</div>";
+      bodyEl.innerHTML = html;
+
+      bodyEl.querySelectorAll(".invite-cancel-row-btn").forEach(function(btn) {
+        btn.addEventListener("click", async function() {
+          var invId = btn.getAttribute("data-invitation-id");
+          if (!invId) return;
+          if (!confirm("Cancel this invitation? The invitee will no longer be able to use the link.")) return;
+          btn.disabled = true;
+          btn.textContent = "Cancelling…";
+          try {
+            await fetch(SUPABASE_URL + "/rest/v1/user_invitation_locations?invitation_id=eq." + encodeURIComponent(invId), {
+              method: "DELETE",
+              headers: supabaseHeaders()
+            });
+            await fetch(SUPABASE_URL + "/rest/v1/user_invitations?id=eq." + encodeURIComponent(invId), {
+              method: "DELETE",
+              headers: supabaseHeaders()
+            });
+            await loadSettingsInvitationsList(orgId);
+          } catch (e) {
+            alert("Could not cancel invitation. Please try again.");
+            btn.disabled = false;
+            btn.textContent = "Cancel";
+          }
+        });
+      });
+    } catch (e) {
+      console.error("loadSettingsInvitationsList:", e);
+      bodyEl.innerHTML = '<div style="color:var(--mid);">Could not load invitations.</div>';
+    }
+  }
+
+  function wireInviteUserModal(orgId) {
+    var inviteBtn = document.getElementById("settings-invite-btn");
+    var modal = document.getElementById("invite-user-modal");
+    var closeBtn = document.getElementById("invite-modal-close");
+    var cancelBtn = document.getElementById("invite-cancel-btn");
+    var submitBtn = document.getElementById("invite-submit-btn");
+    var roleSelect = document.getElementById("invite-role");
+    var locWrapper = document.getElementById("invite-locations-wrapper");
+    var locList = document.getElementById("invite-locations-list");
+    var emailInput = document.getElementById("invite-email");
+    var statusEl = document.getElementById("invite-status");
+
+    if (!inviteBtn || !modal) return;
+    if (inviteBtn._wired) return;
+    inviteBtn._wired = true;
+
+    function closeModal() {
+      modal.style.display = "none";
+      emailInput.value = "";
+      roleSelect.value = "";
+      locWrapper.style.display = "none";
+      statusEl.textContent = "";
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Send Invitation";
+    }
+
+    inviteBtn.addEventListener("click", async function() {
+      modal.style.display = "flex";
+      try {
+        var res = await fetch(
+          SUPABASE_URL + "/rest/v1/dealers?organization_id=eq." + encodeURIComponent(orgId) + "&select=id,dealership_name&order=dealership_name",
+          { headers: supabaseHeaders() }
+        );
+        var locs = await res.json();
+        if (Array.isArray(locs) && locs.length > 0) {
+          var locHtml = "";
+          locs.forEach(function(l) {
+            locHtml += '<label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:13px;">';
+            locHtml += '<input type="checkbox" class="invite-loc-checkbox" value="' + escHtml(String(l.id)) + '">';
+            locHtml += "<span>" + escHtml(l.dealership_name) + "</span>";
+            locHtml += "</label>";
+          });
+          locList.innerHTML = locHtml;
+        } else {
+          locList.innerHTML = '<div style="color:var(--mid);font-style:italic;font-size:12px;">No locations available.</div>';
+        }
+      } catch (e) {
+        locList.innerHTML = '<div style="color:var(--mid);">Could not load locations.</div>';
+      }
+    });
+
+    closeBtn.addEventListener("click", closeModal);
+    cancelBtn.addEventListener("click", closeModal);
+
+    roleSelect.addEventListener("change", function() {
+      if (roleSelect.value === "org_admin") {
+        locWrapper.style.display = "none";
+      } else if (roleSelect.value) {
+        locWrapper.style.display = "block";
+      } else {
+        locWrapper.style.display = "none";
+      }
+    });
+
+    submitBtn.addEventListener("click", async function() {
+      statusEl.textContent = "";
+      var email = (emailInput.value || "").trim();
+      var role = roleSelect.value;
+      if (!email || email.indexOf("@") < 0) {
+        statusEl.textContent = "Please enter a valid email.";
+        statusEl.style.color = "var(--gold)";
+        return;
+      }
+      if (!role) {
+        statusEl.textContent = "Please select a role.";
+        statusEl.style.color = "var(--gold)";
+        return;
+      }
+      var locationIds = [];
+      if (role !== "org_admin") {
+        document.querySelectorAll(".invite-loc-checkbox:checked").forEach(function(cb) {
+          locationIds.push(cb.value);
+        });
+        if (locationIds.length === 0) {
+          statusEl.textContent = "Please select at least one location.";
+          statusEl.style.color = "var(--gold)";
+          return;
+        }
+      }
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending…";
+      statusEl.textContent = "";
+      try {
+        var session = await window.supabase.auth.getSession();
+        var token = session && session.data && session.data.session ? session.data.session.access_token : null;
+        if (!token) {
+          statusEl.textContent = "Session expired. Please sign in again.";
+          statusEl.style.color = "var(--gold)";
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Send Invitation";
+          return;
+        }
+        var res = await fetch("/api/invite-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+          body: JSON.stringify({ email: email, role: role, location_ids: locationIds })
+        });
+        var body = await res.json();
+        if (res.ok) {
+          statusEl.textContent = body.email_sent ? "Invitation sent." : "Invitation created, but email delivery failed. Contact support if needed.";
+          statusEl.style.color = body.email_sent ? "#2D8F3F" : "var(--gold)";
+          setTimeout(function() {
+            closeModal();
+            loadSettingsInvitationsList(orgId);
+            loadSettingsUsersList(orgId);
+          }, 1500);
+        } else {
+          statusEl.textContent = body.error || "Could not send invitation.";
+          statusEl.style.color = "var(--gold)";
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Send Invitation";
+        }
+      } catch (e) {
+        statusEl.textContent = "Network error. Please try again.";
+        statusEl.style.color = "var(--gold)";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Send Invitation";
+      }
+    });
+  }
+  window.loadSettingsUsersList = loadSettingsUsersList;
+  window.loadSettingsInvitationsList = loadSettingsInvitationsList;
+  window.wireInviteUserModal = wireInviteUserModal;
 
   async function loadCustomersTab() {
     var box = document.getElementById("customers-container");
