@@ -6115,14 +6115,13 @@ document.addEventListener("DOMContentLoaded", function() {
       return;
     }
     var btn = document.getElementById("ticket-btn");
+    var origText = btn.textContent;
     btn.disabled = true; btn.textContent = "Submitting...";
     document.getElementById("t-ok").style.display = "none";
     document.getElementById("t-err").style.display = "none";
     var ticketNum = "WSP-" + new Date().getFullYear() + "-" + Math.floor(1000 + Math.random() * 9000);
-    var body = {
+    var ticketBody = {
       ticket_number: ticketNum,
-      dealer_id: currentDealer.id,
-      dealership_name: currentDealer.name,
       technician: document.getElementById("t-tech").value,
       customer_first_name: fname,
       customer_last_name: lname,
@@ -6132,34 +6131,54 @@ document.addEventListener("DOMContentLoaded", function() {
       boat_model: document.getElementById("t-model").value,
       boat_year: document.getElementById("t-year").value,
       hin: hinVal,
-      ro_number: roNumber,
       engine_hours: document.getElementById("t-hours").value,
       service_type: services || "General Service",
       service_date: document.getElementById("t-date").value,
       service_notes: document.getElementById("t-notes").value,
-      status: "pending",
+      ro_number: roNumber,
       requested_amount: requestedAmount
     };
     try {
-      var res = await fetch(SUPABASE_URL + "/rest/v1/tickets", {
+      var session = await window.supabase.auth.getSession();
+      var accessToken = session && session.data && session.data.session ? session.data.session.access_token : null;
+      if (!accessToken) {
+        alert("Session expired. Please sign out and back in.");
+        btn.disabled = false;
+        btn.textContent = origText;
+        return;
+      }
+
+      var submitRes = await fetch("/api/submit-ticket", {
         method: "POST",
-        headers: supabaseHeaders({ Prefer: "return=representation" }),
-        body: JSON.stringify(body)
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + accessToken },
+        body: JSON.stringify(ticketBody)
       });
-      var data = await res.json();
-      if (!res.ok) throw new Error();
-      var newTicket = Array.isArray(data) ? data[0] : data;
-      await fetch(SUPABASE_URL + "/rest/v1/reimbursements", {
-        method: "POST",
-        headers: supabaseHeaders({ Prefer: "return=representation" }),
-        body: JSON.stringify({
-          ticket_id: newTicket.id,
-          dealer_id: currentDealer.id,
-          dealership_name: currentDealer.name,
-          amount: requestedAmount,
-          status: "pending"
-        })
-      });
+
+      if (!submitRes.ok) {
+        var errText = await submitRes.text();
+        alert("Could not submit ticket.\n\nError: " + errText.substring(0, 300));
+        btn.disabled = false;
+        btn.textContent = origText;
+        return;
+      }
+
+      var result = await submitRes.json();
+      console.log("Ticket submitted:", result);
+      var newTicket = result.ticket;
+      ticketNum = (newTicket && newTicket.ticket_number) || ticketNum;
+
+      var colorMsg = "";
+      if (result.triage && result.triage.color) {
+        if (result.triage.color === "green") {
+          colorMsg = "\n\nStatus: Pending review (looks routine).";
+        } else if (result.triage.color === "yellow") {
+          colorMsg = "\n\nStatus: Pending review (admin will take a closer look).";
+        } else {
+          colorMsg = "\n\nStatus: Pending review (additional verification needed).";
+        }
+      }
+      alert("Service ticket submitted!" + colorMsg + "\n\nTicket #: " + ticketNum);
+
       await writeAuditLog("ticket", newTicket.id, "ticket_submitted", null, { hin: hinVal, services: services, requested_amount: requestedAmount }, currentDealer.name, fname + " " + lname, null);
       if (typeof window.onboardingMarkStep === "function") await window.onboardingMarkStep("first_ticket");
       var ticketEmailHtml =
