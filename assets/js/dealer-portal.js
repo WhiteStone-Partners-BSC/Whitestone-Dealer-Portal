@@ -5680,8 +5680,12 @@ document.addEventListener("DOMContentLoaded", function() {
 
     var usersCard = document.getElementById("settings-users-card");
     var invCard = document.getElementById("settings-invitations-card");
+    var locCard = document.getElementById("settings-locations-card");
+    var addLocBtn = document.getElementById("settings-add-location-btn");
     if (usersCard) usersCard.style.display = "none";
     if (invCard) invCard.style.display = "none";
+    if (locCard) locCard.style.display = "none";
+    if (addLocBtn) addLocBtn.style.display = "none";
 
     var ROLE_LABELS = {
       principal: "Principal",
@@ -5786,10 +5790,18 @@ document.addEventListener("DOMContentLoaded", function() {
       if (u.role === "principal" || u.role === "org_admin") {
         if (usersCard) usersCard.style.display = "block";
         if (invCard) invCard.style.display = "block";
+        if (locCard) locCard.style.display = "block";
+        if (u.role === "principal" && addLocBtn) {
+          addLocBtn.style.display = "inline-block";
+        }
         if (u.organization_id) {
           loadSettingsUsersList(u.organization_id);
           loadSettingsInvitationsList(u.organization_id);
           wireInviteUserModal(u.organization_id);
+          loadSettingsLocationsList(u.organization_id);
+          if (u.role === "principal") {
+            wireAddLocationModal(u.organization_id);
+          }
         }
       }
     } catch (e) {
@@ -6056,6 +6068,126 @@ document.addEventListener("DOMContentLoaded", function() {
   window.loadSettingsUsersList = loadSettingsUsersList;
   window.loadSettingsInvitationsList = loadSettingsInvitationsList;
   window.wireInviteUserModal = wireInviteUserModal;
+
+  async function loadSettingsLocationsList(orgId) {
+    var bodyEl = document.getElementById("settings-locations-body");
+    if (!bodyEl) return;
+    bodyEl.innerHTML = '<div style="color:var(--mid);font-style:italic;">Loading…</div>';
+    try {
+      var res = await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?organization_id=eq." + encodeURIComponent(orgId) + "&select=id,dealership_name,address,phone,active&order=dealership_name",
+        { headers: supabaseHeaders() }
+      );
+      var rows = await res.json();
+      if (!Array.isArray(rows) || rows.length === 0) {
+        bodyEl.innerHTML = '<div style="color:var(--mid);">No locations yet.</div>';
+        return;
+      }
+      var html = '<div style="display:flex;flex-direction:column;gap:0.5rem;">';
+      rows.forEach(function(r) {
+        var statusColor = r.active ? "#2D8F3F" : "#888";
+        var statusLabel = r.active ? "ACTIVE" : "INACTIVE";
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem;border:1px solid var(--border);border-radius:6px;background:white;flex-wrap:wrap;gap:0.5rem;">';
+        html += '<div style="flex:1;min-width:200px;">';
+        html += '<div style="font-weight:600;color:var(--navy);font-size:14px;">' + escHtml(r.dealership_name || "—") + "</div>";
+        if (r.address || r.phone) {
+          var meta = [];
+          if (r.address) meta.push(escHtml(r.address));
+          if (r.phone) meta.push(escHtml(r.phone));
+          html += '<div style="color:var(--mid);font-size:12px;margin-top:0.15rem;">' + meta.join(" · ") + "</div>";
+        }
+        html += "</div>";
+        html += '<span style="background:' + statusColor + ';color:white;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;letter-spacing:0.05em;">' + statusLabel + "</span>";
+        html += "</div>";
+      });
+      html += "</div>";
+      bodyEl.innerHTML = html;
+    } catch (e) {
+      console.error("loadSettingsLocationsList:", e);
+      bodyEl.innerHTML = '<div style="color:var(--mid);">Could not load locations.</div>';
+    }
+  }
+
+  function wireAddLocationModal(orgId) {
+    var addBtn = document.getElementById("settings-add-location-btn");
+    var modal = document.getElementById("add-location-modal");
+    var closeBtn = document.getElementById("add-location-close");
+    var cancelBtn = document.getElementById("add-location-cancel");
+    var submitBtn = document.getElementById("add-location-submit");
+    var nameInput = document.getElementById("add-location-name");
+    var addressInput = document.getElementById("add-location-address");
+    var phoneInput = document.getElementById("add-location-phone");
+    var statusEl = document.getElementById("add-location-status");
+
+    if (!addBtn || !modal) return;
+    if (addBtn._wired) return;
+    addBtn._wired = true;
+
+    function closeModal() {
+      modal.style.display = "none";
+      nameInput.value = "";
+      addressInput.value = "";
+      phoneInput.value = "";
+      statusEl.textContent = "";
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Add Location";
+    }
+
+    addBtn.addEventListener("click", function() { modal.style.display = "flex"; });
+    closeBtn.addEventListener("click", closeModal);
+    cancelBtn.addEventListener("click", closeModal);
+
+    submitBtn.addEventListener("click", async function() {
+      statusEl.textContent = "";
+      var name = (nameInput.value || "").trim();
+      if (!name) {
+        statusEl.textContent = "Location name is required.";
+        statusEl.style.color = "var(--gold)";
+        return;
+      }
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Adding…";
+      try {
+        var payload = {
+          dealership_name: name,
+          organization_id: orgId,
+          active: true,
+          is_admin: false
+        };
+        var addr = (addressInput.value || "").trim();
+        var phone = (phoneInput.value || "").trim();
+        if (addr) payload.address = addr;
+        if (phone) payload.phone = phone;
+
+        var res = await fetch(SUPABASE_URL + "/rest/v1/dealers", {
+          method: "POST",
+          headers: supabaseHeaders({ "Content-Type": "application/json", Prefer: "return=representation" }),
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          statusEl.textContent = "Location added.";
+          statusEl.style.color = "#2D8F3F";
+          setTimeout(function() {
+            closeModal();
+            loadSettingsLocationsList(orgId);
+          }, 1200);
+        } else {
+          var errText = await res.text();
+          statusEl.textContent = "Could not add location. " + errText.substring(0, 150);
+          statusEl.style.color = "var(--gold)";
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Add Location";
+        }
+      } catch (e) {
+        statusEl.textContent = "Network error. Try again.";
+        statusEl.style.color = "var(--gold)";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Add Location";
+      }
+    });
+  }
+  window.loadSettingsLocationsList = loadSettingsLocationsList;
+  window.wireAddLocationModal = wireAddLocationModal;
 
   async function loadCustomersTab() {
     var box = document.getElementById("customers-container");
