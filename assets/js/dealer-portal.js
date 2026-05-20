@@ -5239,10 +5239,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
   function switchTab(name) {
     if (currentDealer && currentDealer.isAdmin) return;
-    if (name === "settings") {
-      dealerOpenSettings();
-      return;
-    }
     document.querySelectorAll("#dealer-main-content .tab-panel").forEach(function(p) {
       p.classList.remove("active");
       p.style.display = "none";
@@ -5264,6 +5260,7 @@ document.addEventListener("DOMContentLoaded", function() {
     if (name === "dashboard") loadDashboard();
     if (name === "history") loadTickets();
     if (name === "customers") loadCustomersTab();
+    if (name === "settings") loadSettingsTab();
     if (name === "billing-cart" && typeof window.loadBillingCart === "function") window.loadBillingCart();
   }
 
@@ -5512,10 +5509,6 @@ document.addEventListener("DOMContentLoaded", function() {
   document.querySelectorAll(".sidebar-nav-item").forEach(function(btn) {
     btn.addEventListener("click", function() {
       var panel = this.getAttribute("data-panel");
-      if (panel === "settings") {
-        dealerOpenSettings();
-        return;
-      }
       document.querySelectorAll(".sidebar-nav-item").forEach(function(b) {
         b.classList.remove("active");
       });
@@ -5679,6 +5672,117 @@ document.addEventListener("DOMContentLoaded", function() {
       renderCustomerCards();
     });
   }
+
+  async function loadSettingsTab() {
+    var bodyEl = document.getElementById("settings-profile-body");
+    if (!bodyEl) return;
+    bodyEl.innerHTML = '<div style="color:var(--mid);font-style:italic;">Loading…</div>';
+
+    var ROLE_LABELS = {
+      principal: "Principal",
+      org_admin: "Org Admin",
+      location_manager: "Location Manager",
+      sales: "Sales",
+      service: "Service",
+      accountant: "Accountant"
+    };
+
+    try {
+      var sessionRes = await window.supabase.auth.getSession();
+      var authId = sessionRes && sessionRes.data && sessionRes.data.session && sessionRes.data.session.user ? sessionRes.data.session.user.id : null;
+      if (!authId) {
+        bodyEl.innerHTML = '<div style="color:var(--mid);">You are not signed in.</div>';
+        return;
+      }
+      var url = SUPABASE_URL + "/rest/v1/users?auth_id=eq." + encodeURIComponent(authId) + "&select=id,email,full_name,role,status&limit=1";
+      var res = await fetch(url, { headers: supabaseHeaders() });
+      var rows = await res.json();
+
+      if (!Array.isArray(rows) || rows.length === 0) {
+        bodyEl.innerHTML =
+          '<div style="color:var(--mid);font-size:13px;">No multi-user profile is set up for this account.</div>' +
+          '<div style="color:var(--mid);font-size:11px;margin-top:0.5rem;">If you believe this is an error, contact support@whitestone-partners.com.</div>';
+        return;
+      }
+
+      var u = rows[0];
+      var friendlyRole = ROLE_LABELS[u.role] || u.role;
+      var html = "";
+      html += '<div style="display:flex;flex-direction:column;gap:1rem;">';
+
+      html += "<div>";
+      html += '<label style="display:block;font-size:11px;color:var(--mid);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.25rem;">Full Name</label>';
+      html += '<input type="text" id="settings-full-name" maxlength="100" value="' + escHtml(u.full_name || "") + '" placeholder="Your name" style="padding:8px 12px;border:1px solid var(--border);border-radius:4px;font-size:14px;width:100%;max-width:400px;">';
+      html += "</div>";
+
+      html += "<div>";
+      html += '<label style="display:block;font-size:11px;color:var(--mid);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.25rem;">Email</label>';
+      html += '<div style="font-size:14px;color:var(--navy);">' + escHtml(u.email) + "</div>";
+      html += '<div style="font-size:11px;color:var(--mid);margin-top:0.15rem;">To change your email, contact support@whitestone-partners.com.</div>';
+      html += "</div>";
+
+      html += "<div>";
+      html += '<label style="display:block;font-size:11px;color:var(--mid);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.25rem;">Role</label>';
+      html += '<div style="font-size:14px;color:var(--navy);">' + escHtml(friendlyRole) + "</div>";
+      html += "</div>";
+
+      html += '<div style="margin-top:0.5rem;">';
+      html += '<button type="button" id="settings-save-btn" style="background:var(--navy);color:white;border:none;padding:8px 18px;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer;">Save Name</button>';
+      html += '<span id="settings-save-status" style="margin-left:0.75rem;font-size:12px;color:var(--mid);"></span>';
+      html += "</div>";
+
+      html += "</div>";
+      bodyEl.innerHTML = html;
+
+      var saveBtn = document.getElementById("settings-save-btn");
+      if (saveBtn) {
+        saveBtn.addEventListener("click", async function() {
+          var input = document.getElementById("settings-full-name");
+          var statusEl = document.getElementById("settings-save-status");
+          var newName = (input.value || "").trim();
+          if (newName.length === 0) {
+            if (statusEl) {
+              statusEl.textContent = "Name cannot be empty.";
+              statusEl.style.color = "var(--gold)";
+            }
+            return;
+          }
+          saveBtn.disabled = true;
+          var origText = saveBtn.textContent;
+          saveBtn.textContent = "Saving…";
+          if (statusEl) statusEl.textContent = "";
+          try {
+            var patchRes = await fetch(SUPABASE_URL + "/rest/v1/users?auth_id=eq." + encodeURIComponent(authId), {
+              method: "PATCH",
+              headers: supabaseHeaders({ "Content-Type": "application/json", Prefer: "return=minimal" }),
+              body: JSON.stringify({ full_name: newName })
+            });
+            if (patchRes.ok) {
+              if (statusEl) {
+                statusEl.textContent = "Saved.";
+                statusEl.style.color = "var(--mid)";
+              }
+            } else if (statusEl) {
+              statusEl.textContent = "Could not save. Please try again.";
+              statusEl.style.color = "var(--gold)";
+            }
+          } catch (e) {
+            if (statusEl) {
+              statusEl.textContent = "Network error. Please try again.";
+              statusEl.style.color = "var(--gold)";
+            }
+          } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = origText;
+          }
+        });
+      }
+    } catch (e) {
+      console.error("loadSettingsTab error:", e);
+      bodyEl.innerHTML = '<div style="color:var(--mid);">Could not load profile. Please try again.</div>';
+    }
+  }
+  window.loadSettingsTab = loadSettingsTab;
 
   async function loadCustomersTab() {
     var box = document.getElementById("customers-container");
