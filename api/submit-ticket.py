@@ -41,17 +41,17 @@ def compute_ticket_triage(ticket, contract, market_prices):
         data_issues.append("Requested amount must be greater than 0")
     if not contract:
         data_issues.append("No matching contract found for this HIN")
-    elif not contract.get("enrollment_effective_date"):
-        data_issues.append("Contract has no enrollment effective date")
+    elif not contract.get("start_date"):
+        data_issues.append("Contract has no start date")
     if data_issues:
         reasons.append({"rule": "data_complete", "status": "fail", "detail": "; ".join(data_issues)})
     else:
         reasons.append({"rule": "data_complete", "status": "pass", "detail": "All required fields present"})
 
     # --- 30-day rule (strict) ---
-    if contract and contract.get("enrollment_effective_date") and svc_date:
+    if contract and contract.get("start_date") and svc_date:
         try:
-            eff_raw = contract["enrollment_effective_date"]
+            eff_raw = contract["start_date"]
             svc_raw = svc_date
             eff = datetime.fromisoformat(eff_raw.replace("Z", "+00:00") if "T" in eff_raw else eff_raw)
             sv = datetime.fromisoformat(svc_raw.replace("Z", "+00:00") if "T" in svc_raw else svc_raw)
@@ -59,12 +59,12 @@ def compute_ticket_triage(ticket, contract, market_prices):
             if days_since < 30:
                 reasons.append({
                     "rule": "30_day", "status": "fail",
-                    "detail": f"Service performed {days_since} day(s) after enrollment (minimum 30 required — hard line, no tolerance)"
+                    "detail": f"Service performed {days_since} day(s) after contract start date (minimum 30 required — hard line, no tolerance)"
                 })
             else:
                 reasons.append({
                     "rule": "30_day", "status": "pass",
-                    "detail": f"{days_since} day(s) since enrollment effective date"
+                    "detail": f"{days_since} day(s) since contract start date"
                 })
         except (ValueError, TypeError, AttributeError):
             reasons.append({"rule": "30_day", "status": "fail", "detail": "Could not parse dates for 30-day check"})
@@ -245,8 +245,8 @@ class handler(BaseHTTPRequestHandler):
             q_dealer = urllib_parse.quote(dealer["id"], safe="")
             contracts = self._supabase_get(
                 f"contracts?hin=eq.{q_hin}&dealer_id=eq.{q_dealer}"
-                f"&select=id,enrollment_effective_date,engine_hours_at_enrollment"
-                f"&order=enrollment_effective_date.desc.nullslast&limit=1"
+                f"&select=id,start_date,engine_hours_at_enrollment"
+                f"&order=start_date.desc.nullslast&limit=1"
             )
         except Exception as e:
             return self._send_json(500, {"error": f"Contract lookup failed: {str(e)[:200]}"})

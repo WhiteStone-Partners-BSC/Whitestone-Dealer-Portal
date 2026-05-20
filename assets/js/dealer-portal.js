@@ -225,7 +225,7 @@ function mapTicketFromRow(row) {
 // Pure function: no DB writes, no DOM changes.
 // Inputs:
 //   ticket: { engine_hours, service_type, service_date, requested_amount, hin, ro_number }
-//   contract: { enrollment_effective_date, engine_hours_at_enrollment }  (can be null)
+//   contract: { start_date, engine_hours_at_enrollment }  (can be null)
 //   marketPrices: array of { service_name, standard_price } rows
 // Returns: { color, reasons, marketTotal, computedAt }
 window.computeTicketTriage = function(ticket, contract, marketPrices) {
@@ -245,7 +245,7 @@ window.computeTicketTriage = function(ticket, contract, marketPrices) {
   var reqAmt = parseFloat(ticket.requested_amount);
   if (isNaN(reqAmt) || reqAmt <= 0) dataIssues.push("Requested amount must be greater than 0");
   if (!contract) dataIssues.push("No matching contract found for this HIN");
-  else if (!contract.enrollment_effective_date) dataIssues.push("Contract has no enrollment effective date");
+  else if (!contract.start_date) dataIssues.push("Contract has no start date");
   if (dataIssues.length > 0) {
     reasons.push({ rule: "data_complete", status: "fail", detail: dataIssues.join("; ") });
   } else {
@@ -253,8 +253,8 @@ window.computeTicketTriage = function(ticket, contract, marketPrices) {
   }
 
   // --- 30-day rule (strict) ---
-  if (contract && contract.enrollment_effective_date && ticket.service_date) {
-    var effDate = new Date(contract.enrollment_effective_date);
+  if (contract && contract.start_date && ticket.service_date) {
+    var effDate = new Date(contract.start_date);
     var svcDate = new Date(ticket.service_date);
     if (!isNaN(effDate.getTime()) && !isNaN(svcDate.getTime())) {
       var daysSince = Math.floor((svcDate - effDate) / (1000 * 60 * 60 * 24));
@@ -262,13 +262,13 @@ window.computeTicketTriage = function(ticket, contract, marketPrices) {
         reasons.push({
           rule: "30_day",
           status: "fail",
-          detail: "Service performed " + daysSince + " day(s) after enrollment (minimum 30 required — hard line, no tolerance)"
+          detail: "Service performed " + daysSince + " day(s) after contract start date (minimum 30 required — hard line, no tolerance)"
         });
       } else {
         reasons.push({
           rule: "30_day",
           status: "pass",
-          detail: daysSince + " day(s) since enrollment effective date"
+          detail: daysSince + " day(s) since contract start date"
         });
       }
     }
