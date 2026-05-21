@@ -5493,10 +5493,30 @@ document.addEventListener("DOMContentLoaded", function() {
     if (stCustL) stCustL.textContent = "…";
     if (earnElL) earnElL.textContent = "…";
     renewalsEl.innerHTML = "<div class='renewals-loading'>Loading renewal dates…</div>";
+    // === Phase 2B-ii filter routing (dealer branch only — admin path is untouched) ===
+    var filterClause = null;
+    if (!currentDealer.isAdmin) {
+      if (window.currentUser && window.currentUser.is_legacy) {
+        if (currentDealer.id) {
+          filterClause = "dealer_id=eq." + currentDealer.id;
+        }
+      } else {
+        var op = buildDealerIdFilter();
+        filterClause = op === null ? null : "dealer_id=" + op;
+      }
+      if (filterClause === null) {
+        if (stTixL) stTixL.textContent = "0";
+        if (stCustL) stCustL.textContent = "0";
+        if (earnElL) earnElL.textContent = "$0";
+        showLocationlessEmptyState(renewalsEl);
+        return;
+      }
+    }
+    // === end filter routing ===
     try {
       var tUrl = currentDealer.isAdmin
         ? SUPABASE_URL + "/rest/v1/tickets?select=*&order=created_at.desc"
-        : SUPABASE_URL + "/rest/v1/tickets?dealership_name=eq." + encodeURIComponent(currentDealer.name) + "&select=*&order=created_at.desc";
+        : SUPABASE_URL + "/rest/v1/tickets?" + filterClause + "&select=*&order=created_at.desc";
       var tRes = await fetch(tUrl, { headers: supabaseHeaders() });
       var tRows = await tRes.json();
       if (!tRes.ok) throw new Error();
@@ -5504,11 +5524,11 @@ document.addEventListener("DOMContentLoaded", function() {
       dealerContractCount = 0;
       renewalContractsDealer = [];
       if (!currentDealer.isAdmin) {
-        var cUrl = SUPABASE_URL + "/rest/v1/contracts?dealership_name=eq." + encodeURIComponent(currentDealer.name) + "&status=eq.active&select=id";
+        var cUrl = SUPABASE_URL + "/rest/v1/contracts?" + filterClause + "&status=eq.active&select=id";
         var cRes = await fetch(cUrl, { headers: supabaseHeaders() });
         var cRows = await cRes.json();
         if (cRes.ok && Array.isArray(cRows)) dealerContractCount = cRows.length;
-        var renUrl = SUPABASE_URL + "/rest/v1/contracts?dealership_name=eq." + encodeURIComponent(currentDealer.name) + "&status=eq.active&select=*";
+        var renUrl = SUPABASE_URL + "/rest/v1/contracts?" + filterClause + "&status=eq.active&select=*";
         var renRes = await fetch(renUrl, { headers: supabaseHeaders() });
         var renRows = await renRes.json();
         if (renRes.ok && Array.isArray(renRows)) {
