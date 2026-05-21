@@ -1061,9 +1061,20 @@ window.csGeneratePreview = async function() {
       }
     }
 
+    // Call PDF generator (requires Supabase Bearer token)
+    var session = await window.supabase.auth.getSession();
+    var accessToken = session && session.data && session.data.session
+      ? session.data.session.access_token
+      : null;
+    if (!accessToken) {
+      throw new Error("No active session — please sign in again.");
+    }
     var pdfRes = await fetch("/api/generate-dealer-agreement-pdf", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + accessToken
+      },
       body: JSON.stringify({ dealerId: csCurrentDealerId })
     });
     if (!pdfRes.ok) {
