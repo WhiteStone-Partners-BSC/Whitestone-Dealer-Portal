@@ -882,6 +882,213 @@ async function messagesSaveNote(id) {
   setTimeout(function() { note.style.borderColor = ""; }, 1500);
 }
 
+// =========================================================================
+// Phase 5A — Configure & Send Agreement slide-in panel
+// =========================================================================
+var csCurrentApp = null;
+var csCurrentDealerId = null;
+
+window.openConfigureAndSend = function(appId) {
+  var app = (applicationsLastData && applicationsLastData.pending)
+    ? applicationsLastData.pending.find(function(p) { return String(p.id) === String(appId); })
+    : null;
+  if (!app) {
+    alert("Application not found. Refresh and try again.");
+    return;
+  }
+  csCurrentApp = app;
+  csCurrentDealerId = null;
+
+  document.getElementById("cs-panel-sub").textContent = app.dealership_name || "Pending application";
+  document.getElementById("cs-ro-name").textContent = app.contact_name
+    || ([app.contact_first_name, app.contact_last_name].filter(Boolean).join(" "))
+    || "—";
+  document.getElementById("cs-ro-email").textContent = app.email || "—";
+  document.getElementById("cs-ro-phone").textContent = app.phone || "—";
+  var srcLabel = "Web";
+  if (app.referral_source && app.referral_source.indexOf("box_campaign") === 0) {
+    var slug = app.referral_source.split(":")[1] || "";
+    srcLabel = slug ? "Box Campaign (" + slug + ")" : "Box Campaign";
+  }
+  document.getElementById("cs-ro-source").textContent = srcLabel;
+
+  ["cs-legal-name", "cs-dba", "cs-biz-address", "cs-biz-city", "cs-biz-state",
+   "cs-biz-zip", "cs-ein", "cs-brands", "cs-ar-name", "cs-ar-phone",
+   "cs-ar-email", "cs-routing", "cs-account"].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+
+  document.getElementById("cs-legal-name").value = app.dealership_name || "";
+  document.getElementById("cs-biz-city").value = app.city || "";
+  document.getElementById("cs-biz-state").value = app.state || "";
+  document.getElementById("cs-biz-zip").value = app.zip || "";
+  document.getElementById("cs-biz-address").value = app.address || "";
+  document.getElementById("cs-brands").value = app.boat_brands || "";
+
+  document.getElementById("cs-pdf-preview-area").style.display = "none";
+  document.getElementById("cs-error").style.display = "none";
+
+  document.getElementById("cs-panel-backdrop").style.display = "block";
+  document.getElementById("cs-panel").style.display = "flex";
+};
+
+window.closeConfigureAndSend = function() {
+  document.getElementById("cs-panel-backdrop").style.display = "none";
+  document.getElementById("cs-panel").style.display = "none";
+  csCurrentApp = null;
+  csCurrentDealerId = null;
+};
+
+function csShowError(msg) {
+  var el = document.getElementById("cs-error");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+function csClearError() {
+  var el = document.getElementById("cs-error");
+  if (el) el.style.display = "none";
+}
+
+function csCollectForm() {
+  return {
+    legal_business_name: document.getElementById("cs-legal-name").value.trim(),
+    dba: document.getElementById("cs-dba").value.trim(),
+    business_address: document.getElementById("cs-biz-address").value.trim(),
+    business_city: document.getElementById("cs-biz-city").value.trim(),
+    business_state: document.getElementById("cs-biz-state").value.trim(),
+    business_zip: document.getElementById("cs-biz-zip").value.trim(),
+    ein: document.getElementById("cs-ein").value.trim(),
+    brands_carried: document.getElementById("cs-brands").value.trim(),
+    ar_contact_name: document.getElementById("cs-ar-name").value.trim(),
+    ar_phone: document.getElementById("cs-ar-phone").value.trim(),
+    ar_email: document.getElementById("cs-ar-email").value.trim(),
+    bank_routing_number: document.getElementById("cs-routing").value.trim(),
+    bank_account_number: document.getElementById("cs-account").value.trim()
+  };
+}
+
+function csValidateForm(data) {
+  var required = [
+    ["legal_business_name", "Legal business name"],
+    ["business_address", "Business address"],
+    ["business_city", "City"],
+    ["business_state", "State"],
+    ["business_zip", "ZIP"],
+    ["ein", "EIN"],
+    ["ar_contact_name", "AR contact name"],
+    ["ar_phone", "AR phone"],
+    ["ar_email", "AR email"],
+    ["bank_routing_number", "Bank routing number"],
+    ["bank_account_number", "Bank account number"]
+  ];
+  for (var i = 0; i < required.length; i++) {
+    if (!data[required[i][0]]) {
+      return required[i][1] + " is required.";
+    }
+  }
+  return null;
+}
+
+window.csGeneratePreview = async function() {
+  csClearError();
+  if (!csCurrentApp) {
+    csShowError("No application loaded.");
+    return;
+  }
+
+  var formData = csCollectForm();
+  var validationError = csValidateForm(formData);
+  if (validationError) {
+    csShowError(validationError);
+    return;
+  }
+
+  var previewBtn = document.getElementById("cs-preview-btn");
+  if (previewBtn) {
+    previewBtn.disabled = true;
+    previewBtn.textContent = "Generating...";
+  }
+
+  try {
+    var dealerPayload = Object.assign({}, formData, {
+      dealership_name: csCurrentApp.dealership_name,
+      email: csCurrentApp.email,
+      phone: csCurrentApp.phone,
+      contact_first_name: csCurrentApp.contact_first_name
+        || (csCurrentApp.contact_name ? String(csCurrentApp.contact_name).trim().split(/\s+/)[0] || null : null),
+      contact_last_name: csCurrentApp.contact_last_name
+        || (csCurrentApp.contact_name ? (String(csCurrentApp.contact_name).trim().split(/\s+/).slice(1).join(" ") || null) : null),
+      username: csCurrentApp.email,
+      password: "PENDING_AGREEMENT",
+      enrollment_status: "submitted",
+      active: false,
+      is_admin: false
+    });
+
+    if (!csCurrentDealerId) {
+      var createRes = await fetch(SUPABASE_URL + "/rest/v1/dealers", {
+        method: "POST",
+        headers: Object.assign({}, authHeaders(), {
+          "Content-Type": "application/json",
+          "Prefer": "return=representation"
+        }),
+        body: JSON.stringify(dealerPayload)
+      });
+      if (!createRes.ok) {
+        var errText = await createRes.text();
+        throw new Error("Failed to create dealer row: " + errText);
+      }
+      var createdRows = await createRes.json();
+      csCurrentDealerId = Array.isArray(createdRows) && createdRows[0] ? createdRows[0].id : null;
+      if (!csCurrentDealerId) {
+        throw new Error("Dealer row created but no id returned.");
+      }
+    } else {
+      var patchRes = await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(csCurrentDealerId),
+        {
+          method: "PATCH",
+          headers: Object.assign({}, authHeaders(), { "Content-Type": "application/json" }),
+          body: JSON.stringify(formData)
+        }
+      );
+      if (!patchRes.ok) {
+        var errText2 = await patchRes.text();
+        throw new Error("Failed to update dealer row: " + errText2);
+      }
+    }
+
+    var pdfRes = await fetch("/api/generate-dealer-agreement-pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dealerId: csCurrentDealerId })
+    });
+    if (!pdfRes.ok) {
+      var pdfErr = await pdfRes.text();
+      throw new Error("PDF generation failed: " + pdfErr);
+    }
+
+    var previewArea = document.getElementById("cs-pdf-preview-area");
+    var previewLink = document.getElementById("cs-pdf-preview-link");
+    previewLink.innerHTML = '<div style="color:var(--navy);font-weight:600;margin-bottom:6px;">Agreement generated successfully.</div>' +
+      '<div style="color:var(--light);font-size:12px;">Dealer row saved. PDF generated. The "Approve &amp; Send Agreement" button will become active in Phase 5B (backend send endpoint).</div>';
+    previewArea.style.display = "block";
+
+    if (previewBtn) {
+      previewBtn.disabled = false;
+      previewBtn.textContent = "Re-generate Preview";
+    }
+  } catch (e) {
+    csShowError(e.message || "Something went wrong generating the preview.");
+    if (previewBtn) {
+      previewBtn.disabled = false;
+      previewBtn.textContent = "Save & Generate Preview";
+    }
+  }
+};
 
 function generateUsername(dealershipName) {
   var s = String(dealershipName || "")

@@ -110,6 +110,103 @@
   background: rgba(0, 0, 0, 0.08);
   margin: 4px 0;
 }
+  /* Phase 5A: Configure & Send Agreement slide-in panel */
+  .cs-panel-backdrop {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(12, 30, 46, 0.45);
+    z-index: 9000;
+  }
+  .cs-panel {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 40%; min-width: 480px; max-width: 720px;
+    background: #fff;
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.15);
+    z-index: 9001;
+    display: flex; flex-direction: column;
+  }
+  .cs-panel-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 1rem;
+  }
+  .cs-panel-title {
+    font-size: 17px; font-weight: 600; color: var(--navy);
+  }
+  .cs-panel-sub {
+    font-size: 12px; color: var(--light); margin-top: 4px;
+  }
+  .cs-panel-close {
+    background: none; border: none; font-size: 28px;
+    color: var(--light); cursor: pointer; padding: 0; line-height: 1;
+    margin-top: -4px;
+  }
+  .cs-panel-close:hover { color: var(--navy); }
+  .cs-panel-body {
+    flex: 1; overflow-y: auto;
+    padding: 1.5rem;
+  }
+  .cs-panel-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border);
+    background: #fafbfd;
+    display: flex; gap: 0.75rem; justify-content: flex-end;
+  }
+  .cs-section-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--gold);
+    margin-bottom: 0.75rem;
+  }
+  .cs-readonly-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0.75rem 1.25rem;
+    padding: 0.75rem 1rem; background: #f8f9fb;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .cs-readonly-label {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--light);
+  }
+  .cs-readonly-val {
+    font-size: 13px; color: var(--navy); margin-top: 2px;
+  }
+  .cs-form-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0.85rem 1rem;
+  }
+  .cs-field { display: flex; flex-direction: column; }
+  .cs-field-full { grid-column: 1 / -1; }
+  .cs-label {
+    font-size: 11px; font-weight: 600; color: var(--navy);
+    margin-bottom: 4px;
+  }
+  .cs-input {
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 5px;
+    font-size: 13px; font-family: inherit; color: var(--navy);
+    outline: none;
+  }
+  .cs-input:focus { border-color: var(--gold); }
+  .cs-btn-secondary {
+    background: white; color: var(--navy);
+    border: 1px solid var(--border);
+    padding: 9px 18px; border-radius: 6px;
+    font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .cs-btn-secondary:hover { background: #f8f9fb; }
+  .cs-btn-primary {
+    background: var(--gold); color: var(--navy);
+    border: none; padding: 9px 18px; border-radius: 6px;
+    font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .cs-btn-primary:disabled {
+    background: #d4d8dd; color: rgba(12,30,46,0.4);
+    cursor: not-allowed;
+  }
+  @media (max-width: 900px) {
+    .cs-panel { width: 90%; min-width: 320px; }
+    .cs-form-grid { grid-template-columns: 1fr; }
+    .cs-readonly-grid { grid-template-columns: 1fr; }
+  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://js.stripe.com/v3/"></script>
@@ -2406,10 +2503,18 @@ window.addEventListener("load", function() {
       var location = [a.city, a.state].filter(Boolean).join(", ") || a.location || "—";
       var contact = [a.contact_first_name, a.contact_last_name].filter(Boolean).join(" ") || a.contact_name || "—";
       var encodedApp = encodeURIComponent(JSON.stringify(a));
+      // Phase 5A: derive source pill data from referral_source
+      var sourceMeta = { label: "Web", color: "var(--light)", bg: "#eef0f2", border: "var(--border)" };
+      if (a.referral_source && a.referral_source.indexOf("box_campaign") === 0) {
+        sourceMeta = { label: "Box Campaign", color: "#8a6d20", bg: "#fdf9ed", border: "#e8d99b" };
+      }
       return '<div style="background:white;border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:8px;padding:1.25rem 1.5rem;margin-bottom:0.75rem;">' +
         '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;">' +
           '<div>' +
-            '<div style="font-size:15px;font-weight:600;color:var(--navy);">' + esc(a.dealership_name || "—") + '</div>' +
+            '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+              '<div style="font-size:15px;font-weight:600;color:var(--navy);">' + esc(a.dealership_name || "—") + '</div>' +
+              '<span style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:' + sourceMeta.color + ';background:' + sourceMeta.bg + ';border:1px solid ' + sourceMeta.border + ';padding:2px 8px;border-radius:4px;">' + sourceMeta.label + '</span>' +
+            '</div>' +
             '<div style="font-size:12px;color:var(--light);margin-top:3px;">' + esc(location) + ' · Applied ' + esc(date) + '</div>' +
             '<div style="font-size:12.5px;color:var(--mid);margin-top:6px;">' +
               '<span style="margin-right:12px;">Contact: ' + esc(contact) + '</span>' +
@@ -2423,6 +2528,9 @@ window.addEventListener("load", function() {
             '<button onclick="approveApplication(\'' + esc(a.id) + '\',\'' + encodedApp + '\')" style="background:var(--green-text);color:white;border:none;padding:7px 16px;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;">Approve</button>' +
             '<button onclick="declineApplication(\'' + esc(a.id) + '\')" style="background:white;color:var(--red-text);border:1px solid var(--red-border);padding:7px 14px;border-radius:5px;font-size:12.5px;cursor:pointer;font-family:inherit;">Decline</button>' +
           '</div>' +
+        '</div>' +
+        '<div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">' +
+          '<button onclick="window.openConfigureAndSend(\'' + esc(a.id) + '\')" style="width:100%;background:var(--gold);color:var(--navy);border:none;padding:10px 16px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:0.02em;">Configure &amp; Send Agreement</button>' +
         '</div>' +
       '</div>';
     }).join("");
@@ -4834,6 +4942,65 @@ window.addEventListener("load", function() {
     </div>
   </div>
 </div>
+
+  <!-- Phase 5A: Configure & Send Agreement slide-in panel -->
+  <div id="cs-panel-backdrop" class="cs-panel-backdrop" style="display:none;" onclick="window.closeConfigureAndSend()"></div>
+  <div id="cs-panel" class="cs-panel" style="display:none;">
+    <div class="cs-panel-header">
+      <div>
+        <div class="cs-panel-title">Configure &amp; Send Agreement</div>
+        <div class="cs-panel-sub" id="cs-panel-sub">—</div>
+      </div>
+      <button type="button" class="cs-panel-close" onclick="window.closeConfigureAndSend()" aria-label="Close">×</button>
+    </div>
+
+    <div class="cs-panel-body">
+      <div class="cs-section-label">Submitter (read-only)</div>
+      <div class="cs-readonly-grid">
+        <div><div class="cs-readonly-label">Name</div><div class="cs-readonly-val" id="cs-ro-name">—</div></div>
+        <div><div class="cs-readonly-label">Email</div><div class="cs-readonly-val" id="cs-ro-email">—</div></div>
+        <div><div class="cs-readonly-label">Phone</div><div class="cs-readonly-val" id="cs-ro-phone">—</div></div>
+        <div><div class="cs-readonly-label">Source</div><div class="cs-readonly-val" id="cs-ro-source">—</div></div>
+      </div>
+
+      <div class="cs-section-label" style="margin-top:1.5rem;">Legal &amp; Business</div>
+      <div class="cs-form-grid">
+        <div class="cs-field"><label class="cs-label">Legal business name *</label><input type="text" id="cs-legal-name" class="cs-input"></div>
+        <div class="cs-field"><label class="cs-label">DBA (if applicable)</label><input type="text" id="cs-dba" class="cs-input"></div>
+        <div class="cs-field cs-field-full"><label class="cs-label">Business address *</label><input type="text" id="cs-biz-address" class="cs-input" placeholder="Street address"></div>
+        <div class="cs-field"><label class="cs-label">City *</label><input type="text" id="cs-biz-city" class="cs-input"></div>
+        <div class="cs-field"><label class="cs-label">State *</label><input type="text" id="cs-biz-state" class="cs-input" maxlength="2" placeholder="UT"></div>
+        <div class="cs-field"><label class="cs-label">ZIP *</label><input type="text" id="cs-biz-zip" class="cs-input" maxlength="10"></div>
+        <div class="cs-field"><label class="cs-label">EIN *</label><input type="text" id="cs-ein" class="cs-input" placeholder="XX-XXXXXXX"></div>
+        <div class="cs-field"><label class="cs-label">Brands carried</label><input type="text" id="cs-brands" class="cs-input" placeholder="Mastercraft, Malibu, etc."></div>
+      </div>
+
+      <div class="cs-section-label" style="margin-top:1.5rem;">Accounts Receivable Contact</div>
+      <div class="cs-form-grid">
+        <div class="cs-field"><label class="cs-label">AR contact name *</label><input type="text" id="cs-ar-name" class="cs-input"></div>
+        <div class="cs-field"><label class="cs-label">AR phone *</label><input type="text" id="cs-ar-phone" class="cs-input"></div>
+        <div class="cs-field cs-field-full"><label class="cs-label">AR email *</label><input type="email" id="cs-ar-email" class="cs-input"></div>
+      </div>
+
+      <div class="cs-section-label" style="margin-top:1.5rem;">Banking (for ACH reimbursements)</div>
+      <div class="cs-form-grid">
+        <div class="cs-field"><label class="cs-label">Bank routing number *</label><input type="text" id="cs-routing" class="cs-input" maxlength="9"></div>
+        <div class="cs-field"><label class="cs-label">Bank account number *</label><input type="text" id="cs-account" class="cs-input"></div>
+      </div>
+
+      <div id="cs-pdf-preview-area" style="margin-top:1.5rem;display:none;">
+        <div class="cs-section-label">Agreement Preview</div>
+        <div id="cs-pdf-preview-link" style="padding:1rem;background:#f8f9fb;border:1px solid var(--border);border-radius:6px;font-size:13px;"></div>
+      </div>
+
+      <div id="cs-error" style="margin-top:1rem;display:none;padding:0.75rem 1rem;background:#fff5f5;border:1px solid #f5c4c4;border-radius:6px;color:var(--red-text);font-size:13px;"></div>
+    </div>
+
+    <div class="cs-panel-footer">
+      <button type="button" class="cs-btn-secondary" onclick="window.csGeneratePreview()" id="cs-preview-btn">Save &amp; Generate Preview</button>
+      <button type="button" class="cs-btn-primary" id="cs-send-btn" disabled title="Available after Phase 5B (backend send endpoint)">Approve &amp; Send Agreement</button>
+    </div>
+  </div>
 
 </body>
 </html>
