@@ -1018,14 +1018,6 @@
         Messages
         <span class="admin-nav-badge" id="messages-badge" style="display:none;"></span>
       </button>
-      <button type="button" class="admin-nav-item" data-admin-panel="box-enrollments">
-        Box Enrollments
-        <span class="admin-nav-badge" id="enrollments-badge" style="display:none;"></span>
-      </button>
-      <button type="button" class="admin-nav-item" data-admin-panel="box-inquiries">
-        Box Inquiries
-        <span class="admin-nav-badge" id="inquiries-badge" style="display:none;"></span>
-      </button>
       <div class="admin-sidebar-section-label">System</div>
       <button type="button" class="admin-nav-item" data-admin-panel="settings">Settings</button>
     </div>
@@ -1292,63 +1284,6 @@
       </div>
 
       <div id="messages-list"></div>
-    </div>
-
-    <!-- BOX ENROLLMENTS (admin only) -->
-    <div id="admin-panel-box-enrollments" class="admin-panel" style="display:none;">
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;">
-        <div class="stat-card">
-          <div class="stat-label">Pending</div>
-          <div class="stat-num" id="enrollments-count-pending" style="color:var(--red-text);">—</div>
-          <div class="stat-sub">Need first contact</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">In Progress</div>
-          <div class="stat-num" id="enrollments-count-progress" style="color:var(--gold);">—</div>
-          <div class="stat-sub">Contacted, agreement sent, or signed</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Active Dealers</div>
-          <div class="stat-num" id="enrollments-count-active" style="color:var(--green-text);">—</div>
-          <div class="stat-sub">Onboarded from box campaign</div>
-        </div>
-      </div>
-
-      <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;flex-wrap:wrap;">
-        <button onclick="enrollmentsFilter('all')" id="enrfilter-all" class="btn-sm" style="background:var(--navy);color:white;">All</button>
-        <button onclick="enrollmentsFilter('pending')" id="enrfilter-pending" class="btn-sm">Pending</button>
-        <button onclick="enrollmentsFilter('contacted')" id="enrfilter-contacted" class="btn-sm">Contacted</button>
-        <button onclick="enrollmentsFilter('agreement_sent')" id="enrfilter-agreement_sent" class="btn-sm">Agreement Sent</button>
-        <button onclick="enrollmentsFilter('signed')" id="enrfilter-signed" class="btn-sm">Signed</button>
-        <button onclick="enrollmentsFilter('active')" id="enrfilter-active" class="btn-sm">Active</button>
-        <button onclick="enrollmentsFilter('declined')" id="enrfilter-declined" class="btn-sm">Declined</button>
-      </div>
-
-      <div id="enrollments-list"></div>
-    </div>
-
-    <!-- BOX INQUIRIES (admin only) -->
-    <div id="admin-panel-box-inquiries" class="admin-panel" style="display:none;">
-      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;margin-bottom:1.5rem;">
-        <div class="stat-card">
-          <div class="stat-label">Unresponded</div>
-          <div class="stat-num" id="inquiries-count-unresponded" style="color:var(--red-text);">—</div>
-          <div class="stat-sub">Waiting for follow-up</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Responded</div>
-          <div class="stat-num" id="inquiries-count-responded" style="color:var(--green-text);">—</div>
-          <div class="stat-sub">All time</div>
-        </div>
-      </div>
-
-      <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;flex-wrap:wrap;">
-        <button onclick="inquiriesFilter('all')" id="inqfilter-all" class="btn-sm" style="background:var(--navy);color:white;">All</button>
-        <button onclick="inquiriesFilter('unresponded')" id="inqfilter-unresponded" class="btn-sm">Unresponded</button>
-        <button onclick="inquiriesFilter('responded')" id="inqfilter-responded" class="btn-sm">Responded</button>
-      </div>
-
-      <div id="inquiries-list"></div>
     </div>
 
     <!-- PRICING MODEL (admin only) -->
