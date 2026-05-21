@@ -4735,48 +4735,80 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   }
 
-  function onLoginSuccess() {
-    window.currentDealer = currentDealer;
-    if (currentDealer) window.authToken = currentDealer.token || window.authToken || null;
-    document.getElementById("dealer-display").textContent = currentDealer ? currentDealer.name : "";
-    document.getElementById("login-screen").style.display = "none";
-    document.getElementById("portal-screen").style.display = "block";
-    document.getElementById("login-err").style.display = "none";
-    resetLoginPanels();
+  async function onLoginSuccess() {
+    try {
+      var sessionRes = await window.supabase.auth.getSession();
+      var session = sessionRes && sessionRes.data ? sessionRes.data.session : null;
+      var authUser = session ? session.user : null;
+      if (!authUser) {
+        console.error("onLoginSuccess: no session user");
+        return;
+      }
+      if (session && session.access_token) {
+        window.authToken = session.access_token;
+      }
 
-    if (currentDealer && currentDealer.isAdmin) {
-      document.getElementById("portal-screen").className = "mode-admin";
-      document.getElementById("dealer-layout").style.display = "none";
-      document.getElementById("admin-layout").style.display = "flex";
-      document.querySelectorAll("#admin-sidebar .admin-nav-item").forEach(function(b) {
-        b.classList.remove("active");
-      });
-      var dashNav = document.querySelector('#admin-sidebar .admin-nav-item[data-admin-panel="dashboard"]');
-      if (dashNav) dashNav.classList.add("active");
-      adminShowPanel("dashboard");
-      adminLoadBadgeCounts();
-    } else {
-      document.getElementById("portal-screen").className = "mode-dealer";
-      document.getElementById("dealer-layout").style.display = "flex";
-      document.getElementById("admin-layout").style.display = "none";
-      document.querySelectorAll(".sidebar-nav-item").forEach(function(b) {
-        b.classList.remove("active");
-      });
-      var sbd = document.querySelector('.sidebar-nav-item[data-panel="dashboard"]');
-      if (sbd) sbd.classList.add("active");
-      window.switchTab("dashboard");
-      applyDealerPersonalization();
-      updateSidebarInfo();
-      checkOverdueBanners();
-      if (typeof checkOnboardingStatus === "function") checkOnboardingStatus();
-      (async function() {
-        try {
-          var role = await resolveCurrentUserRole();
-          applyRbacSidebarVisibility(role);
-        } catch (e) {
-          console.warn("RBAC visibility setup skipped:", e);
-        }
-      })();
+      var resolved = await window.resolveCurrentSession(authUser);
+      if (resolved.error || !resolved.currentUser) {
+        var errMsg = resolved.error || "Could not load account profile.";
+        alert(errMsg);
+        await window.supabase.auth.signOut();
+        return;
+      }
+
+      window.currentUser = resolved.currentUser;
+      currentDealer = resolved.currentDealer
+        ? buildDealerSession(resolved.currentDealer, session)
+        : null;
+      window.currentDealer = currentDealer;
+      window._rbacRole = resolved.currentUser.role;
+      window._cachedOrgName = null;
+
+      applySidebarHeader();
+      try {
+        applyRbacSidebarVisibility(window.currentUser.role);
+      } catch (e) {
+        console.warn("applyRbacSidebarVisibility failed:", e);
+      }
+
+      // === KEEP EVERY EXISTING POST-LOGIN LINE BELOW THIS COMMENT ===
+      if (currentDealer) window.authToken = currentDealer.token || window.authToken || null;
+      document.getElementById("dealer-display").textContent = currentDealer ? currentDealer.name : "";
+      document.getElementById("login-screen").style.display = "none";
+      document.getElementById("portal-screen").style.display = "block";
+      document.getElementById("login-err").style.display = "none";
+      resetLoginPanels();
+
+      if (currentDealer && currentDealer.isAdmin) {
+        document.getElementById("portal-screen").className = "mode-admin";
+        document.getElementById("dealer-layout").style.display = "none";
+        document.getElementById("admin-layout").style.display = "flex";
+        document.querySelectorAll("#admin-sidebar .admin-nav-item").forEach(function(b) {
+          b.classList.remove("active");
+        });
+        var dashNav = document.querySelector('#admin-sidebar .admin-nav-item[data-admin-panel="dashboard"]');
+        if (dashNav) dashNav.classList.add("active");
+        adminShowPanel("dashboard");
+        adminLoadBadgeCounts();
+      } else {
+        document.getElementById("portal-screen").className = "mode-dealer";
+        document.getElementById("dealer-layout").style.display = "flex";
+        document.getElementById("admin-layout").style.display = "none";
+        document.querySelectorAll(".sidebar-nav-item").forEach(function(b) {
+          b.classList.remove("active");
+        });
+        var sbd = document.querySelector('.sidebar-nav-item[data-panel="dashboard"]');
+        if (sbd) sbd.classList.add("active");
+        window.switchTab("dashboard");
+        applyDealerPersonalization();
+        updateSidebarInfo();
+        applySidebarHeader();
+        checkOverdueBanners();
+        if (typeof checkOnboardingStatus === "function") checkOnboardingStatus();
+      }
+    } catch (e) {
+      console.error("onLoginSuccess error:", e);
+      alert("Could not sign in. Please try again or contact support.");
     }
   }
 
@@ -5257,21 +5289,9 @@ document.addEventListener("DOMContentLoaded", function() {
       }
 
       var session = signInResult.data.session;
-      var user = signInResult.data.user;
       window.authToken = session.access_token;
 
-      var dealer = await fetchDealerByAuthId(user.id, session.access_token);
-      if (!dealer) {
-        errEl.textContent = "Account not found. Please contact support@whitestone-partners.com.";
-        errEl.style.display = "block";
-        await supabase.auth.signOut();
-        btn.disabled = false;
-        btn.textContent = "Sign In";
-        return;
-      }
-
-      currentDealer = buildDealerSession(dealer, session);
-      window.onLoginSuccess();
+      await window.onLoginSuccess();
       btn.disabled = false;
       btn.textContent = "Sign In";
     } catch (e) {
@@ -5286,7 +5306,7 @@ document.addEventListener("DOMContentLoaded", function() {
   function switchTab(name) {
     if (currentDealer && currentDealer.isAdmin) return;
     // Sprint 3 Commit 4a: Forbidden-tab redirect.
-    var rbacRole = window._rbacRole || null;
+    var rbacRole = (window.currentUser && window.currentUser.role) || window._rbacRole || null;
     if (rbacRole && !rbacCanAccessPanel(rbacRole, name)) {
       console.warn("Access denied to panel:", name, "— redirecting to dashboard.");
       if (name !== "dashboard") {
@@ -5326,14 +5346,7 @@ document.addEventListener("DOMContentLoaded", function() {
     if (!session) return;
     try {
       window.authToken = session.access_token;
-      var dealer = await fetchDealerByAuthId(session.user.id, session.access_token);
-      if (!dealer) {
-        console.error("No active dealer record found for session", session.user.id);
-        await supabase.auth.signOut();
-        return;
-      }
-      currentDealer = buildDealerSession(dealer, session);
-      window.onLoginSuccess();
+      await window.onLoginSuccess();
     } catch (err) {
       console.error("Failed to restore session", err);
     }
@@ -5541,6 +5554,9 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     currentDealer = null;
     window.currentDealer = null;
+    window.currentUser = null;
+    window._rbacRole = null;
+    window._cachedOrgName = null;
     window.authToken = null;
     resetPortalState();
     document.getElementById("login-screen").style.display = "flex";
@@ -5880,7 +5896,9 @@ document.addEventListener("DOMContentLoaded", function() {
         role: null,
         is_admin: legacyDealer.is_admin === true,
         is_legacy: true,
-        accessible_locations: [legacyDealer.id]
+        accessible_locations: legacyDealer.is_admin === true
+          ? await fetchAccessibleLocations()
+          : [legacyDealer.id]
       };
       return { currentUser: legacyUser, currentDealer: legacyDealer, error: null };
     }
@@ -5897,6 +5915,51 @@ document.addEventListener("DOMContentLoaded", function() {
   window.fetchAccessibleLocations = fetchAccessibleLocations;
   window.findMostRecentActivityLocation = findMostRecentActivityLocation;
   window.resolveCurrentSession = resolveCurrentSession;
+
+  function applySidebarHeader() {
+    var nameEl = document.getElementById("sidebar-dealer-name");
+    var subEl = document.getElementById("sidebar-dealer-sublabel");
+    if (!nameEl) return;
+
+    var u = window.currentUser;
+    var d = window.currentDealer;
+
+    var bigText = "";
+    var smallText = "";
+    var smallIsItalic = false;
+
+    if (u && u.is_admin) {
+      bigText = "Whitestone Partners";
+      smallText = "Admin View";
+      smallIsItalic = true;
+    } else if (u && u.organization_id && !u.is_legacy) {
+      bigText = window._cachedOrgName || (d && (d.dealership_name || d.name)) || "";
+      smallText = (d && (d.dealership_name || d.name)) || "";
+      if (!window._cachedOrgName && u.organization_id) {
+        fetch(SUPABASE_URL + "/rest/v1/organizations?id=eq." + encodeURIComponent(u.organization_id) + "&select=name&limit=1", { headers: supabaseHeaders() })
+          .then(function(r) { return r.json(); })
+          .then(function(rows) {
+            if (Array.isArray(rows) && rows[0] && rows[0].name) {
+              window._cachedOrgName = rows[0].name;
+              applySidebarHeader();
+            }
+          }).catch(function() {});
+      }
+    } else if (d) {
+      bigText = d.dealership_name || d.name || "";
+      smallText = "";
+    }
+
+    nameEl.textContent = bigText;
+
+    if (subEl) {
+      subEl.textContent = smallText;
+      subEl.style.display = smallText ? "" : "none";
+      subEl.style.fontStyle = smallIsItalic ? "italic" : "";
+      subEl.style.opacity = smallIsItalic ? "0.65" : "0.85";
+    }
+  }
+  window.applySidebarHeader = applySidebarHeader;
 
   function applyRbacSidebarVisibility(role) {
     if (!role || !RBAC_VISIBLE_PANELS[role]) {
