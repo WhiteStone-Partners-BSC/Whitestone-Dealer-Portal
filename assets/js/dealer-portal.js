@@ -6612,16 +6612,26 @@ document.addEventListener("DOMContentLoaded", function() {
   async function loadCustomersTab() {
     var box = document.getElementById("customers-container");
     if (!box || !currentDealer) return;
+    var filterClause;
+    if (window.currentUser && window.currentUser.is_legacy) {
+      filterClause = "dealer_id=eq." + currentDealer.id;
+    } else {
+      var op = buildDealerIdFilter();
+      filterClause = op === null ? null : "dealer_id=" + op;
+    }
+    if (filterClause === null) {
+      box.innerHTML = "<div class='customers-loading'>No customers to show.</div>";
+      return;
+    }
     box.innerHTML = "<div class='customers-loading'>Loading customers…</div>";
     servicesUsedByHin = {};
     dealerContractsPricingRow = null;
     try {
-      var encName = encodeURIComponent(currentDealer.name);
       var encId = encodeURIComponent(String(currentDealer.id));
-      var contractsUrl = SUPABASE_URL + "/rest/v1/contracts?dealership_name=eq." + encName + "&select=*&order=created_at.desc";
+      var contractsUrl = SUPABASE_URL + "/rest/v1/contracts?" + filterClause + "&select=*&order=created_at.desc";
       var pricingUrl = SUPABASE_URL + "/rest/v1/dealer_pricing?dealer_id=eq." + encId + "&select=*&limit=1";
-      var ticketsUrl = SUPABASE_URL + "/rest/v1/tickets?dealership_name=eq." + encName + "&select=id,hin,status";
-      var reimbUrl = SUPABASE_URL + "/rest/v1/reimbursements?dealership_name=eq." + encName + "&select=ticket_id,amount,status";
+      var ticketsUrl = SUPABASE_URL + "/rest/v1/tickets?" + filterClause + "&select=id,hin,status";
+      var reimbUrl = SUPABASE_URL + "/rest/v1/reimbursements?" + filterClause + "&select=ticket_id,amount,status";
 
       var res = await fetch(contractsUrl, { headers: supabaseHeaders() });
       var rows = await res.json();
