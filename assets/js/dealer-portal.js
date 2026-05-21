@@ -5,6 +5,24 @@
  */
 var SUPABASE_URL = "https://ypuohmiynnmbnlqfctlg.supabase.co";
 var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwdW9obWl5bm5tYm5scWZjdGxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwODU4NzEsImV4cCI6MjA5MTY2MTg3MX0.HzrF_OCr2T9rKV9am90B2OvIQKjq28pObheMRps82AI";
+
+// =========================================================================
+// Phase 1 Commit A — currentUser global (Sprint 3 multi-tenant identity)
+//
+// The portal historically used a single global `currentDealer` to represent
+// both "who is signed in" AND "which location is the focus of the UI."
+// With multi-user multi-location RBAC (Sprint 3), those are different things:
+//   - currentUser  -> identity: who is signed in, their org, their role,
+//                     which locations they can access
+//   - currentDealer -> focus: which single location is being viewed right now
+//                      (defaults to the user's most-recent-activity location)
+//
+// Phase 1 Commit A adds the new global IN PARALLEL with the legacy code.
+// Nothing has been switched over yet. Phase 1 Commit B will rewire the
+// login flow to populate currentUser and use it as the source of truth.
+// =========================================================================
+window.currentUser = null;
+
 var FORMSPREE_CONTACT = "https://formspree.io/f/mvzvzkqa";
 var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 var currentDealer = null;
@@ -5708,6 +5726,177 @@ document.addEventListener("DOMContentLoaded", function() {
       renderCustomerCards();
     });
   }
+
+  // =========================================================================
+  // Phase 1 Commit A — Session resolution helpers
+  // All helpers are pure functions that read from Supabase. They return data
+  // but do NOT mutate any global yet. Phase 1 Commit B will wire these in.
+  // =========================================================================
+
+  async function fetchUserRowByAuthId(authId) {
+    if (!authId) return null;
+    try {
+      var url = SUPABASE_URL + "/rest/v1/users?auth_id=eq." + encodeURIComponent(authId) +
+        "&select=id,auth_id,email,full_name,organization_id,role,status&limit=1";
+      var res = await fetch(url, { headers: supabaseHeaders() });
+      if (!res.ok) return null;
+      var rows = await res.json();
+      if (!Array.isArray(rows) || rows.length === 0) return null;
+      return rows[0];
+    } catch (e) {
+      console.warn("fetchUserRowByAuthId error:", e);
+      return null;
+    }
+  }
+
+  async function fetchDealerRowByAuthId(authId) {
+    if (!authId) return null;
+    try {
+      var url = SUPABASE_URL + "/rest/v1/dealers?auth_id=eq." + encodeURIComponent(authId) + "&limit=1";
+      var res = await fetch(url, { headers: supabaseHeaders() });
+      if (!res.ok) return null;
+      var rows = await res.json();
+      if (!Array.isArray(rows) || rows.length === 0) return null;
+      return rows[0];
+    } catch (e) {
+      console.warn("fetchDealerRowByAuthId error:", e);
+      return null;
+    }
+  }
+
+  async function fetchAccessibleLocations() {
+    try {
+      var res = await fetch(SUPABASE_URL + "/rest/v1/rpc/current_user_accessible_locations", {
+        method: "POST",
+        headers: supabaseHeaders({ "Content-Type": "application/json" }),
+        body: "{}"
+      });
+      if (!res.ok) return [];
+      var arr = await res.json();
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) {
+      console.warn("fetchAccessibleLocations error:", e);
+      return [];
+    }
+  }
+
+  async function findMostRecentActivityLocation(accessibleLocations) {
+    if (!Array.isArray(accessibleLocations) || accessibleLocations.length === 0) return null;
+    if (accessibleLocations.length === 1) return accessibleLocations[0];
+
+    var inClause = "in.(" + accessibleLocations.map(encodeURIComponent).join(",") + ")";
+
+    async function mostRecentIn(table) {
+      try {
+        var url = SUPABASE_URL + "/rest/v1/" + table +
+          "?dealer_id=" + inClause +
+          "&select=dealer_id,created_at&order=created_at.desc&limit=1";
+        var res = await fetch(url, { headers: supabaseHeaders() });
+        if (!res.ok) return null;
+        var rows = await res.json();
+        if (!Array.isArray(rows) || rows.length === 0) return null;
+        return rows[0];
+      } catch (e) {
+        return null;
+      }
+    }
+
+    var results = await Promise.all([
+      mostRecentIn("tickets"),
+      mostRecentIn("contracts"),
+      mostRecentIn("reimbursements")
+    ]);
+    var candidates = results.filter(function(x) { return x && x.created_at && x.dealer_id; });
+    if (candidates.length === 0) {
+      var sorted = accessibleLocations.slice().sort();
+      return sorted[0];
+    }
+    candidates.sort(function(a, b) {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+    return candidates[0].dealer_id;
+  }
+
+  async function resolveCurrentSession(authUser) {
+    if (!authUser || !authUser.id) {
+      return { currentUser: null, currentDealer: null, error: "No auth user provided" };
+    }
+
+    var authId = authUser.id;
+    var email = authUser.email;
+
+    var userRow = await fetchUserRowByAuthId(authId);
+
+    if (userRow) {
+      if (userRow.status !== "active") {
+        return { currentUser: null, currentDealer: null, error: "User account is not active" };
+      }
+      var dealerRow = await fetchDealerRowByAuthId(authId);
+      var accessible = await fetchAccessibleLocations();
+
+      var currentUserObj = {
+        id: userRow.id,
+        auth_id: authId,
+        email: userRow.email || email,
+        full_name: userRow.full_name || null,
+        organization_id: userRow.organization_id,
+        role: userRow.role,
+        is_admin: dealerRow && dealerRow.is_admin === true,
+        is_legacy: false,
+        accessible_locations: accessible
+      };
+
+      var focusedDealer = null;
+      if (accessible.length > 0) {
+        var focusedId = await findMostRecentActivityLocation(accessible);
+        if (focusedId) {
+          var focusedUrl = SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(focusedId) + "&limit=1";
+          var focusedRes = await fetch(focusedUrl, { headers: supabaseHeaders() });
+          if (focusedRes.ok) {
+            var focusedRows = await focusedRes.json();
+            if (Array.isArray(focusedRows) && focusedRows.length > 0) {
+              focusedDealer = focusedRows[0];
+            }
+          }
+        }
+      }
+      if (!focusedDealer && dealerRow) {
+        focusedDealer = dealerRow;
+      }
+
+      return { currentUser: currentUserObj, currentDealer: focusedDealer, error: null };
+    }
+
+    var legacyDealer = await fetchDealerRowByAuthId(authId);
+    if (legacyDealer) {
+      var legacyUser = {
+        id: null,
+        auth_id: authId,
+        email: legacyDealer.email || email,
+        full_name: legacyDealer.contact_first_name && legacyDealer.contact_last_name
+          ? legacyDealer.contact_first_name + " " + legacyDealer.contact_last_name
+          : null,
+        organization_id: legacyDealer.organization_id || null,
+        role: null,
+        is_admin: legacyDealer.is_admin === true,
+        is_legacy: true,
+        accessible_locations: [legacyDealer.id]
+      };
+      return { currentUser: legacyUser, currentDealer: legacyDealer, error: null };
+    }
+
+    return {
+      currentUser: null,
+      currentDealer: null,
+      error: "No account profile found. Contact support@whitestone-partners.com."
+    };
+  }
+
+  window.fetchUserRowByAuthId = fetchUserRowByAuthId;
+  window.fetchDealerRowByAuthId = fetchDealerRowByAuthId;
+  window.fetchAccessibleLocations = fetchAccessibleLocations;
+  window.findMostRecentActivityLocation = findMostRecentActivityLocation;
+  window.resolveCurrentSession = resolveCurrentSession;
 
   function applyRbacSidebarVisibility(role) {
     if (!role || !RBAC_VISIBLE_PANELS[role]) {
