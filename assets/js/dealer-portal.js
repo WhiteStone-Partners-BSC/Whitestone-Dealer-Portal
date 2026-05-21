@@ -570,18 +570,33 @@ async function loadReimbursementHistory() {
   if (!el) return;
   el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--light);font-size:13px;">Loading...</div>';
 
-  if (!currentDealer || !currentDealer.name) {
-    el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--light);font-size:13px;">Sign in to view reimbursements.</div>';
-    var badge0 = document.getElementById("reimb-total-badge");
-    if (badge0) badge0.textContent = "$0";
-    return;
+  // === Phase 2B-i filter routing ===
+  var filterClause;
+  if (window.currentUser && window.currentUser.is_legacy) {
+    if (!window.currentDealer || !window.currentDealer.id) {
+      var badge0 = document.getElementById("reimb-total-badge");
+      if (badge0) badge0.textContent = "$0";
+      showLocationlessEmptyState(el);
+      return;
+    }
+    filterClause = "dealer_id=eq." + window.currentDealer.id;
+  } else {
+    var op = buildDealerIdFilter();
+    filterClause = op === null ? null : "dealer_id=" + op;
+    if (filterClause === null) {
+      var badge0b = document.getElementById("reimb-total-badge");
+      if (badge0b) badge0b.textContent = "$0";
+      showLocationlessEmptyState(el);
+      return;
+    }
   }
+  // === end filter routing ===
 
   var res = await fetch(
     SUPABASE_URL +
-      "/rest/v1/reimbursements?dealership_name=eq." +
-      encodeURIComponent(currentDealer.name) +
-      "&select=*&order=created_at.desc",
+      "/rest/v1/reimbursements?" +
+      filterClause + "&" +
+      "select=*&order=created_at.desc",
     { headers: authHeaders() }
   );
   var reimbs = (await res.json()) || [];
@@ -7250,12 +7265,25 @@ document.addEventListener("DOMContentLoaded", function() {
   async function loadTickets() {
     var container = document.getElementById("tickets-container");
     container.innerHTML = "<div class='tickets-loading'>Loading your tickets...</div>";
-    if (!currentDealer || !currentDealer.name) {
-      container.innerHTML = "<div class='no-tickets'>Sign in to view tickets.</div>";
-      return;
+    // === Phase 2B-i filter routing ===
+    var filterClause;
+    if (window.currentUser && window.currentUser.is_legacy) {
+      if (!window.currentDealer || !window.currentDealer.id) {
+        showLocationlessEmptyState(container);
+        return;
+      }
+      filterClause = "dealer_id=eq." + window.currentDealer.id;
+    } else {
+      var op = buildDealerIdFilter();
+      filterClause = op === null ? null : "dealer_id=" + op;
+      if (filterClause === null) {
+        showLocationlessEmptyState(container);
+        return;
+      }
     }
+    // === end filter routing ===
     try {
-      var url = SUPABASE_URL + "/rest/v1/tickets?dealership_name=eq." + encodeURIComponent(currentDealer.name) + "&select=*&order=created_at.desc";
+      var url = SUPABASE_URL + "/rest/v1/tickets?" + filterClause + "&select=*&order=created_at.desc";
       var r = await fetch(url, { headers: authHeaders() });
       var rows = await r.json();
       if (!r.ok) throw new Error();
