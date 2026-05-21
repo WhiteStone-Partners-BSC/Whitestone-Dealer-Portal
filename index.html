@@ -45,71 +45,6 @@
     grid-template-columns: 1fr !important;
   }
 }
-.dealer-sidebar-logo {
-  position: relative;
-}
-.dealer-name-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.location-switcher-chevron {
-  background: transparent;
-  border: none;
-  padding: 2px;
-  cursor: pointer;
-  color: inherit;
-  opacity: 0.65;
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-  transition: opacity 0.15s, background 0.15s;
-}
-.location-switcher-chevron:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.08);
-}
-.location-switcher-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 16px;
-  right: 16px;
-  margin-top: 4px;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-  padding: 6px;
-  z-index: 1000;
-  max-height: 320px;
-  overflow-y: auto;
-}
-.location-switcher-option {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: none;
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  color: #1a1a1a;
-  font-weight: 500;
-  transition: background 0.1s;
-}
-.location-switcher-option:hover {
-  background: #f0f0f0;
-}
-.location-switcher-option.active {
-  background: #e8e8e8;
-  font-weight: 600;
-}
-.location-switcher-divider {
-  height: 1px;
-  background: rgba(0, 0, 0, 0.08);
-  margin: 4px 0;
-}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://js.stripe.com/v3/"></script>
@@ -178,14 +113,8 @@
   <div class="dealer-layout" id="dealer-layout">
     <div class="dealer-sidebar" id="dealer-sidebar">
       <div class="dealer-sidebar-logo">
-        <div class="dealer-name-row" id="sidebar-dealer-name-row">
-          <div class="dealer-name" id="sidebar-dealer-name">—</div>
-          <button id="sidebar-location-switcher-chevron" class="location-switcher-chevron" style="display: none;" aria-label="Switch location" type="button">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </button>
-        </div>
+        <div class="dealer-name" id="sidebar-dealer-name">—</div>
         <div id="sidebar-dealer-sublabel" style="font-size:11px;color:var(--mid);margin-top:2px;display:none;letter-spacing:0.04em;"></div>
-        <div id="location-switcher-dropdown" class="location-switcher-dropdown" style="display: none;"></div>
         <div class="dealer-tier" id="sidebar-dealer-tier">—</div>
       </div>
       <div class="sidebar-section-label">Main</div>
@@ -1018,14 +947,6 @@
         Messages
         <span class="admin-nav-badge" id="messages-badge" style="display:none;"></span>
       </button>
-      <button type="button" class="admin-nav-item" data-admin-panel="box-enrollments">
-        Box Enrollments
-        <span class="admin-nav-badge" id="enrollments-badge" style="display:none;"></span>
-      </button>
-      <button type="button" class="admin-nav-item" data-admin-panel="box-inquiries">
-        Box Inquiries
-        <span class="admin-nav-badge" id="inquiries-badge" style="display:none;"></span>
-      </button>
       <div class="admin-sidebar-section-label">System</div>
       <button type="button" class="admin-nav-item" data-admin-panel="settings">Settings</button>
     </div>
@@ -1292,63 +1213,6 @@
       </div>
 
       <div id="messages-list"></div>
-    </div>
-
-    <!-- BOX ENROLLMENTS (admin only) -->
-    <div id="admin-panel-box-enrollments" class="admin-panel" style="display:none;">
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;">
-        <div class="stat-card">
-          <div class="stat-label">Pending</div>
-          <div class="stat-num" id="enrollments-count-pending" style="color:var(--red-text);">—</div>
-          <div class="stat-sub">Need first contact</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">In Progress</div>
-          <div class="stat-num" id="enrollments-count-progress" style="color:var(--gold);">—</div>
-          <div class="stat-sub">Contacted, agreement sent, or signed</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Active Dealers</div>
-          <div class="stat-num" id="enrollments-count-active" style="color:var(--green-text);">—</div>
-          <div class="stat-sub">Onboarded from box campaign</div>
-        </div>
-      </div>
-
-      <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;flex-wrap:wrap;">
-        <button onclick="enrollmentsFilter('all')" id="enrfilter-all" class="btn-sm" style="background:var(--navy);color:white;">All</button>
-        <button onclick="enrollmentsFilter('pending')" id="enrfilter-pending" class="btn-sm">Pending</button>
-        <button onclick="enrollmentsFilter('contacted')" id="enrfilter-contacted" class="btn-sm">Contacted</button>
-        <button onclick="enrollmentsFilter('agreement_sent')" id="enrfilter-agreement_sent" class="btn-sm">Agreement Sent</button>
-        <button onclick="enrollmentsFilter('signed')" id="enrfilter-signed" class="btn-sm">Signed</button>
-        <button onclick="enrollmentsFilter('active')" id="enrfilter-active" class="btn-sm">Active</button>
-        <button onclick="enrollmentsFilter('declined')" id="enrfilter-declined" class="btn-sm">Declined</button>
-      </div>
-
-      <div id="enrollments-list"></div>
-    </div>
-
-    <!-- BOX INQUIRIES (admin only) -->
-    <div id="admin-panel-box-inquiries" class="admin-panel" style="display:none;">
-      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;margin-bottom:1.5rem;">
-        <div class="stat-card">
-          <div class="stat-label">Unresponded</div>
-          <div class="stat-num" id="inquiries-count-unresponded" style="color:var(--red-text);">—</div>
-          <div class="stat-sub">Waiting for follow-up</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Responded</div>
-          <div class="stat-num" id="inquiries-count-responded" style="color:var(--green-text);">—</div>
-          <div class="stat-sub">All time</div>
-        </div>
-      </div>
-
-      <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;flex-wrap:wrap;">
-        <button onclick="inquiriesFilter('all')" id="inqfilter-all" class="btn-sm" style="background:var(--navy);color:white;">All</button>
-        <button onclick="inquiriesFilter('unresponded')" id="inqfilter-unresponded" class="btn-sm">Unresponded</button>
-        <button onclick="inquiriesFilter('responded')" id="inqfilter-responded" class="btn-sm">Responded</button>
-      </div>
-
-      <div id="inquiries-list"></div>
     </div>
 
     <!-- PRICING MODEL (admin only) -->
