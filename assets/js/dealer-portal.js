@@ -5961,6 +5961,42 @@ document.addEventListener("DOMContentLoaded", function() {
   }
   window.applySidebarHeader = applySidebarHeader;
 
+  // =========================================================================
+  // Phase 2 Commit 2A — Dealer ID filter helper
+  // Returns a PostgREST filter string for filtering tickets/contracts/etc by dealer.
+  //
+  // Behavior:
+  //   - If currentDealer is set (focused on one location): returns 'eq.<dealer_id>'
+  //   - If currentDealer is null AND currentUser has accessible_locations:
+  //     returns 'in.(<id1>,<id2>,...)'
+  //   - If neither (no valid identity / no locations): returns null
+  //     -> caller should bail and show empty-state via showLocationlessEmptyState()
+  //
+  // Phase 2 Commit 2A adds this helper. Phase 2 Commit 2B wires it into all
+  // load* functions. Until 2B ships, this helper is unused — pure addition.
+  // =========================================================================
+  function buildDealerIdFilter() {
+    if (window.currentDealer && window.currentDealer.id) {
+      return "eq." + encodeURIComponent(window.currentDealer.id);
+    }
+    if (window.currentUser && Array.isArray(window.currentUser.accessible_locations) && window.currentUser.accessible_locations.length > 0) {
+      var ids = window.currentUser.accessible_locations.map(encodeURIComponent).join(",");
+      return "in.(" + ids + ")";
+    }
+    return null;
+  }
+  window.buildDealerIdFilter = buildDealerIdFilter;
+
+  function showLocationlessEmptyState(targetEl) {
+    if (!targetEl) return;
+    targetEl.innerHTML =
+      '<div style="padding:2rem;text-align:center;color:var(--mid);background:#FEF3C7;border-left:3px solid var(--gold);border-radius:4px;margin:1rem 0;">' +
+      '<div style="font-weight:600;color:var(--navy);margin-bottom:0.5rem;">No accessible locations</div>' +
+      '<div style="font-size:13px;">You don\'t have access to any locations. Contact your administrator or <a href="mailto:support@whitestone-partners.com" style="color:var(--navy);font-weight:600;">support@whitestone-partners.com</a>.</div>' +
+      "</div>";
+  }
+  window.showLocationlessEmptyState = showLocationlessEmptyState;
+
   function applyRbacSidebarVisibility(role) {
     if (!role || !RBAC_VISIBLE_PANELS[role]) {
       document.querySelectorAll(".sidebar-nav-item[data-panel]").forEach(function(btn) {
