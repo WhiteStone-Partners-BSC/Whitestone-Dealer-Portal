@@ -132,6 +132,11 @@ async function checkOverdueBanners() {
   var banner10 = document.getElementById("overdue-banner-10");
   var banner20 = document.getElementById("overdue-banner-20");
   if (!banner10 || !banner20 || !currentDealer || currentDealer.isAdmin) return;
+  if (currentDealer._isAllLocations) {
+    banner10.style.display = "none";
+    banner20.style.display = "none";
+    return;
+  }
   try {
     var r = await fetch(
       SUPABASE_URL + "/rest/v1/invoice_items?dealer_id=eq." + currentDealer.id + "&status=eq.unpaid&order=added_to_cart_at.asc",
@@ -877,6 +882,278 @@ async function messagesSaveNote(id) {
   setTimeout(function() { note.style.borderColor = ""; }, 1500);
 }
 
+// =========================================================================
+// Box Enrollments — admin tab for dealer_enrollments leads
+// =========================================================================
+var allEnrollments = [];
+var currentEnrollmentFilter = "all";
+
+async function adminLoadEnrollments() {
+  var listEl = document.getElementById("enrollments-list");
+  if (listEl) {
+    listEl.innerHTML = "<div style='text-align:center;padding:2rem;color:var(--light);font-size:13px;'>Loading enrollments...</div>";
+  }
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/dealer_enrollments?select=*&order=submitted_at.desc",
+      { headers: authHeaders() }
+    );
+    allEnrollments = (await res.json()) || [];
+  } catch (e) {
+    allEnrollments = [];
+  }
+
+  var pendingCount = allEnrollments.filter(function(e) { return e.status === "pending"; }).length;
+  var progressCount = allEnrollments.filter(function(e) {
+    return e.status === "contacted" || e.status === "agreement_sent" || e.status === "signed";
+  }).length;
+  var activeCount = allEnrollments.filter(function(e) { return e.status === "active"; }).length;
+
+  var elP = document.getElementById("enrollments-count-pending");
+  var elIp = document.getElementById("enrollments-count-progress");
+  var elA = document.getElementById("enrollments-count-active");
+  if (elP) elP.textContent = String(pendingCount);
+  if (elIp) elIp.textContent = String(progressCount);
+  if (elA) elA.textContent = String(activeCount);
+
+  var badge = document.getElementById("enrollments-badge");
+  if (badge) {
+    badge.textContent = String(pendingCount);
+    badge.style.display = pendingCount > 0 ? "block" : "none";
+  }
+
+  enrollmentsRender();
+}
+
+function enrollmentsFilter(filter) {
+  currentEnrollmentFilter = filter;
+  ["all", "pending", "contacted", "agreement_sent", "signed", "active", "declined"].forEach(function(f) {
+    var btn = document.getElementById("enrfilter-" + f);
+    if (btn) {
+      btn.style.background = "";
+      btn.style.color = "";
+    }
+  });
+  var active = document.getElementById("enrfilter-" + filter);
+  if (active) {
+    active.style.background = "var(--navy)";
+    active.style.color = "white";
+  }
+  enrollmentsRender();
+}
+
+function enrollmentStatusMeta(status) {
+  if (status === "pending") return { color: "var(--red-text)", bg: "rgba(192,57,43,0.1)", label: "Pending" };
+  if (status === "contacted") return { color: "var(--gold)", bg: "rgba(184,150,62,0.12)", label: "Contacted" };
+  if (status === "agreement_sent") return { color: "#0066b3", bg: "rgba(0,102,179,0.1)", label: "Agreement Sent" };
+  if (status === "signed") return { color: "#7a3aa0", bg: "rgba(122,58,160,0.1)", label: "Signed" };
+  if (status === "active") return { color: "var(--green-text)", bg: "rgba(27,94,32,0.1)", label: "Active" };
+  if (status === "declined") return { color: "var(--light)", bg: "rgba(143,165,184,0.16)", label: "Declined" };
+  return { color: "var(--light)", bg: "rgba(143,165,184,0.16)", label: String(status || "Unknown") };
+}
+
+function enrollmentsRender() {
+  var filtered = currentEnrollmentFilter === "all"
+    ? allEnrollments
+    : allEnrollments.filter(function(e) { return e.status === currentEnrollmentFilter; });
+
+  var el = document.getElementById("enrollments-list");
+  if (!el) return;
+  if (!filtered || filtered.length === 0) {
+    el.innerHTML = "<div style='text-align:center;padding:2rem;color:var(--light);font-size:13px;'>No enrollments found.</div>";
+    return;
+  }
+
+  el.innerHTML = filtered.map(function(e) {
+    var meta = enrollmentStatusMeta(e.status);
+    var dt = e.submitted_at ? new Date(e.submitted_at) : new Date();
+    var date = dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    var safeId = String(e.id || "").replace(/'/g, "\\'");
+    var landingUrl = e.slug ? "https://whitestone-partners.com/dealer/" + e.slug : "";
+    var landingLink = landingUrl ? "<a href='" + escHtml(landingUrl) + "' target='_blank' style='color:var(--gold);text-decoration:none;font-size:11.5px;'>" + escHtml(e.slug) + " ↗</a>" : "—";
+
+    return "<div style='background:white;border:1px solid var(--border);border-radius:10px;padding:1.25rem 1.5rem;margin-bottom:0.85rem;border-left:3px solid " + meta.color + ";'>" +
+      "<div style='display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;'>" +
+        "<div>" +
+          "<div style='font-size:15px;font-weight:600;color:var(--navy);'>" + escHtml(e.dealership_name || "Unknown") + "</div>" +
+          "<div style='font-size:12px;color:var(--light);margin-top:2px;'>" + escHtml(e.submitter_name || "—") + " · " + escHtml(date) + "</div>" +
+        "</div>" +
+        "<span style='font-size:11px;font-weight:600;color:" + meta.color + ";background:" + meta.bg + ";padding:3px 12px;border-radius:20px;border:1px solid " + meta.color + ";'>" + escHtml(meta.label) + "</span>" +
+      "</div>" +
+      "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.5rem;font-size:12.5px;color:var(--mid);margin-bottom:1rem;padding:0.75rem 1rem;background:var(--silver-bg);border-radius:6px;'>" +
+        "<div><strong style='color:var(--navy);'>Email:</strong> <a href='mailto:" + escHtml(e.submitter_email || "") + "' style='color:var(--gold);'>" + escHtml(e.submitter_email || "—") + "</a></div>" +
+        "<div><strong style='color:var(--navy);'>Phone:</strong> <a href='tel:" + escHtml(e.submitter_phone || "") + "' style='color:var(--gold);'>" + escHtml(e.submitter_phone || "—") + "</a></div>" +
+        "<div><strong style='color:var(--navy);'>Landing:</strong> " + landingLink + "</div>" +
+      "</div>" +
+      (e.message ? "<div style='font-size:13px;color:var(--mid);line-height:1.6;margin-bottom:1rem;padding:0.75rem 1rem;background:#fdf9ed;border-left:3px solid var(--gold);border-radius:4px;font-style:italic;'>" + escHtml(e.message) + "</div>" : "") +
+      "<div style='display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;'>" +
+        "<select onchange=\"enrollmentsUpdateStatus('" + safeId + "', this.value)\" style='padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12.5px;font-family:inherit;color:var(--navy);'>" +
+          "<option value='pending'" + (e.status === "pending" ? " selected" : "") + ">Pending</option>" +
+          "<option value='contacted'" + (e.status === "contacted" ? " selected" : "") + ">Contacted</option>" +
+          "<option value='agreement_sent'" + (e.status === "agreement_sent" ? " selected" : "") + ">Agreement Sent</option>" +
+          "<option value='signed'" + (e.status === "signed" ? " selected" : "") + ">Signed</option>" +
+          "<option value='active'" + (e.status === "active" ? " selected" : "") + ">Active</option>" +
+          "<option value='declined'" + (e.status === "declined" ? " selected" : "") + ">Declined</option>" +
+        "</select>" +
+        "<input type='text' placeholder='Add a note...' id='enrnote-" + safeId + "' value=\"" + escHtml(e.notes || "") + "\" style='flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12.5px;font-family:inherit;'>" +
+        "<button onclick=\"enrollmentsSaveNote('" + safeId + "')\" style='background:var(--navy);color:white;border:none;padding:6px 16px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;'>Save Note</button>" +
+      "</div>" +
+    "</div>";
+  }).join("");
+}
+
+async function enrollmentsUpdateStatus(id, status) {
+  var patchBody = { status: status };
+  if (status === "agreement_sent") patchBody.agreement_sent_at = new Date().toISOString();
+  if (status === "signed") patchBody.agreement_signed_at = new Date().toISOString();
+  if (status === "active") patchBody.activated_at = new Date().toISOString();
+
+  await fetch(SUPABASE_URL + "/rest/v1/dealer_enrollments?id=eq." + encodeURIComponent(id), {
+    method: "PATCH",
+    headers: Object.assign({}, authHeaders(), { "Content-Type": "application/json" }),
+    body: JSON.stringify(patchBody)
+  });
+  await adminLoadEnrollments();
+}
+
+async function enrollmentsSaveNote(id) {
+  var note = document.getElementById("enrnote-" + id);
+  if (!note) return;
+  await fetch(SUPABASE_URL + "/rest/v1/dealer_enrollments?id=eq." + encodeURIComponent(id), {
+    method: "PATCH",
+    headers: Object.assign({}, authHeaders(), { "Content-Type": "application/json" }),
+    body: JSON.stringify({ notes: note.value })
+  });
+  note.style.borderColor = "var(--green-text)";
+  setTimeout(function() { note.style.borderColor = ""; }, 1500);
+}
+
+// =========================================================================
+// Box Inquiries — admin tab for dealer_inquiries leads
+// =========================================================================
+var allInquiries = [];
+var currentInquiryFilter = "all";
+
+async function adminLoadInquiries() {
+  var listEl = document.getElementById("inquiries-list");
+  if (listEl) {
+    listEl.innerHTML = "<div style='text-align:center;padding:2rem;color:var(--light);font-size:13px;'>Loading inquiries...</div>";
+  }
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/dealer_inquiries?select=*&order=submitted_at.desc",
+      { headers: authHeaders() }
+    );
+    allInquiries = (await res.json()) || [];
+  } catch (e) {
+    allInquiries = [];
+  }
+
+  var unresponded = allInquiries.filter(function(i) { return !i.responded_at; }).length;
+  var responded = allInquiries.filter(function(i) { return !!i.responded_at; }).length;
+
+  var elU = document.getElementById("inquiries-count-unresponded");
+  var elR = document.getElementById("inquiries-count-responded");
+  if (elU) elU.textContent = String(unresponded);
+  if (elR) elR.textContent = String(responded);
+
+  var badge = document.getElementById("inquiries-badge");
+  if (badge) {
+    badge.textContent = String(unresponded);
+    badge.style.display = unresponded > 0 ? "block" : "none";
+  }
+
+  inquiriesRender();
+}
+
+function inquiriesFilter(filter) {
+  currentInquiryFilter = filter;
+  ["all", "unresponded", "responded"].forEach(function(f) {
+    var btn = document.getElementById("inqfilter-" + f);
+    if (btn) {
+      btn.style.background = "";
+      btn.style.color = "";
+    }
+  });
+  var active = document.getElementById("inqfilter-" + filter);
+  if (active) {
+    active.style.background = "var(--navy)";
+    active.style.color = "white";
+  }
+  inquiriesRender();
+}
+
+function inquiriesRender() {
+  var filtered = currentInquiryFilter === "all"
+    ? allInquiries
+    : currentInquiryFilter === "unresponded"
+      ? allInquiries.filter(function(i) { return !i.responded_at; })
+      : allInquiries.filter(function(i) { return !!i.responded_at; });
+
+  var el = document.getElementById("inquiries-list");
+  if (!el) return;
+  if (!filtered || filtered.length === 0) {
+    el.innerHTML = "<div style='text-align:center;padding:2rem;color:var(--light);font-size:13px;'>No inquiries found.</div>";
+    return;
+  }
+
+  el.innerHTML = filtered.map(function(i) {
+    var isResponded = !!i.responded_at;
+    var color = isResponded ? "var(--green-text)" : "var(--red-text)";
+    var bg = isResponded ? "rgba(27,94,32,0.1)" : "rgba(192,57,43,0.1)";
+    var label = isResponded ? "Responded" : "Unresponded";
+    var dt = i.submitted_at ? new Date(i.submitted_at) : new Date();
+    var date = dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    var safeId = String(i.id || "").replace(/'/g, "\\'");
+    var landingUrl = i.slug ? "https://whitestone-partners.com/dealer/" + i.slug : "";
+    var landingLink = landingUrl ? "<a href='" + escHtml(landingUrl) + "' target='_blank' style='color:var(--gold);text-decoration:none;font-size:11.5px;'>" + escHtml(i.slug) + " ↗</a>" : "—";
+    var btnLabel = isResponded ? "Mark Unresponded" : "Mark Responded";
+
+    return "<div style='background:white;border:1px solid var(--border);border-radius:10px;padding:1.25rem 1.5rem;margin-bottom:0.85rem;border-left:3px solid " + color + ";'>" +
+      "<div style='display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;'>" +
+        "<div>" +
+          "<div style='font-size:15px;font-weight:600;color:var(--navy);'>" + escHtml(i.dealership_name || "Unknown") + "</div>" +
+          "<div style='font-size:12px;color:var(--light);margin-top:2px;'>" + escHtml(i.submitter_name || "—") + " · " + escHtml(date) + "</div>" +
+        "</div>" +
+        "<span style='font-size:11px;font-weight:600;color:" + color + ";background:" + bg + ";padding:3px 12px;border-radius:20px;border:1px solid " + color + ";'>" + escHtml(label) + "</span>" +
+      "</div>" +
+      "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.5rem;font-size:12.5px;color:var(--mid);margin-bottom:1rem;padding:0.75rem 1rem;background:var(--silver-bg);border-radius:6px;'>" +
+        "<div><strong style='color:var(--navy);'>Email:</strong> <a href='mailto:" + escHtml(i.submitter_email || "") + "' style='color:var(--gold);'>" + escHtml(i.submitter_email || "—") + "</a></div>" +
+        "<div><strong style='color:var(--navy);'>Phone:</strong> <a href='tel:" + escHtml(i.submitter_phone || "") + "' style='color:var(--gold);'>" + escHtml(i.submitter_phone || "—") + "</a></div>" +
+        "<div><strong style='color:var(--navy);'>Landing:</strong> " + landingLink + "</div>" +
+      "</div>" +
+      "<div style='font-size:13px;color:var(--mid);line-height:1.6;margin-bottom:1rem;padding:0.75rem 1rem;background:#fdf9ed;border-left:3px solid var(--gold);border-radius:4px;font-style:italic;'>" + escHtml(i.comment || "—") + "</div>" +
+      "<div style='display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;'>" +
+        "<button onclick=\"inquiriesToggleResponded('" + safeId + "', " + isResponded + ")\" style='background:" + (isResponded ? "var(--light)" : "var(--navy)") + ";color:white;border:none;padding:6px 16px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;'>" + btnLabel + "</button>" +
+        "<input type='text' placeholder='Response notes...' id='inqnote-" + safeId + "' value=\"" + escHtml(i.response_notes || "") + "\" style='flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12.5px;font-family:inherit;'>" +
+        "<button onclick=\"inquiriesSaveNote('" + safeId + "')\" style='background:var(--navy);color:white;border:none;padding:6px 16px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;'>Save Note</button>" +
+      "</div>" +
+    "</div>";
+  }).join("");
+}
+
+async function inquiriesToggleResponded(id, currentlyResponded) {
+  var newRespondedAt = currentlyResponded ? null : new Date().toISOString();
+  await fetch(SUPABASE_URL + "/rest/v1/dealer_inquiries?id=eq." + encodeURIComponent(id), {
+    method: "PATCH",
+    headers: Object.assign({}, authHeaders(), { "Content-Type": "application/json" }),
+    body: JSON.stringify({ responded_at: newRespondedAt })
+  });
+  await adminLoadInquiries();
+}
+
+async function inquiriesSaveNote(id) {
+  var note = document.getElementById("inqnote-" + id);
+  if (!note) return;
+  await fetch(SUPABASE_URL + "/rest/v1/dealer_inquiries?id=eq." + encodeURIComponent(id), {
+    method: "PATCH",
+    headers: Object.assign({}, authHeaders(), { "Content-Type": "application/json" }),
+    body: JSON.stringify({ response_notes: note.value })
+  });
+  note.style.borderColor = "var(--green-text)";
+  setTimeout(function() { note.style.borderColor = ""; }, 1500);
+}
+
 function generateUsername(dealershipName) {
   var s = String(dealershipName || "")
     .toLowerCase()
@@ -944,6 +1221,9 @@ async function adminLoadBadgeCounts() {
       msgBadge.textContent = msgs.length;
       msgBadge.style.display = msgs.length > 0 ? "block" : "none";
     }
+
+    try { await adminLoadEnrollments(); } catch (e) {}
+    try { await adminLoadInquiries(); } catch (e) {}
   } catch (e) {
     /* ignore */
   }
@@ -2369,7 +2649,7 @@ async function loadTierIndicator() {
 window.loadTierIndicator = loadTierIndicator;
 
 async function loadOnboardingChecklist() {
-  if (!currentDealer || currentDealer.isAdmin) return;
+  if (!currentDealer || currentDealer.isAdmin || currentDealer._isAllLocations) return;
   var filterClause;
   if (window.currentUser && window.currentUser.is_legacy) {
     filterClause = "dealer_id=eq." + currentDealer.id;
@@ -5276,6 +5556,12 @@ document.addEventListener("DOMContentLoaded", function() {
       case "messages":
         adminLoadMessages();
         break;
+      case "box-enrollments":
+        adminLoadEnrollments();
+        break;
+      case "box-inquiries":
+        adminLoadInquiries();
+        break;
       case "pricing":
         pricingInitOnTab();
         break;
@@ -5931,6 +6217,11 @@ document.addEventListener("DOMContentLoaded", function() {
         focusedDealer = dealerRow;
       }
 
+      window._dealerRowCache = window._dealerRowCache || {};
+      if (focusedDealer && focusedDealer.id) {
+        window._dealerRowCache[focusedDealer.id] = focusedDealer;
+      }
+
       return { currentUser: currentUserObj, currentDealer: focusedDealer, error: null };
     }
 
@@ -5951,6 +6242,10 @@ document.addEventListener("DOMContentLoaded", function() {
           ? await fetchAccessibleLocations()
           : [legacyDealer.id]
       };
+      window._dealerRowCache = window._dealerRowCache || {};
+      if (legacyDealer && legacyDealer.id) {
+        window._dealerRowCache[legacyDealer.id] = legacyDealer;
+      }
       return { currentUser: legacyUser, currentDealer: legacyDealer, error: null };
     }
 
@@ -5985,7 +6280,11 @@ document.addEventListener("DOMContentLoaded", function() {
       smallIsItalic = true;
     } else if (u && u.organization_id && !u.is_legacy) {
       bigText = window._cachedOrgName || (d && (d.dealership_name || d.name)) || "";
-      smallText = (d && (d.dealership_name || d.name)) || "";
+      if (d && d._isAllLocations) {
+        smallText = "All Locations";
+      } else {
+        smallText = (d && (d.dealership_name || d.name)) || "";
+      }
       if (!window._cachedOrgName && u.organization_id) {
         fetch(SUPABASE_URL + "/rest/v1/organizations?id=eq." + encodeURIComponent(u.organization_id) + "&select=name&limit=1", { headers: supabaseHeaders() })
           .then(function(r) { return r.json(); })
@@ -6009,8 +6308,163 @@ document.addEventListener("DOMContentLoaded", function() {
       subEl.style.fontStyle = smallIsItalic ? "italic" : "";
       subEl.style.opacity = smallIsItalic ? "0.65" : "0.85";
     }
+
+    // Phase 4: show chevron if user has >1 accessible location AND is not legacy
+    var chevronBtn = document.getElementById("sidebar-location-switcher-chevron");
+    if (chevronBtn) {
+      var locCount = (window.currentUser && Array.isArray(window.currentUser.accessible_locations))
+        ? window.currentUser.accessible_locations.length
+        : 0;
+      var showChevron = locCount > 1 && window.currentUser && !window.currentUser.is_legacy;
+      chevronBtn.style.display = showChevron ? "" : "none";
+    }
   }
   window.applySidebarHeader = applySidebarHeader;
+
+  // =========================================================================
+  // Phase 4 — Location Switcher
+  // =========================================================================
+  window._dealerRowCache = window._dealerRowCache || {};
+
+  async function fetchDealerRowById(dealerId) {
+    if (!dealerId) return null;
+    if (window._dealerRowCache[dealerId]) return window._dealerRowCache[dealerId];
+    try {
+      var res = await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(dealerId) + "&limit=1",
+        { headers: supabaseHeaders() }
+      );
+      var rows = await res.json();
+      if (!res.ok || !Array.isArray(rows) || rows.length === 0) return null;
+      var row = rows[0];
+      row.name = row.dealership_name || row.name;
+      row.isAdmin = !!row.is_admin;
+      window._dealerRowCache[dealerId] = row;
+      return row;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function fetchAllAccessibleDealerRows() {
+    var ids = (window.currentUser && window.currentUser.accessible_locations) || [];
+    var rows = [];
+    for (var i = 0; i < ids.length; i++) {
+      var row = await fetchDealerRowById(ids[i]);
+      if (row) rows.push(row);
+    }
+    return rows;
+  }
+
+  function getActivePanelId() {
+    var active = document.querySelector('[id^="panel-"]:not([style*="display: none"]):not([style*="display:none"])');
+    return active ? active.id : null;
+  }
+
+  function reloadActivePanel() {
+    var panelId = getActivePanelId();
+    if (!panelId) return;
+    var map = {
+      "panel-dashboard": "loadDashboard",
+      "panel-customers": "loadCustomersTab",
+      "panel-history": "loadReimbursementHistory"
+    };
+    if (typeof window.applySidebarHeader === "function") window.applySidebarHeader();
+    if (typeof window.loadTierIndicator === "function") window.loadTierIndicator();
+    if (typeof window.loadOnboardingChecklist === "function") window.loadOnboardingChecklist();
+    var fnName = map[panelId];
+    if (fnName && typeof window[fnName] === "function") window[fnName]();
+    if (panelId === "panel-history" && typeof loadTickets === "function") loadTickets();
+  }
+
+  async function switchLocation(dealerIdOrAll) {
+    var dropdown = document.getElementById("location-switcher-dropdown");
+    if (dropdown) dropdown.style.display = "none";
+
+    if (dealerIdOrAll === "__all__") {
+      currentDealer = {
+        id: null,
+        name: "All Locations",
+        dealership_name: "All Locations",
+        _isAllLocations: true,
+        isAdmin: false
+      };
+      window.currentDealer = currentDealer;
+    } else {
+      var row = await fetchDealerRowById(dealerIdOrAll);
+      if (!row) return;
+      currentDealer = row;
+      window.currentDealer = currentDealer;
+    }
+    reloadActivePanel();
+  }
+  window.switchLocation = switchLocation;
+
+  async function openLocationSwitcher() {
+    var dropdown = document.getElementById("location-switcher-dropdown");
+    if (!dropdown) return;
+    if (dropdown.style.display === "block") {
+      dropdown.style.display = "none";
+      return;
+    }
+    dropdown.innerHTML = "<div class='location-switcher-option' style='opacity:0.6;cursor:default;'>Loading...</div>";
+    dropdown.style.display = "block";
+
+    var rows = await fetchAllAccessibleDealerRows();
+    rows.sort(function(a, b) {
+      var an = (a.dealership_name || a.name || "").toLowerCase();
+      var bn = (b.dealership_name || b.name || "").toLowerCase();
+      return an < bn ? -1 : an > bn ? 1 : 0;
+    });
+
+    var currentId = (window.currentDealer && window.currentDealer.id) || null;
+    var isAllCurrent = !!(window.currentDealer && window.currentDealer._isAllLocations);
+    var html = "";
+    rows.forEach(function(r) {
+      var nm = (r.dealership_name || r.name || "Unnamed Location");
+      var safeName = nm.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      var isActive = !isAllCurrent && r.id === currentId;
+      html += "<button class='location-switcher-option" + (isActive ? " active" : "") + "' data-loc-id='" + r.id + "' type='button'>" + safeName + "</button>";
+    });
+    html += "<div class='location-switcher-divider'></div>";
+    html += "<button class='location-switcher-option" + (isAllCurrent ? " active" : "") + "' data-loc-id='__all__' type='button'>All Locations</button>";
+    dropdown.innerHTML = html;
+
+    Array.from(dropdown.querySelectorAll(".location-switcher-option")).forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        var locId = btn.getAttribute("data-loc-id");
+        switchLocation(locId);
+      });
+    });
+  }
+  window.openLocationSwitcher = openLocationSwitcher;
+
+  function wireLocationSwitcher() {
+    var chevron = document.getElementById("sidebar-location-switcher-chevron");
+    if (chevron && !chevron.dataset.wired) {
+      chevron.dataset.wired = "1";
+      chevron.addEventListener("click", function(ev) {
+        ev.stopPropagation();
+        openLocationSwitcher();
+      });
+    }
+    if (!document._locSwitcherOutsideClickWired) {
+      document._locSwitcherOutsideClickWired = true;
+      document.addEventListener("click", function(ev) {
+        var dropdown = document.getElementById("location-switcher-dropdown");
+        if (!dropdown || dropdown.style.display !== "block") return;
+        var chevronEl = document.getElementById("sidebar-location-switcher-chevron");
+        if (!dropdown.contains(ev.target) && !(chevronEl && chevronEl.contains(ev.target))) {
+          dropdown.style.display = "none";
+        }
+      });
+    }
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", wireLocationSwitcher);
+  } else {
+    wireLocationSwitcher();
+  }
 
   // =========================================================================
   // Phase 2 Commit 2A — Dealer ID filter helper
