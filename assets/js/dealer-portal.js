@@ -2299,9 +2299,17 @@ window.dealerOpenSettings = dealerOpenSettings;
 
 async function loadTierIndicator() {
   if (!currentDealer || currentDealer.isAdmin) return;
+  var filterClause;
+  if (window.currentUser && window.currentUser.is_legacy) {
+    filterClause = "dealer_id=eq." + currentDealer.id;
+  } else {
+    var op = buildDealerIdFilter();
+    filterClause = op === null ? null : "dealer_id=" + op;
+  }
+  if (filterClause === null) return;
 
   var res = await fetch(
-    SUPABASE_URL + "/rest/v1/contracts?dealership_name=eq." + encodeURIComponent(currentDealer.name) + "&status=eq.active&select=id",
+    SUPABASE_URL + "/rest/v1/contracts?" + filterClause + "&status=eq.active&select=id",
     { headers: authHeaders() }
   );
   var contracts = (await res.json()) || [];
@@ -2362,6 +2370,14 @@ window.loadTierIndicator = loadTierIndicator;
 
 async function loadOnboardingChecklist() {
   if (!currentDealer || currentDealer.isAdmin) return;
+  var filterClause;
+  if (window.currentUser && window.currentUser.is_legacy) {
+    filterClause = "dealer_id=eq." + currentDealer.id;
+  } else {
+    var op = buildDealerIdFilter();
+    filterClause = op === null ? null : "dealer_id=" + op;
+  }
+  if (filterClause === null) return;
 
   try {
     var res = await fetch(
@@ -2398,8 +2414,8 @@ async function loadOnboardingChecklist() {
 
     var contractsRes = await fetch(
       SUPABASE_URL +
-        "/rest/v1/contracts?dealership_name=eq." +
-        encodeURIComponent(currentDealer.name) +
+        "/rest/v1/contracts?" +
+        filterClause +
         "&select=id&limit=1",
       { headers: authHeaders() }
     );
@@ -2408,8 +2424,8 @@ async function loadOnboardingChecklist() {
 
     var ticketsRes = await fetch(
       SUPABASE_URL +
-        "/rest/v1/tickets?dealership_name=eq." +
-        encodeURIComponent(currentDealer.name) +
+        "/rest/v1/tickets?" +
+        filterClause +
         "&select=id&limit=1",
       { headers: authHeaders() }
     );
