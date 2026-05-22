@@ -3542,6 +3542,7 @@ function pricingUpdateAll() {
 var pricingDashboardData = {
   contracts: [],
   tickets: [],
+  reimbursements: [],
   windowFilter: "all",
   dealerSort: "margin_desc",
   loaded: false
@@ -3597,12 +3598,18 @@ window.pricingInitOnTab = async function pricingInitOnTab() {
       SUPABASE_URL + "/rest/v1/tickets?select=id,dealer_id,dealership_name,service_type,reimbursement_amount,reimbursement_paid,status,created_at",
       { headers: authHeaders() }
     );
+    var reimbursementsRes = await fetch(
+      SUPABASE_URL + "/rest/v1/reimbursements?select=id,ticket_id,dealer_id,dealership_name,amount,status,paid_date,created_at",
+      { headers: authHeaders() }
+    );
 
     var contracts = await contractsRes.json();
     var tickets = await ticketsRes.json();
+    var reimbursements = await reimbursementsRes.json();
 
     pricingDashboardData.contracts = Array.isArray(contracts) ? contracts : [];
     pricingDashboardData.tickets = Array.isArray(tickets) ? tickets : [];
+    pricingDashboardData.reimbursements = Array.isArray(reimbursements) ? reimbursements : [];
     pricingDashboardData.loaded = true;
 
     pricingRenderAll();
@@ -3684,24 +3691,27 @@ function pricingRenderAll() {
 
   var contracts = pricingFilterByWindow(pricingDashboardData.contracts);
   var tickets = pricingFilterByWindow(pricingDashboardData.tickets);
+  var reimbursements = pricingFilterByWindow(pricingDashboardData.reimbursements);
 
   // --- Top stat cards ---
   var revenue = contracts
     .filter(function(c) { return c.paid_at && !c.cancelled_at; })
     .reduce(function(sum, c) { return sum + (Number(c.wholesale_price) || 0); }, 0);
 
-  var claimsPaid = tickets
-    .filter(function(t) { return t.reimbursement_paid === true; })
-    .reduce(function(sum, t) { return sum + (Number(t.reimbursement_amount) || 0); }, 0);
+  // Phase 6C: claims paid sourced from reimbursements table (real ledger)
+  var claimsPaid = reimbursements
+    .filter(function(r) { return r.status === "paid"; })
+    .reduce(function(sum, r) { return sum + (Number(r.amount) || 0); }, 0);
 
   var netMargin = revenue - claimsPaid;
   var marginPct = revenue > 0 ? (netMargin / revenue) * 100 : 0;
 
   var activeCount = contracts.filter(function(c) { return c.status === "active"; }).length;
 
-  var approvedUnpaid = tickets
-    .filter(function(t) { return t.status === "approved" && !t.reimbursement_paid; })
-    .reduce(function(sum, t) { return sum + (Number(t.reimbursement_amount) || 0); }, 0);
+  // Phase 6C: approved-but-unpaid is reimbursements with status pending
+  var approvedUnpaid = reimbursements
+    .filter(function(r) { return r.status === "pending"; })
+    .reduce(function(sum, r) { return sum + (Number(r.amount) || 0); }, 0);
 
   var pendingContracts = contracts.filter(function(c) {
     return !c.paid_at && !c.cancelled_at && c.status !== "cancelled";
@@ -3769,12 +3779,20 @@ function pricingRenderTermTable(contracts) {
 }
 
 function pricingRenderServiceTable(tickets) {
+  // Phase 6C: aggregate from reimbursements (status=paid) but pull service_type from tickets via ticket_id join
+  var ticketLookup = {};
+  tickets.forEach(function(t) { ticketLookup[t.id] = t; });
+
+  var paidReims = pricingFilterByWindow(pricingDashboardData.reimbursements)
+    .filter(function(r) { return r.status === "paid"; });
+
   var byService = {};
-  tickets.filter(function(t) { return t.reimbursement_paid === true; }).forEach(function(t) {
-    var key = (t.service_type || "Unknown").toString();
+  paidReims.forEach(function(r) {
+    var ticket = ticketLookup[r.ticket_id];
+    var key = (ticket && ticket.service_type) ? ticket.service_type : "Unknown";
     if (!byService[key]) byService[key] = { count: 0, total: 0 };
     byService[key].count += 1;
-    byService[key].total += Number(t.reimbursement_amount) || 0;
+    byService[key].total += Number(r.amount) || 0;
   });
 
   var rows = Object.keys(byService).map(function(k) {
@@ -3814,7 +3832,6 @@ function pricingRenderServiceTable(tickets) {
 
 function pricingRenderDealerTable() {
   var contracts = pricingFilterByWindow(pricingDashboardData.contracts);
-  var tickets = pricingFilterByWindow(pricingDashboardData.tickets);
 
   // Build map: dealership_name -> { revenue, claims, contracts, claimCount }
   var byDealer = {};
@@ -3826,10 +3843,13 @@ function pricingRenderDealerTable() {
     byDealer[key].contractCount += 1;
   });
 
-  tickets.filter(function(t) { return t.reimbursement_paid === true; }).forEach(function(t) {
-    var key = t.dealership_name || "Unknown";
+  // Phase 6C: dealer claims sourced from reimbursements (status=paid)
+  var paidReims = pricingFilterByWindow(pricingDashboardData.reimbursements)
+    .filter(function(r) { return r.status === "paid"; });
+  paidReims.forEach(function(r) {
+    var key = r.dealership_name || "Unknown";
     if (!byDealer[key]) byDealer[key] = { revenue: 0, claims: 0, contractCount: 0, claimCount: 0 };
-    byDealer[key].claims += Number(t.reimbursement_amount) || 0;
+    byDealer[key].claims += Number(r.amount) || 0;
     byDealer[key].claimCount += 1;
   });
 
@@ -3915,13 +3935,16 @@ function pricingRenderTrendChart() {
     if (bucket) bucket.revenue += Number(c.wholesale_price) || 0;
   });
 
-  // Aggregate tickets into months by created_at (closest proxy for "when paid out")
-  pricingDashboardData.tickets.forEach(function(t) {
-    if (t.reimbursement_paid !== true) return;
-    if (!t.created_at) return;
-    var ca = new Date(t.created_at);
-    var bucket = months.find(function(m) { return m.year === ca.getFullYear() && m.month === ca.getMonth(); });
-    if (bucket) bucket.claims += Number(t.reimbursement_amount) || 0;
+  // Phase 6C: aggregate paid reimbursements into months by paid_date (or created_at fallback)
+  pricingDashboardData.reimbursements.forEach(function(r) {
+    if (r.status !== "paid") return;
+    // Prefer paid_date; fall back to created_at if missing
+    var dateStr = r.paid_date || r.created_at;
+    if (!dateStr) return;
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return;
+    var bucket = months.find(function(m) { return m.year === d.getFullYear() && m.month === d.getMonth(); });
+    if (bucket) bucket.claims += Number(r.amount) || 0;
   });
 
   // Compute margin % per month (null if zero revenue)
