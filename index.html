@@ -1383,119 +1383,119 @@
       <div id="messages-list"></div>
     </div>
 
-    <!-- PRICING MODEL (admin only) -->
+    <!-- PRICING DASHBOARD (admin only) -->
     <div id="admin-panel-pricing" class="admin-panel" style="display:none;">
+
+      <!-- Header + time window selector -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.25rem;">
+        <div>
+          <div style="font-size:18px;font-weight:600;color:var(--navy);">Pricing &amp; Margin Dashboard</div>
+          <div style="font-size:12px;color:var(--light);margin-top:2px;">Revenue, claims, and per-dealer profitability</div>
+        </div>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+          <button onclick="pricingWindow('all')" id="pwin-all" class="btn-sm" style="background:var(--navy);color:white;">All Time</button>
+          <button onclick="pricingWindow('ytd')" id="pwin-ytd" class="btn-sm">YTD</button>
+          <button onclick="pricingWindow('90d')" id="pwin-90d" class="btn-sm">Last 90 Days</button>
+          <button onclick="pricingWindow('30d')" id="pwin-30d" class="btn-sm">Last 30 Days</button>
+        </div>
+      </div>
+
+      <!-- Top stat cards -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1rem;">
+        <div class="stat-card">
+          <div class="stat-label">Total Revenue</div>
+          <div class="stat-num" id="pd-revenue" style="color:var(--navy);">$0</div>
+          <div class="stat-sub">Cash collected (wholesale)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Claims Paid</div>
+          <div class="stat-num" id="pd-claims" style="color:var(--red-text);">$0</div>
+          <div class="stat-sub">Cash out to dealers</div>
+        </div>
+        <div class="stat-card" style="background:#fdf9ed;border-color:#e8d99b;">
+          <div class="stat-label" style="color:#8a6d20;">Net Margin</div>
+          <div class="stat-num" id="pd-margin" style="color:#5a4810;">$0</div>
+          <div class="stat-sub" id="pd-margin-pct" style="color:#8a6d20;">— %</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active Contracts</div>
+          <div class="stat-num" id="pd-active" style="color:var(--navy);">0</div>
+          <div class="stat-sub">Currently in force</div>
+        </div>
+      </div>
+
+      <!-- Secondary in-flight cards -->
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;margin-bottom:1.5rem;">
+        <div class="stat-card" style="background:#f8f9fb;">
+          <div class="stat-label">Approved but Unpaid</div>
+          <div class="stat-num" id="pd-unpaid" style="color:var(--light);font-size:22px;">$0</div>
+          <div class="stat-sub">Owed to dealers</div>
+        </div>
+        <div class="stat-card" style="background:#f8f9fb;">
+          <div class="stat-label">Pending Contracts</div>
+          <div class="stat-num" id="pd-pending" style="color:var(--light);font-size:22px;">0</div>
+          <div class="stat-sub">Not yet paid or cancelled</div>
+        </div>
+      </div>
+
+      <!-- Wholesale reference panel -->
       <div class="card" style="margin-bottom:1.5rem;">
         <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
-          <div style="flex:1;min-width:200px;">
-            <div style="font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);margin-bottom:6px;">Select Dealer</div>
-            <select id="ws-dealer-select" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;">
-              <option value="">— Select a dealer to configure pricing —</option>
-            </select>
+          <div style="flex:1;min-width:160px;">
+            <div style="font-size:10px;font-weight:700;color:var(--gold);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:4px;">Wholesale Prices</div>
+            <div style="font-size:12px;color:var(--light);">Flat across all dealers. Dealers set their own retail prices.</div>
           </div>
-          <div id="ws-lock-status" style="display:none;font-size:12px;font-weight:500;padding:7px 14px;border-radius:6px;"></div>
+          <div style="display:flex;gap:1.25rem;">
+            <div style="text-align:center;">
+              <div style="font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">1 Year</div>
+              <div style="font-size:18px;font-weight:700;color:var(--navy);">$2,495</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">2 Year</div>
+              <div style="font-size:18px;font-weight:700;color:var(--navy);">$4,495</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">3 Year</div>
+              <div style="font-size:18px;font-weight:700;color:var(--navy);">$6,495</div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div id="ws-pricing-gate" class="ws-pricing-gate" style="display:none;"></div>
+      <!-- Two-column breakdown row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
 
-      <div id="ws-steps" style="display:none;">
-        <div class="card" style="margin-bottom:1rem;">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1rem;">
-            <div>
-              <div style="font-size:11px;font-weight:700;color:var(--gold);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Step 1 — Service Costs</div>
-              <div style="font-size:13px;color:var(--light);">What you pay this dealer per service. Edit to match their actual rates.</div>
-            </div>
-            <button onclick="wsResetCosts()" style="font-size:11px;color:var(--light);background:none;border:1px solid var(--border);border-radius:4px;padding:4px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;">Reset defaults</button>
-          </div>
-          <table style="width:100%;border-collapse:collapse;font-size:13px;">
-            <thead>
-              <tr>
-                <th style="text-align:left;font-size:9.5px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);padding:8px 10px;border-bottom:2px solid var(--border);">Service</th>
-                <th style="text-align:left;font-size:9.5px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--light);padding:8px 10px;border-bottom:2px solid var(--border);">Frequency</th>
-                <th style="text-align:right;font-size:9.5px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);padding:8px 10px;border-bottom:2px solid var(--border);">Your Cost ← Edit</th>
-              </tr>
-            </thead>
-            <tbody id="ws-svc-tbody"></tbody>
-            <tfoot>
-              <tr>
-                <td colspan="2" style="padding:10px;font-weight:600;border-top:2px solid var(--border);">Total (100% claims)</td>
-                <td id="ws-total-cost" style="text-align:right;padding:10px;font-weight:600;color:var(--red);border-top:2px solid var(--border);">—</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
-          <div class="card">
-            <div style="font-size:11px;font-weight:700;color:var(--gold);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">Step 2 — Claims Rate</div>
-            <div style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;color:var(--navy);" id="ws-claims-val">80%</div>
-            <input type="range" id="ws-claims-slider" min="40" max="100" value="80" step="5" style="width:100%;accent-color:var(--gold);margin:8px 0;">
-            <div style="font-size:12px;color:var(--light);">% of services used per year</div>
-            <div style="margin-top:8px;font-size:13px;color:var(--mid);">Actual cost: <strong id="ws-actual-cost" style="color:var(--red);">—</strong></div>
-          </div>
-          <div class="card">
-            <div style="font-size:11px;font-weight:700;color:var(--gold);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">Step 3 — Target Margin</div>
-            <div style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;color:var(--navy);" id="ws-margin-val">20%</div>
-            <input type="range" id="ws-margin-slider" min="10" max="40" value="20" step="1" style="width:100%;accent-color:var(--gold);margin:8px 0;">
-            <div style="font-size:12px;color:var(--light);">Your profit % of wholesale</div>
-            <div style="margin-top:8px;font-size:13px;color:var(--mid);">Your profit: <strong id="ws-profit-inline" style="color:var(--green);">—</strong></div>
-          </div>
-        </div>
-
-        <div class="card" style="margin-bottom:1rem;">
-          <div style="font-size:11px;font-weight:700;color:var(--gold);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:1rem;">Step 4 — Wholesale Prices</div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1rem;" id="ws-contract-cards"></div>
-
-          <div style="background:var(--silver-bg);border-radius:8px;padding:1rem 1.25rem;font-size:13px;color:var(--mid);line-height:2;">
-            <div style="display:flex;justify-content:space-between;"><span>Total service cost (all 10)</span><span id="ws-m-total" style="font-weight:600;">—</span></div>
-            <div style="display:flex;justify-content:space-between;"><span>× Claims rate (<span id="ws-m-claims">80</span>%) = actual cost</span><span id="ws-m-actual" style="font-weight:600;color:var(--red);">—</span></div>
-            <div style="display:flex;justify-content:space-between;"><span>÷ (1 − <span id="ws-m-margin">20</span>%) to add margin</span><span id="ws-m-wholesale" style="font-weight:600;color:var(--gold);">—</span></div>
-            <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);margin-top:4px;padding-top:8px;"><span style="font-weight:600;color:var(--navy);">= 1-Year Wholesale Price</span><span id="ws-m-result" style="font-weight:600;color:var(--gold);">—</span></div>
-          </div>
-        </div>
-
-        <div class="card" style="margin-bottom:1rem;">
-          <div style="font-size:11px;font-weight:700;color:var(--gold);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:1rem;">Step 5 — Dealer Markup Calculator</div>
-          <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
-            <div style="text-align:center;background:var(--navy2);border-radius:8px;padding:1rem 1.5rem;min-width:140px;">
-              <div style="font-size:10px;color:rgba(200,220,235,0.5);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">You charge dealer</div>
-              <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;color:var(--gold);" id="ws-ex-wholesale">—</div>
-              <div style="font-size:10px;color:rgba(200,220,235,0.3);">1-yr wholesale</div>
-            </div>
-            <div style="font-size:20px;color:var(--border);">→</div>
-            <div style="text-align:center;">
-              <div style="font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Dealer sells at</div>
-              <div style="display:flex;align-items:center;gap:4px;">
-                <span style="color:var(--light);">$</span>
-                <input type="number" id="ws-dealer-retail" value="3999" style="width:100px;padding:6px 10px;border:2px solid var(--gold);border-radius:6px;font-size:20px;font-family:'Cormorant Garamond',serif;text-align:center;color:var(--navy);">
-              </div>
-              <div style="font-size:10px;color:var(--light);margin-top:3px;">dealer sets this</div>
-            </div>
-            <div style="font-size:20px;color:var(--border);">→</div>
-            <div style="text-align:center;">
-              <div style="font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Dealer keeps</div>
-              <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:400;color:#1a5c45;" id="ws-dealer-keeps">—</div>
-              <div style="font-size:10px;color:var(--light);" id="ws-dealer-pct">their margin</div>
-            </div>
-          </div>
-        </div>
-
-        <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;margin-bottom:1.5rem;">
-          <button id="ws-confirm-btn" style="background:var(--navy);color:white;border:none;padding:12px 28px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:0.04em;">Review & Confirm Pricing</button>
-          <button id="ws-unlock-btn" style="display:none;background:transparent;color:var(--mid);border:1px solid var(--border);padding:12px 20px;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;">🔓 Unlock Pricing</button>
-        </div>
-
+        <!-- Revenue by term -->
         <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="wsToggleHistory()">
-            <div style="font-size:11px;font-weight:700;color:var(--gold);letter-spacing:0.1em;text-transform:uppercase;">Pricing History</div>
-            <span id="ws-history-arrow" style="color:var(--light);font-size:12px;">▶</span>
-          </div>
-          <div id="ws-history-panel" style="display:none;margin-top:1rem;">
-            <div id="ws-history-list" style="font-size:13px;color:var(--light);">Loading...</div>
+          <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:0.75rem;">Revenue by Term</div>
+          <div id="pd-by-term"></div>
+        </div>
+
+        <!-- Claims by service type -->
+        <div class="card">
+          <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:0.75rem;">Claims by Service Type</div>
+          <div id="pd-by-service"></div>
+        </div>
+
+      </div>
+
+      <!-- Margin by dealer (full width, sortable) -->
+      <div class="card" style="margin-bottom:1.5rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+          <div style="font-size:14px;font-weight:600;color:var(--navy);">Margin by Dealer</div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button onclick="pricingDealerSort('margin_desc')" id="psort-margin_desc" class="btn-sm" style="background:var(--navy);color:white;">Best Margin</button>
+            <button onclick="pricingDealerSort('margin_asc')" id="psort-margin_asc" class="btn-sm">Worst Margin</button>
+            <button onclick="pricingDealerSort('revenue_desc')" id="psort-revenue_desc" class="btn-sm">By Revenue</button>
           </div>
         </div>
+        <div id="pd-by-dealer"></div>
       </div>
+
+      <div id="pd-empty-state" style="display:none;text-align:center;padding:3rem;color:var(--light);font-size:13px;">
+        No data yet in this time window.
+      </div>
+
     </div>
 
     <div id="admin-panel-financials" class="admin-panel" style="display:none;">
@@ -4522,10 +4522,9 @@ window.addEventListener("load", function() {
 
   var originalPricingInitOnTab = window.pricingInitOnTab;
   window.pricingInitOnTab = async function() {
-    await wsPricingLoadDealers();
-    wsBuildServiceTable();
-    wsRender();
-    wsUpdateLockStatus();
+    if (typeof originalPricingInitOnTab === "function") {
+      await originalPricingInitOnTab();
+    }
   };
 
   var originalSwitchTab = window.switchTab;

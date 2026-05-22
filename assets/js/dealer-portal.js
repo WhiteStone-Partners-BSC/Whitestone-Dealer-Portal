@@ -3536,7 +3536,18 @@ function pricingUpdateAll() {
   pricingRenderProfitChart();
 }
 
-function pricingInitOnTab() {
+// =========================================================================
+// Phase 6A — Pricing & Margin Dashboard (admin only)
+// =========================================================================
+var pricingDashboardData = {
+  contracts: [],
+  tickets: [],
+  windowFilter: "all",
+  dealerSort: "margin_desc",
+  loaded: false
+};
+
+function pricingInitOnTab_LEGACY_UNUSED() {
   if (!pricingTabInitialized) {
     pricingTabInitialized = true;
     pricingBindControlsOnce();
@@ -3566,6 +3577,313 @@ function pricingInitOnTab() {
     if (cl2 && document.getElementById("pricing-label-claims")) document.getElementById("pricing-label-claims").textContent = cl2.value;
     pricingUpdateAll();
   }
+}
+
+window.pricingInitOnTab = async function pricingInitOnTab() {
+  pricingDashboardData.loaded = false;
+  // Show loading state
+  document.getElementById("pd-revenue").textContent = "...";
+  document.getElementById("pd-claims").textContent = "...";
+  document.getElementById("pd-margin").textContent = "...";
+  document.getElementById("pd-active").textContent = "...";
+
+  try {
+    // Parallel fetches for speed
+    var contractsRes = await fetch(
+      SUPABASE_URL + "/rest/v1/contracts?select=id,dealer_id,dealership_name,contract_type,wholesale_price,retail_price,status,paid_at,cancelled_at,created_at",
+      { headers: authHeaders() }
+    );
+    var ticketsRes = await fetch(
+      SUPABASE_URL + "/rest/v1/tickets?select=id,dealer_id,dealership_name,service_type,reimbursement_amount,reimbursement_paid,status,created_at",
+      { headers: authHeaders() }
+    );
+
+    var contracts = await contractsRes.json();
+    var tickets = await ticketsRes.json();
+
+    pricingDashboardData.contracts = Array.isArray(contracts) ? contracts : [];
+    pricingDashboardData.tickets = Array.isArray(tickets) ? tickets : [];
+    pricingDashboardData.loaded = true;
+
+    pricingRenderAll();
+  } catch (e) {
+    console.error("Pricing dashboard load failed:", e);
+    document.getElementById("pd-revenue").textContent = "Error";
+  }
+};
+
+function pricingFilterByWindow(rows) {
+  if (pricingDashboardData.windowFilter === "all") return rows;
+  var now = new Date();
+  var cutoff;
+  if (pricingDashboardData.windowFilter === "ytd") {
+    cutoff = new Date(now.getFullYear(), 0, 1);
+  } else if (pricingDashboardData.windowFilter === "90d") {
+    cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  } else if (pricingDashboardData.windowFilter === "30d") {
+    cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  } else {
+    return rows;
+  }
+  return rows.filter(function(r) {
+    if (!r.created_at) return false;
+    return new Date(r.created_at) >= cutoff;
+  });
+}
+
+function pricingFormatMoney(n) {
+  if (n === null || n === undefined || isNaN(n)) return "$0";
+  var num = Number(n);
+  var sign = num < 0 ? "-" : "";
+  var abs = Math.abs(num);
+  return sign + "$" + abs.toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
+
+function pricingFormatPct(num, denom) {
+  if (!denom || denom === 0) return "—";
+  var pct = (num / denom) * 100;
+  return pct.toFixed(1) + "%";
+}
+
+window.pricingWindow = function(win) {
+  pricingDashboardData.windowFilter = win;
+  ["all", "ytd", "90d", "30d"].forEach(function(w) {
+    var btn = document.getElementById("pwin-" + w);
+    if (btn) {
+      btn.style.background = "";
+      btn.style.color = "";
+    }
+  });
+  var active = document.getElementById("pwin-" + win);
+  if (active) {
+    active.style.background = "var(--navy)";
+    active.style.color = "white";
+  }
+  pricingRenderAll();
+};
+
+window.pricingDealerSort = function(sortKey) {
+  pricingDashboardData.dealerSort = sortKey;
+  ["margin_desc", "margin_asc", "revenue_desc"].forEach(function(k) {
+    var btn = document.getElementById("psort-" + k);
+    if (btn) {
+      btn.style.background = "";
+      btn.style.color = "";
+    }
+  });
+  var active = document.getElementById("psort-" + sortKey);
+  if (active) {
+    active.style.background = "var(--navy)";
+    active.style.color = "white";
+  }
+  pricingRenderDealerTable();
+};
+
+function pricingRenderAll() {
+  if (!pricingDashboardData.loaded) return;
+
+  var contracts = pricingFilterByWindow(pricingDashboardData.contracts);
+  var tickets = pricingFilterByWindow(pricingDashboardData.tickets);
+
+  // --- Top stat cards ---
+  var revenue = contracts
+    .filter(function(c) { return c.paid_at && !c.cancelled_at; })
+    .reduce(function(sum, c) { return sum + (Number(c.wholesale_price) || 0); }, 0);
+
+  var claimsPaid = tickets
+    .filter(function(t) { return t.reimbursement_paid === true; })
+    .reduce(function(sum, t) { return sum + (Number(t.reimbursement_amount) || 0); }, 0);
+
+  var netMargin = revenue - claimsPaid;
+  var marginPct = revenue > 0 ? (netMargin / revenue) * 100 : 0;
+
+  var activeCount = contracts.filter(function(c) { return c.status === "active"; }).length;
+
+  var approvedUnpaid = tickets
+    .filter(function(t) { return t.status === "approved" && !t.reimbursement_paid; })
+    .reduce(function(sum, t) { return sum + (Number(t.reimbursement_amount) || 0); }, 0);
+
+  var pendingContracts = contracts.filter(function(c) {
+    return !c.paid_at && !c.cancelled_at && c.status !== "cancelled";
+  }).length;
+
+  document.getElementById("pd-revenue").textContent = pricingFormatMoney(revenue);
+  document.getElementById("pd-claims").textContent = pricingFormatMoney(claimsPaid);
+  document.getElementById("pd-margin").textContent = pricingFormatMoney(netMargin);
+  document.getElementById("pd-margin-pct").textContent = marginPct.toFixed(1) + "% margin";
+  document.getElementById("pd-active").textContent = String(activeCount);
+  document.getElementById("pd-unpaid").textContent = pricingFormatMoney(approvedUnpaid);
+  document.getElementById("pd-pending").textContent = String(pendingContracts);
+
+  // --- Revenue by term ---
+  pricingRenderTermTable(contracts);
+
+  // --- Claims by service type ---
+  pricingRenderServiceTable(tickets);
+
+  // --- Margin by dealer ---
+  pricingRenderDealerTable();
+
+  // Empty state
+  var hasAnyData = contracts.length > 0 || tickets.length > 0;
+  document.getElementById("pd-empty-state").style.display = hasAnyData ? "none" : "block";
+}
+
+function pricingRenderTermTable(contracts) {
+  var terms = ["1yr", "2yr", "3yr"];
+  var termPrices = { "1yr": 2495, "2yr": 4495, "3yr": 6495 };
+
+  var rows = terms.map(function(t) {
+    var matching = contracts.filter(function(c) {
+      return c.contract_type === t && c.paid_at && !c.cancelled_at;
+    });
+    var count = matching.length;
+    var revenue = matching.reduce(function(s, c) { return s + (Number(c.wholesale_price) || 0); }, 0);
+    return { term: t, count: count, revenue: revenue, wholesalePrice: termPrices[t] };
+  });
+
+  var totalRevenue = rows.reduce(function(s, r) { return s + r.revenue; }, 0);
+
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+    '<thead><tr style="border-bottom:1px solid var(--border);">' +
+      '<th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">Term</th>' +
+      '<th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">Count</th>' +
+      '<th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">Revenue</th>' +
+      '<th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">% of Total</th>' +
+    '</tr></thead><tbody>';
+
+  rows.forEach(function(r) {
+    html += '<tr style="border-bottom:1px solid #f0f4f8;">' +
+      '<td style="padding:8px;color:var(--navy);font-weight:600;">' + r.term.replace("yr", " Year") + '</td>' +
+      '<td style="text-align:right;padding:8px;color:var(--navy);">' + r.count + '</td>' +
+      '<td style="text-align:right;padding:8px;color:var(--navy);">' + pricingFormatMoney(r.revenue) + '</td>' +
+      '<td style="text-align:right;padding:8px;color:var(--light);">' + pricingFormatPct(r.revenue, totalRevenue) + '</td>' +
+    '</tr>';
+  });
+
+  html += '</tbody></table>';
+  document.getElementById("pd-by-term").innerHTML = html;
+}
+
+function pricingRenderServiceTable(tickets) {
+  var byService = {};
+  tickets.filter(function(t) { return t.reimbursement_paid === true; }).forEach(function(t) {
+    var key = (t.service_type || "Unknown").toString();
+    if (!byService[key]) byService[key] = { count: 0, total: 0 };
+    byService[key].count += 1;
+    byService[key].total += Number(t.reimbursement_amount) || 0;
+  });
+
+  var rows = Object.keys(byService).map(function(k) {
+    return {
+      service: k,
+      count: byService[k].count,
+      total: byService[k].total,
+      avg: byService[k].total / byService[k].count
+    };
+  }).sort(function(a, b) { return b.total - a.total; });
+
+  if (rows.length === 0) {
+    document.getElementById("pd-by-service").innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--light);font-size:12px;">No paid claims in this window.</div>';
+    return;
+  }
+
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+    '<thead><tr style="border-bottom:1px solid var(--border);">' +
+      '<th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">Service</th>' +
+      '<th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">Count</th>' +
+      '<th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">Total Paid</th>' +
+      '<th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">Avg / Claim</th>' +
+    '</tr></thead><tbody>';
+
+  rows.forEach(function(r) {
+    html += '<tr style="border-bottom:1px solid #f0f4f8;">' +
+      '<td style="padding:8px;color:var(--navy);">' + escHtml(r.service) + '</td>' +
+      '<td style="text-align:right;padding:8px;color:var(--navy);">' + r.count + '</td>' +
+      '<td style="text-align:right;padding:8px;color:var(--red-text);">' + pricingFormatMoney(r.total) + '</td>' +
+      '<td style="text-align:right;padding:8px;color:var(--light);">' + pricingFormatMoney(r.avg) + '</td>' +
+    '</tr>';
+  });
+
+  html += '</tbody></table>';
+  document.getElementById("pd-by-service").innerHTML = html;
+}
+
+function pricingRenderDealerTable() {
+  var contracts = pricingFilterByWindow(pricingDashboardData.contracts);
+  var tickets = pricingFilterByWindow(pricingDashboardData.tickets);
+
+  // Build map: dealership_name -> { revenue, claims, contracts, claimCount }
+  var byDealer = {};
+
+  contracts.filter(function(c) { return c.paid_at && !c.cancelled_at; }).forEach(function(c) {
+    var key = c.dealership_name || "Unknown";
+    if (!byDealer[key]) byDealer[key] = { revenue: 0, claims: 0, contractCount: 0, claimCount: 0 };
+    byDealer[key].revenue += Number(c.wholesale_price) || 0;
+    byDealer[key].contractCount += 1;
+  });
+
+  tickets.filter(function(t) { return t.reimbursement_paid === true; }).forEach(function(t) {
+    var key = t.dealership_name || "Unknown";
+    if (!byDealer[key]) byDealer[key] = { revenue: 0, claims: 0, contractCount: 0, claimCount: 0 };
+    byDealer[key].claims += Number(t.reimbursement_amount) || 0;
+    byDealer[key].claimCount += 1;
+  });
+
+  var rows = Object.keys(byDealer).map(function(name) {
+    var d = byDealer[name];
+    var margin = d.revenue - d.claims;
+    var marginPct = d.revenue > 0 ? (margin / d.revenue) * 100 : 0;
+    return {
+      name: name,
+      revenue: d.revenue,
+      claims: d.claims,
+      margin: margin,
+      marginPct: marginPct,
+      contractCount: d.contractCount,
+      claimCount: d.claimCount
+    };
+  });
+
+  if (rows.length === 0) {
+    document.getElementById("pd-by-dealer").innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--light);font-size:12px;">No dealer activity in this window.</div>';
+    return;
+  }
+
+  // Sort
+  if (pricingDashboardData.dealerSort === "margin_desc") {
+    rows.sort(function(a, b) { return b.margin - a.margin; });
+  } else if (pricingDashboardData.dealerSort === "margin_asc") {
+    rows.sort(function(a, b) { return a.margin - b.margin; });
+  } else if (pricingDashboardData.dealerSort === "revenue_desc") {
+    rows.sort(function(a, b) { return b.revenue - a.revenue; });
+  }
+
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+    '<thead><tr style="border-bottom:1px solid var(--border);">' +
+      '<th style="text-align:left;padding:8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">Dealer</th>' +
+      '<th style="text-align:right;padding:8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">Contracts</th>' +
+      '<th style="text-align:right;padding:8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">Revenue</th>' +
+      '<th style="text-align:right;padding:8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">Claims</th>' +
+      '<th style="text-align:right;padding:8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">Margin</th>' +
+      '<th style="text-align:right;padding:8px;font-size:10px;color:var(--light);text-transform:uppercase;letter-spacing:0.08em;">Margin %</th>' +
+    '</tr></thead><tbody>';
+
+  rows.forEach(function(r) {
+    var marginColor = r.margin > 0 ? "var(--green-text)" : (r.margin < 0 ? "var(--red-text)" : "var(--light)");
+    var bgTint = r.margin > 0 ? "" : (r.margin < 0 ? "background:#fff5f5;" : "");
+    html += '<tr style="border-bottom:1px solid #f0f4f8;' + bgTint + '">' +
+      '<td style="padding:10px 8px;color:var(--navy);font-weight:500;">' + escHtml(r.name) + '</td>' +
+      '<td style="text-align:right;padding:10px 8px;color:var(--navy);">' + r.contractCount + '</td>' +
+      '<td style="text-align:right;padding:10px 8px;color:var(--navy);">' + pricingFormatMoney(r.revenue) + '</td>' +
+      '<td style="text-align:right;padding:10px 8px;color:var(--red-text);">' + pricingFormatMoney(r.claims) + '</td>' +
+      '<td style="text-align:right;padding:10px 8px;font-weight:700;color:' + marginColor + ';">' + pricingFormatMoney(r.margin) + '</td>' +
+      '<td style="text-align:right;padding:10px 8px;color:' + marginColor + ';">' + r.marginPct.toFixed(1) + '%</td>' +
+    '</tr>';
+  });
+
+  html += '</tbody></table>';
+  document.getElementById("pd-by-dealer").innerHTML = html;
 }
 
 function applyAdminTabVisibility() {
