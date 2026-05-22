@@ -1013,6 +1013,11 @@ window.csGeneratePreview = async function() {
   }
 
   try {
+    // Phase 5A Option C: if this application already created a draft dealer row,
+    // reuse that ID (so subsequent saves PATCH rather than try to INSERT a duplicate).
+    if (csCurrentApp && csCurrentApp.created_dealer_id && !csCurrentDealerId) {
+      csCurrentDealerId = csCurrentApp.created_dealer_id;
+    }
     var dealerPayload = Object.assign({}, formData, {
       dealership_name: csCurrentApp.dealership_name,
       email: csCurrentApp.email,
@@ -1045,6 +1050,23 @@ window.csGeneratePreview = async function() {
       csCurrentDealerId = Array.isArray(createdRows) && createdRows[0] ? createdRows[0].id : null;
       if (!csCurrentDealerId) {
         throw new Error("Dealer row created but no id returned.");
+      }
+      // Phase 5A Option C: link the newly-created dealer back to the application row
+      // so re-opening this application later PATCHes instead of attempting to INSERT again.
+      try {
+        await fetch(
+          SUPABASE_URL + "/rest/v1/dealer_applications?id=eq." + encodeURIComponent(csCurrentApp.id),
+          {
+            method: "PATCH",
+            headers: Object.assign({}, authHeaders(), { "Content-Type": "application/json" }),
+            body: JSON.stringify({ created_dealer_id: csCurrentDealerId })
+          }
+        );
+        // Mirror to in-memory app object so subsequent saves in this session also PATCH
+        if (csCurrentApp) csCurrentApp.created_dealer_id = csCurrentDealerId;
+      } catch (linkErr) {
+        // Non-fatal: dealer row is saved, PDF will still generate. Log only.
+        console.warn("Could not link dealer to application:", linkErr);
       }
     } else {
       var patchRes = await fetch(
