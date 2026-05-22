@@ -4,13 +4,26 @@
  * Emails the pre-filled dealer agreement PDF to the dealer.
  * Triggered by admin clicking "Approve and Send Agreement" in the slide-in panel.
  *
- * Test mode: if TEST_EMAIL_OVERRIDE env var is set, ALL emails go to that
- * address (e.g. neblloydben@gmail.com) instead of the dealer's real email.
- * Remove that env var in Vercel to send to real dealers.
+ * Test mode: while TEST_MODE_ENABLED is true, ALL emails route to
+ * TEST_EMAIL_RECIPIENT instead of the dealer's real email.
+ * To go live with real dealers: set TEST_MODE_ENABLED = false.
  */
 
 const SUPPORT_FROM_EMAIL = 'notifications@whitestone-partners.com';
 const SUPPORT_REPLY_EMAIL = 'support@whitestone-partners.com';
+
+// ============================================================
+// TEST MODE — REMOVE/FLIP BEFORE SENDING TO REAL DEALERS
+// ============================================================
+// While TEST_MODE_ENABLED is true, ALL agreement emails route to
+// TEST_EMAIL_RECIPIENT. The subject is prefixed with [TEST -> realEmail]
+// so it is visually obvious which dealer the test was for.
+//
+// To go live: change TEST_MODE_ENABLED to false. Real dealer emails
+// will then be used.
+// ============================================================
+const TEST_MODE_ENABLED = true;
+const TEST_EMAIL_RECIPIENT = 'neblloydben@gmail.com';
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -46,7 +59,6 @@ module.exports = async function handler(req, res) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
   const RESEND_KEY = process.env.RESEND_API_KEY;
-  const TEST_EMAIL_OVERRIDE = process.env.TEST_EMAIL_OVERRIDE;
 
   if (!SUPABASE_URL || !SERVICE_KEY || !RESEND_KEY) {
     console.error('Missing required env vars');
@@ -114,8 +126,8 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Dealer has no email on file' });
   }
 
-  const isTestMode = !!TEST_EMAIL_OVERRIDE;
-  const recipient = isTestMode ? TEST_EMAIL_OVERRIDE : realRecipient;
+  const isTestMode = TEST_MODE_ENABLED;
+  const recipient = isTestMode ? TEST_EMAIL_RECIPIENT : realRecipient;
   const subjectPrefix = isTestMode ? '[TEST → ' + realRecipient + '] ' : '';
   const subject = subjectPrefix + 'Welcome to Whitestone Partners — Please Sign Your Dealer Agreement';
 
@@ -202,7 +214,7 @@ function renderAgreementEmailHtml(d) {
   const testBanner = d.isTestMode
     ? '<div style="background:#fdf9ed;border:1px solid #e8d99b;border-radius:6px;padding:14px 18px;margin-bottom:24px;color:#5a4810;font-size:13px;line-height:1.5;">'
       + '<strong>TEST MODE</strong> — In production this email would go to <strong>' + escapeHtml(d.realRecipient) + '</strong>. '
-      + 'Test override is active because the TEST_EMAIL_OVERRIDE environment variable is set on Vercel.'
+      + 'Test mode is active (TEST_MODE_ENABLED is true in send-dealer-agreement.js).'
       + '</div>'
     : '';
 
