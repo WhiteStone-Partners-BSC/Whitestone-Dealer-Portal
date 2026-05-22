@@ -3724,6 +3724,9 @@ function pricingRenderAll() {
   // --- Margin by dealer ---
   pricingRenderDealerTable();
 
+  // --- Margin trend chart ---
+  pricingRenderTrendChart();
+
   // Empty state
   var hasAnyData = contracts.length > 0 || tickets.length > 0;
   document.getElementById("pd-empty-state").style.display = hasAnyData ? "none" : "block";
@@ -3884,6 +3887,131 @@ function pricingRenderDealerTable() {
 
   html += '</tbody></table>';
   document.getElementById("pd-by-dealer").innerHTML = html;
+}
+
+// =========================================================================
+// Phase 6B — Margin Trend Chart (last 12 months, ignores window filter)
+// =========================================================================
+var _pricingTrendChartInstance = null;
+
+function pricingRenderTrendChart() {
+  // Build the last 12 months structure (oldest first, newest last)
+  var months = [];
+  var now = new Date();
+  // Anchor to start-of-month for current month
+  var anchor = new Date(now.getFullYear(), now.getMonth(), 1);
+  for (var i = 11; i >= 0; i--) {
+    var d = new Date(anchor.getFullYear(), anchor.getMonth() - i, 1);
+    var key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    var label = d.toLocaleDateString("en-US", { month: "short" }) + " '" + String(d.getFullYear()).slice(-2);
+    months.push({ key: key, label: label, year: d.getFullYear(), month: d.getMonth(), revenue: 0, claims: 0 });
+  }
+
+  // Aggregate contracts into months by paid_at
+  pricingDashboardData.contracts.forEach(function(c) {
+    if (!c.paid_at || c.cancelled_at) return;
+    var pa = new Date(c.paid_at);
+    var bucket = months.find(function(m) { return m.year === pa.getFullYear() && m.month === pa.getMonth(); });
+    if (bucket) bucket.revenue += Number(c.wholesale_price) || 0;
+  });
+
+  // Aggregate tickets into months by created_at (closest proxy for "when paid out")
+  pricingDashboardData.tickets.forEach(function(t) {
+    if (t.reimbursement_paid !== true) return;
+    if (!t.created_at) return;
+    var ca = new Date(t.created_at);
+    var bucket = months.find(function(m) { return m.year === ca.getFullYear() && m.month === ca.getMonth(); });
+    if (bucket) bucket.claims += Number(t.reimbursement_amount) || 0;
+  });
+
+  // Compute margin % per month (null if zero revenue)
+  var labels = months.map(function(m) { return m.label; });
+  var marginPctData = months.map(function(m) {
+    if (!m.revenue) return null;
+    return ((m.revenue - m.claims) / m.revenue) * 100;
+  });
+
+  // If ALL months are null, show the empty state instead of the chart
+  var hasAnyData = marginPctData.some(function(v) { return v !== null; });
+  var emptyEl = document.getElementById("pd-trend-empty");
+  var canvasEl = document.getElementById("pd-trend-chart");
+  if (!hasAnyData) {
+    if (emptyEl) emptyEl.style.display = "block";
+    if (canvasEl) canvasEl.style.display = "none";
+    // Destroy any prior chart instance
+    if (_pricingTrendChartInstance) {
+      _pricingTrendChartInstance.destroy();
+      _pricingTrendChartInstance = null;
+    }
+    return;
+  }
+
+  if (emptyEl) emptyEl.style.display = "none";
+  if (canvasEl) canvasEl.style.display = "block";
+
+  // Destroy previous chart instance if any (avoids ghost canvases on re-render)
+  if (_pricingTrendChartInstance) {
+    _pricingTrendChartInstance.destroy();
+    _pricingTrendChartInstance = null;
+  }
+
+  if (typeof window.Chart === "undefined") {
+    console.warn("Chart.js not loaded — trend chart skipped.");
+    return;
+  }
+
+  var ctx = canvasEl.getContext("2d");
+  _pricingTrendChartInstance = new window.Chart(ctx, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: "Margin %",
+          data: marginPctData,
+          borderColor: "#b8963e",
+          backgroundColor: "rgba(184, 150, 62, 0.12)",
+          borderWidth: 2,
+          tension: 0.25,
+          fill: true,
+          pointBackgroundColor: "#b8963e",
+          pointBorderColor: "#0c1e2e",
+          pointBorderWidth: 1,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          spanGaps: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              if (ctx.parsed.y === null || ctx.parsed.y === undefined) return "No data";
+              return "Margin: " + ctx.parsed.y.toFixed(1) + "%";
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: false,
+          ticks: {
+            callback: function(value) { return value + "%"; }
+          },
+          grid: { color: "rgba(143, 165, 184, 0.15)" }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { autoSkip: false, maxRotation: 45, minRotation: 0 }
+        }
+      }
+    }
+  });
 }
 
 function applyAdminTabVisibility() {
