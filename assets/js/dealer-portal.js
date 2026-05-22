@@ -1114,11 +1114,110 @@ window.csGeneratePreview = async function() {
       previewBtn.disabled = false;
       previewBtn.textContent = "Re-generate Preview";
     }
+    // Phase 5B: enable the Send button now that preview has been generated
+    var sendBtn = document.getElementById("cs-send-btn");
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.removeAttribute("title");
+      sendBtn.onclick = function() { window.csApproveAndSend(); };
+    }
   } catch (e) {
     csShowError(e.message || "Something went wrong generating the preview.");
     if (previewBtn) {
       previewBtn.disabled = false;
       previewBtn.textContent = "Save & Generate Preview";
+    }
+  }
+};
+
+window.csApproveAndSend = async function() {
+  csClearError();
+  if (!csCurrentApp || !csCurrentDealerId) {
+    csShowError("Application or dealer not loaded. Re-open the panel.");
+    return;
+  }
+
+  var sendBtn = document.getElementById("cs-send-btn");
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.textContent = "Sending...";
+  }
+
+  try {
+    // Get the Supabase access token for the auth header
+    var session = await window.supabase.auth.getSession();
+    var accessToken = session && session.data && session.data.session
+      ? session.data.session.access_token
+      : null;
+    if (!accessToken) {
+      throw new Error("No active session — please sign in again.");
+    }
+
+    // Call the new send endpoint
+    var sendRes = await fetch("/api/send-dealer-agreement", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + accessToken
+      },
+      body: JSON.stringify({ dealerId: csCurrentDealerId })
+    });
+
+    if (!sendRes.ok) {
+      var errText = await sendRes.text();
+      throw new Error("Send failed: " + errText.substring(0, 200));
+    }
+
+    var sendResult = await sendRes.json();
+
+    // Stamp the application: status = agreement_sent, reviewed_at = now
+    try {
+      await fetch(
+        SUPABASE_URL + "/rest/v1/dealer_applications?id=eq." + encodeURIComponent(csCurrentApp.id),
+        {
+          method: "PATCH",
+          headers: Object.assign({}, authHeaders(), { "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            status: "agreement_sent",
+            reviewed_at: new Date().toISOString()
+          })
+        }
+      );
+    } catch (stampErr) {
+      console.warn("Could not stamp application status:", stampErr);
+    }
+
+    // Success — show toast inside the panel, then close after a moment
+    var previewLink = document.getElementById("cs-pdf-preview-link");
+    if (previewLink) {
+      var testBadge = sendResult.test_mode
+        ? '<div style="background:#fdf9ed;border:1px solid #e8d99b;padding:8px 12px;border-radius:4px;margin-top:8px;color:#5a4810;font-size:12px;">TEST MODE: sent to ' + sendResult.sent_to + ' (would go to ' + sendResult.real_recipient + ' in production)</div>'
+        : '';
+      previewLink.innerHTML = '<div style="color:var(--green-text);font-weight:600;margin-bottom:6px;">✓ Agreement sent successfully.</div>' +
+        '<div style="color:var(--light);font-size:12px;">The dealer will receive the agreement PDF and instructions to sign and return.</div>' +
+        testBadge;
+    }
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Sent ✓";
+    }
+
+    // Refresh applications list so this row shows new status, then close panel
+    setTimeout(function() {
+      window.closeConfigureAndSend();
+      if (typeof window.applicationsRefreshTabBadgeOnly === "function") {
+        window.applicationsRefreshTabBadgeOnly();
+      }
+      // Also refresh the rendered list
+      if (typeof loadApplications === "function") {
+        loadApplications();
+      }
+    }, 2500);
+  } catch (e) {
+    csShowError(e.message || "Something went wrong sending the agreement.");
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Approve & Send Agreement";
     }
   }
 };
