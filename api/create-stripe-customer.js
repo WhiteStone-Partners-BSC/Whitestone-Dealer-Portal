@@ -63,10 +63,13 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Stripe not configured' });
   }
 
-  var { dealerName, email, paymentMethodId, dealerId } = req.body;
+  var { dealerName, email, paymentMethodId, dealerId, existingCustomerId } = req.body;
 
-  if (!dealerName || !email || !paymentMethodId || !dealerId) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  if (!paymentMethodId || !dealerId) {
+    return res.status(400).json({ error: 'Missing paymentMethodId or dealerId' });
+  }
+  if (!existingCustomerId && (!dealerName || !email)) {
+    return res.status(400).json({ error: 'Missing dealerName or email (required when no existingCustomerId)' });
   }
 
   // --- DEALER OWNERSHIP CHECK ---
@@ -76,20 +79,30 @@ export default async function handler(req, res) {
   // --- END OWNERSHIP ---
 
   try {
-    var customerRes = await fetch('https://api.stripe.com/v1/customers', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + secretKey,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: new URLSearchParams({
-        name: dealerName,
-        email: email,
-        'metadata[dealer_id]': dealerId || ''
-      }).toString()
-    });
-    var customer = await customerRes.json();
-    if (!customerRes.ok) return res.status(400).json({ error: customer });
+    var customer;
+    if (existingCustomerId) {
+      // Reuse the customer created by the Financial Connections session.
+      var lookupRes = await fetch('https://api.stripe.com/v1/customers/' + encodeURIComponent(existingCustomerId), {
+        headers: { 'Authorization': 'Bearer ' + secretKey }
+      });
+      customer = await lookupRes.json();
+      if (!lookupRes.ok) return res.status(400).json({ error: customer });
+    } else {
+      var customerRes = await fetch('https://api.stripe.com/v1/customers', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + secretKey,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+          name: dealerName,
+          email: email,
+          'metadata[dealer_id]': dealerId || ''
+        }).toString()
+      });
+      customer = await customerRes.json();
+      if (!customerRes.ok) return res.status(400).json({ error: customer });
+    }
 
     var attachRes = await fetch('https://api.stripe.com/v1/payment_methods/' + paymentMethodId + '/attach', {
       method: 'POST',
