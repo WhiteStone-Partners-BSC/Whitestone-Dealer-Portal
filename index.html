@@ -4440,18 +4440,10 @@ window.addEventListener("load", function() {
         throw new Error(msg || "Could not create bank link session");
       }
 
-      // Open the Plaid popup. Stripe.js handles the UI.
-      var result = await stripe.collectBankAccountForPayment({
-        clientSecret: sessionJson.clientSecret,
-        params: {
-          payment_method_type: "us_bank_account",
-          payment_method_data: {
-            billing_details: {
-              name: (currentDealer && currentDealer.name) || "",
-              email: (currentDealer && currentDealer.email) || ""
-            }
-          }
-        }
+      // Open the Plaid popup using Financial Connections (NOT collectBankAccountForPayment,
+      // which expects a PaymentIntent secret and rejects fcsess_ secrets).
+      var result = await stripe.collectFinancialConnectionsAccounts({
+        clientSecret: sessionJson.clientSecret
       }).catch(function(err) {
         return { error: err };
       });
@@ -4462,16 +4454,30 @@ window.addEventListener("load", function() {
         return;
       }
 
-      // result.paymentIntent or result.setupIntent depending on Stripe version. For Financial Connections sessions,
-      // the linked payment_method id arrives on result.financialConnectionsSession or via session refetch.
-      // Simplest reliable path: have backend persist via /api/create-stripe-customer with existingCustomerId.
-      var linkedPaymentMethodId =
-        (result.financialConnectionsSession && result.financialConnectionsSession.payment_method) ||
-        (result.paymentIntent && result.paymentIntent.payment_method) ||
-        (result.setupIntent && result.setupIntent.payment_method) ||
-        null;
+      // collectFinancialConnectionsAccounts returns:
+      // { financialConnectionsSession: { accounts: [...] } }
+      // Each account row has its own id; Stripe creates a us_bank_account PaymentMethod for each.
+      // We grab the PaymentMethod id from the first linked account.
+      var accounts = (result.financialConnectionsSession && result.financialConnectionsSession.accounts) || [];
+      if (accounts.length === 0) {
+        alert("No bank account was linked. The popup may have been closed before completing.");
+        return;
+      }
+
+      // The PaymentMethod field is on each account object as `account.payment_method` (object or string id).
+      var firstAccount = accounts[0];
+      var linkedPaymentMethodId = null;
+      if (firstAccount) {
+        if (firstAccount.payment_method) {
+          linkedPaymentMethodId = typeof firstAccount.payment_method === 'string'
+            ? firstAccount.payment_method
+            : (firstAccount.payment_method.id || null);
+        }
+      }
 
       if (!linkedPaymentMethodId) {
+        // Defensive: some configurations return the PM id elsewhere. Log for diagnostics.
+        console.error("Account linked but no payment_method on first account:", firstAccount);
         alert("Bank linked but Stripe did not return a payment method id. Please try again or contact support.");
         return;
       }
