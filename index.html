@@ -714,6 +714,8 @@
     </div>
 
     <div id="panel-billing-cart" class="tab-panel" style="display:none;">
+      <!-- ACH link prompt banner (populated by JS on cart load) -->
+      <div id="cart-bank-prompt-placeholder"></div>
       <div class="card" style="margin-bottom:1.25rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
           <div>
@@ -1009,6 +1011,19 @@
         </div>
         <div id="settings-locations-body" style="margin-top:1rem;">
           <div style="color:var(--mid);font-style:italic;">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Payment Methods section -->
+      <div id="settings-payment-methods-card" class="card" style="max-width:900px;margin-bottom:1.5rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+          <div>
+            <div class="card-title">Payment Methods</div>
+            <div class="card-sub">Manage how you pay Whitestone for customer enrollments and invoices.</div>
+          </div>
+        </div>
+        <div id="settings-payment-methods-body" style="margin-top:1rem;">
+          <div style="color:var(--mid);font-style:italic;">Loading payment methods…</div>
         </div>
       </div>
 
@@ -3956,6 +3971,7 @@ window.addEventListener("load", function() {
       console.error("[billing-cart] No dealer session after wait; cannot load cart.");
       if (emptyEl) emptyEl.style.display = "block";
       listEl.innerHTML = "";
+      if (typeof populateCartBankPrompt === "function") populateCartBankPrompt();
       return;
     }
 
@@ -3999,6 +4015,7 @@ window.addEventListener("load", function() {
         if (payBar0) payBar0.style.display = "none";
         var selectAll0 = document.getElementById("cart-select-all");
         if (selectAll0) selectAll0.checked = false;
+        if (typeof populateCartBankPrompt === "function") populateCartBankPrompt();
         return;
       }
       if (emptyEl) emptyEl.style.display = "none";
@@ -4044,6 +4061,7 @@ window.addEventListener("load", function() {
       console.error("[billing-cart] load error:", e);
       listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--red);font-size:13px;">Could not load cart. Please try again.</div>';
     }
+    if (typeof populateCartBankPrompt === "function") populateCartBankPrompt();
   };
 
   window.toggleSelectAll = function(checked) {
@@ -4265,6 +4283,216 @@ window.addEventListener("load", function() {
     var records = await res.json() || [];
     var hasCard = records[0] && records[0].stripe_customer_id;
     if (!hasCard) showStripeSetupBanner();
+  };
+
+  // ===== Payment Methods (Settings panel) =====
+  // Fetches the dealer's Stripe customer + payment methods, renders the Settings card.
+  window.loadPaymentMethodsSection = async function() {
+    var bodyEl = document.getElementById("settings-payment-methods-body");
+    if (!bodyEl) return;
+    if (!currentDealer || !currentDealer.id) {
+      bodyEl.innerHTML = '<div style="color:var(--mid);">Sign in to manage payment methods.</div>';
+      return;
+    }
+
+    bodyEl.innerHTML = '<div style="color:var(--mid);font-style:italic;">Loading payment methods…</div>';
+
+    // Get the dealer's stripe_customer_id (may be null if nothing linked yet)
+    var dealerRes = await fetch(
+      SUPABASE_URL + "/rest/v1/dealers?id=eq." + currentDealer.id + "&select=stripe_customer_id",
+      { headers: authHeaders() }
+    );
+    var dealerRows = await dealerRes.json();
+    var stripeCustomerId = dealerRows[0] && dealerRows[0].stripe_customer_id;
+
+    var html = "";
+
+    if (!stripeCustomerId) {
+      // No customer at all — show empty state with both options.
+      html =
+        '<div style="color:var(--mid);font-size:13px;margin-bottom:1rem;">' +
+          'You have no payment methods on file. Add one to enroll customers and pay invoices.' +
+        '</div>' +
+        '<div style="display:flex;gap:0.75rem;flex-wrap:wrap;">' +
+          '<button type="button" id="pm-add-card-btn" style="background:var(--navy);color:white;border:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Add Card</button>' +
+          '<button type="button" id="pm-add-bank-btn" style="background:white;color:var(--navy);border:1.5px solid var(--navy);padding:10px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Add Bank Account (ACH)</button>' +
+        '</div>';
+      bodyEl.innerHTML = html;
+      var addCardBtn = document.getElementById("pm-add-card-btn");
+      if (addCardBtn) addCardBtn.addEventListener("click", showStripeSetupModal);
+      var addBankBtn = document.getElementById("pm-add-bank-btn");
+      if (addBankBtn) addBankBtn.addEventListener("click", startBankAccountLink);
+      return;
+    }
+
+    // Customer exists — fetch their payment methods from Stripe via a list call.
+    // We don't have a list endpoint yet, so for now we render based on what we know.
+    // TODO Prompt 3: build /api/list-payment-methods to show real card/bank details.
+    html =
+      '<div style="color:var(--mid);font-size:13px;margin-bottom:1rem;">' +
+        'A Stripe customer is on file for this dealer. Add a bank account to enable ACH payments, ' +
+        'or update your card on file.' +
+      '</div>' +
+      '<div style="display:flex;gap:0.75rem;flex-wrap:wrap;">' +
+        '<button type="button" id="pm-add-card-btn" style="background:white;color:var(--navy);border:1.5px solid var(--navy);padding:10px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Update Card on File</button>' +
+        '<button type="button" id="pm-add-bank-btn" style="background:var(--navy);color:white;border:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Add Bank Account (ACH)</button>' +
+      '</div>';
+    bodyEl.innerHTML = html;
+    var addCardBtn2 = document.getElementById("pm-add-card-btn");
+    if (addCardBtn2) addCardBtn2.addEventListener("click", showStripeSetupModal);
+    var addBankBtn2 = document.getElementById("pm-add-bank-btn");
+    if (addBankBtn2) addBankBtn2.addEventListener("click", startBankAccountLink);
+  };
+
+  // Starts the Stripe Financial Connections (Plaid) flow to link a bank account.
+  // Calls the backend to create a session, then opens the Plaid popup via Stripe.js.
+  window.startBankAccountLink = async function() {
+    if (typeof stripe === "undefined" || !stripe) {
+      alert("Stripe is not ready. Refresh the page and try again.");
+      return;
+    }
+
+    // Disable any "Add Bank" button while in-flight.
+    var bankBtns = document.querySelectorAll('#pm-add-bank-btn, #cart-add-bank-btn');
+    bankBtns.forEach(function(b) { b.disabled = true; b.textContent = "Opening bank link…"; });
+
+    try {
+      var sessionRes = await fetch("/api/create-stripe-financial-connections-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + (window.authToken || "")
+        },
+        body: JSON.stringify({})
+      });
+      var sessionJson = await sessionRes.json();
+      if (!sessionRes.ok || !sessionJson.success) {
+        var msg = sessionJson.error;
+        if (msg && typeof msg === "object") msg = msg.message || JSON.stringify(msg);
+        throw new Error(msg || "Could not create bank link session");
+      }
+
+      // Open the Plaid popup. Stripe.js handles the UI.
+      var result = await stripe.collectBankAccountForPayment({
+        clientSecret: sessionJson.clientSecret,
+        params: {
+          payment_method_type: "us_bank_account",
+          payment_method_data: {
+            billing_details: {
+              name: (currentDealer && currentDealer.name) || "",
+              email: (currentDealer && currentDealer.email) || ""
+            }
+          }
+        }
+      }).catch(function(err) {
+        return { error: err };
+      });
+
+      if (result && result.error) {
+        var errMsg = result.error.message || "Bank link cancelled or failed";
+        alert(errMsg);
+        return;
+      }
+
+      // result.paymentIntent or result.setupIntent depending on Stripe version. For Financial Connections sessions,
+      // the linked payment_method id arrives on result.financialConnectionsSession or via session refetch.
+      // Simplest reliable path: have backend persist via /api/create-stripe-customer with existingCustomerId.
+      var linkedPaymentMethodId =
+        (result.financialConnectionsSession && result.financialConnectionsSession.payment_method) ||
+        (result.paymentIntent && result.paymentIntent.payment_method) ||
+        (result.setupIntent && result.setupIntent.payment_method) ||
+        null;
+
+      if (!linkedPaymentMethodId) {
+        alert("Bank linked but Stripe did not return a payment method id. Please try again or contact support.");
+        return;
+      }
+
+      // Attach the bank as a payment method on the customer + set as default
+      // by reusing the existing /api/create-stripe-customer endpoint with existingCustomerId.
+      var attachRes = await fetch("/api/create-stripe-customer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + (window.authToken || "")
+        },
+        body: JSON.stringify({
+          paymentMethodId: linkedPaymentMethodId,
+          dealerId: currentDealer.id,
+          existingCustomerId: sessionJson.customerId
+        })
+      });
+      var attachJson = await attachRes.json();
+      if (!attachRes.ok || !attachJson.success) {
+        var aMsg = attachJson.error;
+        if (aMsg && typeof aMsg === "object") aMsg = aMsg.message || JSON.stringify(aMsg);
+        throw new Error(aMsg || "Could not attach bank to your Stripe customer");
+      }
+
+      // Persist the customer id to dealers row if not already set (idempotent).
+      await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + currentDealer.id, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ stripe_customer_id: attachJson.customerId })
+      });
+      currentDealer.stripeCustomerId = attachJson.customerId;
+      if (window.currentDealer) window.currentDealer.stripeCustomerId = attachJson.customerId;
+
+      alert("Bank account linked successfully. You can now pay invoices via ACH.");
+
+      // Refresh the Settings card if it's visible.
+      if (typeof loadPaymentMethodsSection === "function") loadPaymentMethodsSection();
+
+      // Remove the cart-side banner if it's showing.
+      var cartBanner = document.getElementById("cart-bank-prompt-banner");
+      if (cartBanner) cartBanner.remove();
+
+    } catch (err) {
+      console.error("startBankAccountLink failed:", err);
+      alert("Bank link failed: " + (err.message || "Unknown error"));
+    } finally {
+      var bankBtnsAfter = document.querySelectorAll('#pm-add-bank-btn, #cart-add-bank-btn');
+      bankBtnsAfter.forEach(function(b) {
+        b.disabled = false;
+        b.textContent = "Add Bank Account (ACH)";
+      });
+    }
+  };
+
+  // Shows a banner on the Billing Cart prompting the dealer to link a bank
+  // if they have no stripe_customer_id (no PM at all) OR if they have only a card.
+  // For Prompt 2, "no bank linked" is loosely "no stripe_customer_id" — Prompt 3 will refine this
+  // with a real list-payment-methods endpoint.
+  window.populateCartBankPrompt = async function() {
+    var placeholder = document.getElementById("cart-bank-prompt-placeholder");
+    if (!placeholder) return;
+    placeholder.innerHTML = "";
+
+    if (!currentDealer || !currentDealer.id) return;
+
+    var dealerRes = await fetch(
+      SUPABASE_URL + "/rest/v1/dealers?id=eq." + currentDealer.id + "&select=stripe_customer_id",
+      { headers: authHeaders() }
+    );
+    var dealerRows = await dealerRes.json();
+    var hasCustomer = !!(dealerRows[0] && dealerRows[0].stripe_customer_id);
+
+    // For now, show the prompt if there's no Stripe customer at all.
+    // Future (Prompt 3): show if there's a customer but no us_bank_account PM.
+    if (hasCustomer) return;
+
+    var banner = document.createElement("div");
+    banner.id = "cart-bank-prompt-banner";
+    banner.style.cssText = "background:#f0f7ff;border:1px solid #b8d4f0;border-left:3px solid var(--navy);border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;";
+    banner.innerHTML =
+      '<div>' +
+        '<div style="font-size:13.5px;font-weight:600;color:var(--navy);">Pay invoices faster with ACH</div>' +
+        '<div style="font-size:12px;color:var(--mid);margin-top:2px;">Link your bank once and pay invoices directly. Lower fees than card, no processing minimums.</div>' +
+      '</div>' +
+      '<button type="button" id="cart-add-bank-btn" style="background:var(--navy);color:white;border:none;padding:9px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;">Add Bank Account (ACH)</button>';
+    placeholder.appendChild(banner);
+    var cartBankBtn = document.getElementById("cart-add-bank-btn");
+    if (cartBankBtn) cartBankBtn.addEventListener("click", startBankAccountLink);
   };
 
   window.showStripeSetupBanner = function() {
@@ -4547,6 +4775,7 @@ window.addEventListener("load", function() {
     if (name === "dashboard") dealerLoadRateCard();
     if (name === "enroll") loadDealerPricingForEnrollment();
     if (name === "billing-cart") loadBillingCart();
+    if (name === "settings" && typeof loadPaymentMethodsSection === "function") loadPaymentMethodsSection();
   };
 
   var originalOnLoginSuccess = window.onLoginSuccess;
