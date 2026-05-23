@@ -90,6 +90,14 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No default payment method on file for this customer.' });
     }
 
+    // Detect payment method type so we can hint Stripe (and tell the caller what kind of charge this was).
+    var pmTypeRes = await fetch(
+      'https://api.stripe.com/v1/payment_methods/' + encodeURIComponent(paymentMethodId),
+      { headers: { Authorization: 'Bearer ' + secretKey } }
+    );
+    var pmObj = await pmTypeRes.json();
+    var pmType = (pmObj && pmObj.type) || 'card';
+
     var params = new URLSearchParams({
       amount: Math.round(Number(amount) * 100).toString(),
       currency: 'usd',
@@ -97,12 +105,17 @@ export default async function handler(req, res) {
       payment_method: paymentMethodId,
       confirm: 'true',
       off_session: 'true',
-      description: (dealerName || '') + ' — ' + (contractType || '') + ' contract for ' + (customerName || ''),
+      description: (dealerName || '') + ' - ' + (contractType || '') + ' contract for ' + (customerName || ''),
       'metadata[dealer]': dealerName || '',
       'metadata[customer]': customerName || '',
       'metadata[contract]': contractType || '',
-      'metadata[contract_id]': contractId || ''
+      'metadata[contract_id]': contractId || '',
+      'metadata[payment_method_type]': pmType
     });
+    // For ACH, must explicitly include us_bank_account in payment_method_types.
+    if (pmType === 'us_bank_account') {
+      params.append('payment_method_types[]', 'us_bank_account');
+    }
 
     var piRes = await fetch('https://api.stripe.com/v1/payment_intents', {
       method: 'POST',
@@ -118,15 +131,20 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: pi.error ? pi.error.message : 'Payment failed' });
     }
 
-    if (pi.status === 'succeeded') {
+    // succeeded = card (instant). processing = ACH (settles in 3-5 business days, webhook will finalize).
+    if (pi.status === 'succeeded' || pi.status === 'processing') {
       return res.status(200).json({
         success: true,
         paymentIntentId: pi.id,
-        amount: amount
+        amount: amount,
+        status: pi.status,
+        paymentMethodType: pmType
       });
     }
+    // requires_action would mean SCA/3DS needed - rare for off_session, but surface it.
     return res.status(400).json({
-      error: 'Payment not completed. Status: ' + pi.status
+      error: 'Payment not completed. Status: ' + pi.status,
+      status: pi.status
     });
 
   } catch (e) {

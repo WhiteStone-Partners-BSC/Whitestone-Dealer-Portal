@@ -723,10 +723,16 @@
             <div class="card-sub">Unpaid contracts. Select which to pay or cancel any before payment.</div>
           </div>
           <div style="display:flex;gap:0.75rem;align-items:center;display:none;" id="cart-action-btns">
-            <button onclick="paySelectedCard()" id="pay-card-btn"
-              style="display:none;background:#b8963e;color:#0c1e2e;border:none;padding:10px 24px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">
-              💳 Charge Card on File — <span id="pay-card-amount">$0</span>
-            </button>
+            <div id="pay-buttons-sticky" style="display:none;gap:0.5rem;flex-wrap:wrap;">
+              <button onclick="paySelectedCard('ach')" id="pay-ach-btn"
+                style="background:var(--navy);color:white;border:none;padding:11px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+                Pay via Bank (ACH) — <span id="pay-ach-amount">$0</span>
+              </button>
+              <button onclick="paySelectedCard('card')" id="pay-card-btn"
+                style="background:white;color:var(--navy);border:1.5px solid var(--navy);padding:11px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+                Pay via Card — <span id="pay-card-amount">$0</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -775,10 +781,14 @@
               <div style="font-size:20px;font-weight:700;color:#1b5e20;" id="selected-profit">$0</div>
             </div>
           </div>
-          <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
-            <button onclick="paySelectedCard()"
-              style="background:#b8963e;color:#0c1e2e;border:none;padding:12px 32px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:0.02em;">
-              💳 Charge Card on File — <span class="selected-amount-label">$0</span>
+          <div id="pay-buttons-summary" style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button onclick="paySelectedCard('ach')" id="pay-ach-btn-summary"
+              style="background:var(--navy);color:white;border:none;padding:11px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+              Pay via Bank (ACH) — <span id="pay-ach-amount-summary">$0</span>
+            </button>
+            <button onclick="paySelectedCard('card')" id="pay-card-btn-summary"
+              style="background:white;color:var(--navy);border:1.5px solid var(--navy);padding:11px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+              Pay via Card — <span id="pay-card-amount-summary">$0</span>
             </button>
           </div>
         </div>
@@ -4089,6 +4099,10 @@ window.addEventListener("load", function() {
     if (profitEl) profitEl.textContent = "$" + totalProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     var amtStr = "$" + totalOwed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     document.querySelectorAll(".selected-amount-label").forEach(function(el) { el.textContent = amtStr; });
+    var cardAmt = document.getElementById("pay-card-amount"); if (cardAmt) cardAmt.textContent = amtStr;
+    var achAmt = document.getElementById("pay-ach-amount"); if (achAmt) achAmt.textContent = amtStr;
+    var achAmtSum = document.getElementById("pay-ach-amount-summary"); if (achAmtSum) achAmtSum.textContent = amtStr;
+    var cardAmtSum = document.getElementById("pay-card-amount-summary"); if (cardAmtSum) cardAmtSum.textContent = amtStr;
     var allCbs = document.querySelectorAll(".cart-item-cb");
     var selectAllCb = document.getElementById("cart-select-all");
     if (selectAllCb) selectAllCb.checked = allCbs.length > 0 && count === allCbs.length;
@@ -4134,12 +4148,24 @@ window.addEventListener("load", function() {
     }
   };
 
-  window.paySelectedCard = async function() {
-    if (_selectedCartIds.size === 0) { alert("Please select at least one contract to pay."); return; }
+  window.paySelectedCard = async function(methodType) {
+    // methodType is 'card' or 'ach'. Default 'card' for backward compatibility with any existing callers.
+    if (!methodType) methodType = 'card';
+
+    if (_selectedCartIds.size === 0) {
+      alert("Please select at least one contract to pay.");
+      return;
+    }
     var ids = Array.from(_selectedCartIds);
     var selectedItems = _cartItems.filter(function(i) { return ids.includes(i.id); });
     var totalWholesale = selectedItems.reduce(function(s, i) { return s + (Number(i.wholesale_price) || 0); }, 0);
-    if (!confirm("Charge $" + totalWholesale.toFixed(2) + " to your card on file for " + ids.length + " contract(s)?")) return;
+
+    var methodLabel = (methodType === 'ach') ? "bank account (ACH)" : "card on file";
+    var confirmMsg = (methodType === 'ach')
+      ? ("Pay $" + totalWholesale.toFixed(2) + " via " + methodLabel + " for " + ids.length + " contract(s)?\n\nACH payments take 3-5 business days to clear. Customer coverage activates immediately, but if the payment fails the invoice will return to your cart.")
+      : ("Charge $" + totalWholesale.toFixed(2) + " to your " + methodLabel + " for " + ids.length + " contract(s)?");
+    if (!confirm(confirmMsg)) return;
+
     try {
       var stripeCustomerId = currentDealer.stripeCustomerId;
       if (!stripeCustomerId) {
@@ -4150,10 +4176,14 @@ window.addEventListener("load", function() {
         var dealerRows = await dealerRes.json();
         stripeCustomerId = dealerRows[0] && dealerRows[0].stripe_customer_id;
       }
-      if (!stripeCustomerId) throw new Error("No payment method on file");
+      if (!stripeCustomerId) throw new Error("No payment method on file. Add one in Settings.");
+
       var chargeRes = await fetch("/api/charge-enrollment", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + (window.authToken || "")
+        },
         body: JSON.stringify({
           stripeCustomerId: stripeCustomerId,
           amount: totalWholesale,
@@ -4163,30 +4193,68 @@ window.addEventListener("load", function() {
           contractId: null
         })
       });
-      if (!chargeRes.ok) throw new Error("Charge failed");
+      var chargeJson = await chargeRes.json();
+      if (!chargeRes.ok || !chargeJson.success) {
+        var serverMsg = chargeJson.error;
+        if (serverMsg && typeof serverMsg === "object") serverMsg = serverMsg.message || JSON.stringify(serverMsg);
+        throw new Error(serverMsg || "Charge failed");
+      }
+
+      var pmTypeFromServer = chargeJson.paymentMethodType || (methodType === 'ach' ? 'us_bank_account' : 'card');
+      var isAch = pmTypeFromServer === 'us_bank_account';
       var paidAt = new Date().toISOString();
+
+      // For ACH: invoice goes to 'processing' (webhook will flip to 'paid' or back to 'unpaid' on failure).
+      // For card: invoice goes straight to 'paid'.
+      // Per business rule: contract activates IMMEDIATELY in both cases. ACH failure flips invoice back to unpaid.
+      var invoiceStatus = isAch ? "processing" : "paid";
+      var paymentMethodLabel = isAch ? "ach_bank" : "card_on_file";
+
       for (var j = 0; j < ids.length; j += 1) {
         var id = ids[j];
         var item = _cartItems.find(function(i) { return i.id === id; });
+        var invoicePatch = {
+          status: invoiceStatus,
+          payment_method: paymentMethodLabel,
+          stripe_payment_intent_id: chargeJson.paymentIntentId || null
+        };
+        if (!isAch) invoicePatch.paid_at = paidAt;
+
         await fetch(SUPABASE_URL + "/rest/v1/invoice_items?id=eq." + id, {
           method: "PATCH",
           headers: authHeaders(),
-          body: JSON.stringify({ status: "paid", paid_at: paidAt, payment_method: "card_on_file" })
+          body: JSON.stringify(invoicePatch)
         });
+
+        // Activate the contract immediately in both cases (per locked business rule).
         if (item && item.contract_id) {
           await fetch(SUPABASE_URL + "/rest/v1/contracts?id=eq." + item.contract_id, {
             method: "PATCH",
             headers: authHeaders(),
-            body: JSON.stringify({ status: "active", paid_at: paidAt, payment_method: "card_on_file" })
+            body: JSON.stringify({
+              status: "active",
+              paid_at: paidAt,
+              payment_method: paymentMethodLabel
+            })
           });
         }
       }
-      alert("Payment successful! " + ids.length + " contract(s) are now active.");
+
+      if (isAch) {
+        alert("Payment submitted successfully.\n\nFunds will settle in 3-5 business days. Customer coverage is active now. If the bank rejects the payment, the invoice will return to your cart with the failure reason.");
+      } else {
+        alert("Payment successful! " + ids.length + " contract(s) are now active.");
+      }
+
       await loadBillingCart();
       if (typeof window.loadCustomersTab === "function") await window.loadCustomersTab();
       if (typeof window.loadDashboard === "function") await window.loadDashboard();
+
     } catch (e) {
-      alert("Payment failed. Please try again.");
+      // Show the actual Stripe error reason to the dealer.
+      var displayMsg = (e && e.message) || "Payment failed. Please try again.";
+      alert("Payment failed: " + displayMsg + "\n\nIf this persists, contact support@whitestone-partners.com.");
+      console.error("paySelectedCard error:", e);
     }
   };
 
