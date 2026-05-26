@@ -25,6 +25,16 @@ const SUPPORT_REPLY_EMAIL = 'support@whitestone-partners.com';
 const TEST_MODE_ENABLED = true;
 const TEST_EMAIL_RECIPIENT = 'neblloydben@gmail.com';
 
+// ============================================================
+// DOCUSIGN ROUTING FLAG
+// ============================================================
+// When DOCUSIGN_ENABLED is true, this endpoint forwards the request
+// to /api/send-dealer-agreement-docusign and returns its response.
+// When false, the legacy Resend-PDF flow below runs.
+// This lets us swap implementations without changing the frontend.
+// ============================================================
+const DOCUSIGN_ENABLED = false; // flip to true to route through DocuSign
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -35,6 +45,33 @@ module.exports = async function handler(req, res) {
   }
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // ============================================================
+  // FEATURE FLAG: proxy to DocuSign endpoint when enabled
+  // ============================================================
+  if (DOCUSIGN_ENABLED) {
+    try {
+      const host = req.headers['x-forwarded-host'] || req.headers.host;
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const targetUrl = protocol + '://' + host + '/api/send-dealer-agreement-docusign';
+
+      // Forward the body and the auth header verbatim
+      const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
+      const proxyRes = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': req.headers.authorization || req.headers.Authorization || ''
+        },
+        body: rawBody
+      });
+      const proxyJson = await proxyRes.json();
+      return res.status(proxyRes.status).json(proxyJson);
+    } catch (e) {
+      console.error('DocuSign proxy failed, falling back to Resend:', e);
+      // Fall through to legacy Resend flow on proxy error -- defensive fallback
+    }
   }
 
   // Parse body
