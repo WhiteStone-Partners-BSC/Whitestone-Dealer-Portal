@@ -197,17 +197,20 @@ module.exports = async function handler(req, res) {
           name: recipientName,
           recipientId: '1',
           routingOrder: '1',
-          // PDF contains the literal text "DEALER AUTHORIZED SIGNATURE:" followed by an underline
-          // on the same line, then "DATE: _________" further right on the same line.
-          // Both tabs anchor on that phrase; we offset X to position the date field to the right.
-          // anchorIgnoreIfNotPresent is false so DocuSign errors out if the PDF template changes
-          // and the anchor goes missing - we never want to ship an unsignable envelope again.
+          // DocuSign anchor coordinate convention:
+          // - Origin is bottom-left of the matched anchor string
+          // - Positive X moves the tab right on the page
+          // - Positive Y moves the tab DOWN the page (toward bottom)
+          // - Negative Y moves the tab UP the page
+          // Previous attempt used negative Y thinking it pushed down - it didn't,
+          // it pushed tabs UP onto the Whitestone Partners signature line above the dealer line.
+          // anchorIgnoreIfNotPresent is false so DocuSign errors out if the PDF template changes.
           tabs: {
             signHereTabs: [
               {
                 anchorString: 'DEALER AUTHORIZED SIGNATURE:',
                 anchorXOffset: '180',
-                anchorYOffset: '-8',
+                anchorYOffset: '8',
                 anchorUnits: 'pixels',
                 anchorIgnoreIfNotPresent: 'false'
               }
@@ -216,7 +219,7 @@ module.exports = async function handler(req, res) {
               {
                 anchorString: 'DEALER AUTHORIZED SIGNATURE:',
                 anchorXOffset: '370',
-                anchorYOffset: '-22',
+                anchorYOffset: '8',
                 anchorUnits: 'pixels',
                 anchorIgnoreIfNotPresent: 'false'
               }
