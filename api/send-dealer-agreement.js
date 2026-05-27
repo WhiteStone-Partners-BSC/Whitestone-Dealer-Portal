@@ -33,7 +33,7 @@ const TEST_EMAIL_RECIPIENT = 'neblloydben@gmail.com';
 // When false, the legacy Resend-PDF flow below runs.
 // This lets us swap implementations without changing the frontend.
 // ============================================================
-const DOCUSIGN_ENABLED = true; // flip to true to route through DocuSign
+const DOCUSIGN_ENABLED = false; // flip to true to route through DocuSign
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
