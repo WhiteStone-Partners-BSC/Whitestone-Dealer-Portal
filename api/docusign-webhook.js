@@ -253,7 +253,7 @@ async function handler(req, res) {
         docusign_envelope_status: 'completed',
         agreement_signed_at: signedAt,
         agreement_signed_by: signerName,
-        enrollment_status: 'pending_pricing'
+        enrollment_status: 'signed'
       };
       await fetch(SUPABASE_URL + '/rest/v1/dealers?id=eq.' + encodeURIComponent(dealer.id), {
         method: 'PATCH',
