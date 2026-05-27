@@ -215,8 +215,8 @@ module.exports = async function handler(req, res) {
             dateSignedTabs: [
               {
                 anchorString: 'DEALER AUTHORIZED SIGNATURE:',
-                anchorXOffset: '500',
-                anchorYOffset: '-8',
+                anchorXOffset: '370',
+                anchorYOffset: '-22',
                 anchorUnits: 'pixels',
                 anchorIgnoreIfNotPresent: 'false'
               }
