@@ -21,7 +21,7 @@ const crypto = require('crypto');
 const { getDocuSignAccessToken, fetchSignedEnvelopePdf, deriveAuthHost } = require('./_docusign-helpers.js');
 
 // Vercel needs the raw body for HMAC verification; bodyParser strips that.
-module.exports.config = { api: { bodyParser: false } };
+const config = { api: { bodyParser: false } };
 
 function getRawBody(req) {
   return new Promise(function(resolve, reject) {
@@ -53,7 +53,7 @@ function verifyDocuSignSignature(rawBody, headers, secret) {
   return false;
 }
 
-module.exports.default = async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -290,7 +290,10 @@ module.exports.default = async function handler(req, res) {
   // Unrecognized event type - acknowledge so DocuSign doesn't retry.
   console.log('docusign-webhook: unhandled event type=' + eventType + ' envelopeId=' + envelopeId);
   return res.status(200).json({ received: true, unhandled: eventType });
-};
+}
+
+module.exports = handler;
+module.exports.config = config;
 
 // ============================================================
 // Email helper
