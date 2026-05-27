@@ -1,3 +1,5 @@
+const { getDocuSignAccessToken, deriveAuthHost } = require('./_docusign-helpers.js');
+
 /**
  * /api/send-dealer-agreement-docusign.js
  *
@@ -16,8 +18,6 @@
  * is TEST_EMAIL_RECIPIENT instead of dealer.email. Subject is prefixed
  * with [TEST -> realEmail] for visibility.
  */
-
-const crypto = require('crypto');
 
 const SUPPORT_REPLY_EMAIL = 'support@whitestone-partners.com';
 
@@ -161,8 +161,7 @@ module.exports = async function handler(req, res) {
       userId: DS_USER_ID,
       integrationKey: DS_INTEGRATION_KEY,
       privateKey: DS_PRIVATE_KEY,
-      // For demo env the auth host is account-d.docusign.com; for production it's account.docusign.com
-      authHost: DS_BASE_URI.indexOf('demo.docusign') >= 0 ? 'account-d.docusign.com' : 'account.docusign.com'
+      authHost: deriveAuthHost(DS_BASE_URI)
     });
   } catch (e) {
     console.error('DocuSign JWT auth failed:', e && e.message);
@@ -281,66 +280,3 @@ module.exports = async function handler(req, res) {
     test_mode: DOCUSIGN_TEST_MODE_ENABLED
   });
 };
-
-// ============================================================
-// DocuSign JWT authentication helper
-// ============================================================
-// Builds a JWT signed with the integration's RSA private key,
-// then exchanges it at DocuSign's token endpoint for an access token.
-async function getDocuSignAccessToken(opts) {
-  const userId = opts.userId;
-  const integrationKey = opts.integrationKey;
-  const privateKey = opts.privateKey;
-  const authHost = opts.authHost; // e.g. 'account-d.docusign.com'
-
-  const now = Math.floor(Date.now() / 1000);
-  const header = { alg: 'RS256', typ: 'JWT' };
-  const claim = {
-    iss: integrationKey,
-    sub: userId,
-    aud: authHost,
-    iat: now,
-    exp: now + 3600, // 1 hour
-    scope: 'signature impersonation'
-  };
-
-  const headerB64 = base64url(JSON.stringify(header));
-  const claimB64 = base64url(JSON.stringify(claim));
-  const signingInput = headerB64 + '.' + claimB64;
-
-  // Sign with RSA-SHA256 using the integration's private key
-  let signatureB64;
-  try {
-    const signer = crypto.createSign('RSA-SHA256');
-    signer.update(signingInput);
-    signer.end();
-    const sig = signer.sign(privateKey);
-    signatureB64 = base64url(sig);
-  } catch (e) {
-    throw new Error('RSA sign failed: ' + (e && e.message));
-  }
-
-  const assertion = signingInput + '.' + signatureB64;
-
-  // Exchange assertion for access token
-  const tokenRes = await fetch('https://' + authHost + '/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + encodeURIComponent(assertion)
-  });
-  const tokenJson = await tokenRes.json();
-  if (!tokenRes.ok || !tokenJson.access_token) {
-    throw new Error('DocuSign token exchange failed: ' + JSON.stringify(tokenJson));
-  }
-  return tokenJson.access_token;
-}
-
-function base64url(input) {
-  let b;
-  if (Buffer.isBuffer(input)) {
-    b = input;
-  } else {
-    b = Buffer.from(input, 'utf8');
-  }
-  return b.toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
-}
