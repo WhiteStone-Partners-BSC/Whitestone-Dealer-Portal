@@ -197,25 +197,28 @@ module.exports = async function handler(req, res) {
           name: recipientName,
           recipientId: '1',
           routingOrder: '1',
-          // Anchor-based tab placement: signature appears wherever the PDF contains the text "Dealer Signature"
-          // If your PDF doesn't have that text, change anchorString or use absolute positioning (xPosition/yPosition).
+          // PDF contains the literal text "DEALER AUTHORIZED SIGNATURE:" followed by an underline
+          // on the same line, then "DATE: _________" further right on the same line.
+          // Both tabs anchor on that phrase; we offset X to position the date field to the right.
+          // anchorIgnoreIfNotPresent is false so DocuSign errors out if the PDF template changes
+          // and the anchor goes missing - we never want to ship an unsignable envelope again.
           tabs: {
             signHereTabs: [
               {
-                anchorString: 'Dealer Signature',
-                anchorXOffset: '0',
-                anchorYOffset: '-12',
+                anchorString: 'DEALER AUTHORIZED SIGNATURE:',
+                anchorXOffset: '180',
+                anchorYOffset: '-8',
                 anchorUnits: 'pixels',
-                anchorIgnoreIfNotPresent: 'true' // don't fail if anchor missing
+                anchorIgnoreIfNotPresent: 'false'
               }
             ],
             dateSignedTabs: [
               {
-                anchorString: 'Date',
-                anchorXOffset: '0',
-                anchorYOffset: '-12',
+                anchorString: 'DEALER AUTHORIZED SIGNATURE:',
+                anchorXOffset: '500',
+                anchorYOffset: '-8',
                 anchorUnits: 'pixels',
-                anchorIgnoreIfNotPresent: 'true'
+                anchorIgnoreIfNotPresent: 'false'
               }
             ]
           }
