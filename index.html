@@ -3854,10 +3854,16 @@ window.addEventListener("load", function() {
         '<div style="width:60px;height:60px;border-radius:50%;background:#e8f5e9;border:2px solid #a8d5b5;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 1rem;">✓</div>' +
         '<div style="font-family:\'Cormorant Garamond\',serif;font-size:24px;font-weight:300;color:#0c1e2e;margin-bottom:0.5rem;">Enrollment Complete!</div>' +
         '<div style="font-size:13px;color:#4a6278;margin-bottom:1.5rem;">' + (message || (customerName + " has been enrolled successfully.")) + "</div>" +
-        '<button onclick="downloadEnrollmentForm(\'' + safeContractId + '\')" id="download-pdf-btn" style="width:100%;background:#b8963e;color:#0c1e2e;border:none;padding:13px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;margin-bottom:0.75rem;display:flex;align-items:center;justify-content:center;gap:0.5rem;">' +
-          "📄 Download Enrollment Form" +
+        // Primary: send via DocuSign
+        '<button onclick="sendCustomerToDocuSign(\'' + safeContractId + '\')" id="send-docusign-btn" style="width:100%;background:#b8963e;color:#0c1e2e;border:none;padding:13px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;margin-bottom:0.5rem;display:flex;align-items:center;justify-content:center;gap:0.5rem;">' +
+          "✉️ Send to customer to sign electronically" +
         "</button>" +
-        '<div style="font-size:11px;color:#9aafbf;margin-bottom:1.25rem;">Pre-filled PDF ready for customer signature</div>' +
+        '<div id="docusign-status-msg" style="font-size:11px;color:#9aafbf;margin-bottom:1rem;">Customer will receive a DocuSign email with the contract</div>' +
+        // Secondary: paper fallback
+        '<button onclick="downloadEnrollmentForm(\'' + safeContractId + '\')" id="download-pdf-btn" style="width:100%;background:transparent;color:#0c1e2e;border:1.5px solid #c5d5e0;padding:11px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:\'DM Sans\',sans-serif;margin-bottom:0.75rem;display:flex;align-items:center;justify-content:center;gap:0.5rem;">' +
+          "📄 Download paper form to sign in person" +
+        "</button>" +
+        '<div style="font-size:11px;color:#9aafbf;margin-bottom:1.25rem;">Pre-filled PDF for in-person signing</div>' +
         '<div style="display:flex;gap:0.75rem;justify-content:center;">' +
           '<button onclick="enrollAnotherCustomer()" style="background:transparent;border:1.5px solid #c5d5e0;color:#0c1e2e;padding:9px 20px;border-radius:6px;font-size:13px;cursor:pointer;">Enroll Another</button>' +
           (String(message || "").toLowerCase().includes("cart")
@@ -3902,15 +3908,75 @@ window.addEventListener("load", function() {
       URL.revokeObjectURL(url);
       if (btn) {
         btn.disabled = false;
-        btn.textContent = "📄 Download Enrollment Form";
+        btn.textContent = "📄 Download paper form to sign in person";
       }
     } catch (e) {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = "📄 Download Enrollment Form";
+        btn.textContent = "📄 Download paper form to sign in person";
       }
       alert("Could not generate PDF. Please try again.");
       console.error("PDF error:", e);
+    }
+  };
+
+  window.sendCustomerToDocuSign = async function(contractId) {
+    contractId = contractId || window._lastEnrolledContractId || window._lastCreatedContractId;
+    var btn = document.getElementById("send-docusign-btn");
+    var statusMsg = document.getElementById("docusign-status-msg");
+
+    if (!contractId) {
+      if (statusMsg) {
+        statusMsg.textContent = "Could not identify the contract. Please refresh and try again.";
+        statusMsg.style.color = "#c43e3e";
+      }
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = "⏳ Sending...";
+      btn.style.cursor = "wait";
+    }
+
+    try {
+      var response = await fetch("/api/send-customer-agreement-docusign", {
+        method: "POST",
+        headers: (typeof authHeaders === "function") ? authHeaders() : { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: contractId })
+      });
+
+      var data = null;
+      try { data = await response.json(); } catch (e) {}
+
+      if (!response.ok) {
+        var errMsg = (data && data.error) || ("DocuSign send failed: " + response.status);
+        throw new Error(errMsg);
+      }
+
+      // Success state
+      if (btn) {
+        btn.innerHTML = "✓ Sent";
+        btn.style.background = "#a8d5b5";
+        btn.style.color = "#0c1e2e";
+      }
+      if (statusMsg) {
+        var displayEmail = (data && data.realRecipientEmail) || (data && data.recipientEmail) || "customer";
+        var testNote = (data && data.testMode) ? " (test mode - delivered to " + (data.recipientEmail || "test inbox") + ")" : "";
+        statusMsg.textContent = "Envelope sent to " + displayEmail + testNote + ". Customer will receive a DocuSign email shortly.";
+        statusMsg.style.color = "#1e6b3a";
+      }
+    } catch (err) {
+      console.error("sendCustomerToDocuSign error:", err);
+      if (btn) {
+        btn.disabled = false;
+        btn.style.cursor = "pointer";
+        btn.innerHTML = "✉️ Send to customer to sign electronically";
+      }
+      if (statusMsg) {
+        statusMsg.textContent = "Could not send: " + (err && err.message ? err.message : "unknown error") + ". You can still use the paper form below.";
+        statusMsg.style.color = "#c43e3e";
+      }
     }
   };
 
