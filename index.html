@@ -649,19 +649,16 @@
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;">
               <div class="contract-option" data-length="1yr" onclick="selectContractLength('1yr',this)" style="border:2px solid var(--border);border-radius:8px;padding:1rem;text-align:center;cursor:pointer;transition:all 0.2s;">
                 <div style="font-size:11px;color:var(--light);margin-bottom:4px;">1-YEAR</div>
-                <div style="font-size:20px;font-weight:700;color:var(--gold);" id="enroll-price-1yr">$3,325</div>
+                <div style="font-size:20px;font-weight:700;color:var(--gold);" id="enroll-price-1yr">$2,495</div>
               </div>
               <div class="contract-option" data-length="2yr" onclick="selectContractLength('2yr',this)" style="border:2px solid var(--border);border-radius:8px;padding:1rem;text-align:center;cursor:pointer;transition:all 0.2s;">
                 <div style="font-size:11px;color:var(--light);margin-bottom:4px;">2-YEAR</div>
-                <div style="font-size:20px;font-weight:700;color:var(--gold);" id="enroll-price-2yr">$6,650</div>
+                <div style="font-size:20px;font-weight:700;color:var(--gold);" id="enroll-price-2yr">$4,495</div>
               </div>
               <div class="contract-option" data-length="3yr" onclick="selectContractLength('3yr',this)" style="border:2px solid var(--border);border-radius:8px;padding:1rem;text-align:center;cursor:pointer;transition:all 0.2s;">
                 <div style="font-size:11px;color:var(--light);margin-bottom:4px;">3-YEAR</div>
-                <div style="font-size:20px;font-weight:700;color:var(--gold);" id="enroll-price-3yr">$9,975</div>
+                <div style="font-size:20px;font-weight:700;color:var(--gold);" id="enroll-price-3yr">$6,495</div>
               </div>
-            </div>
-            <div id="enroll-no-pricing-msg" style="display:none;margin-top:0.75rem;background:#fff5f0;border:1px solid #f0d060;border-radius:6px;padding:0.85rem 1rem;font-size:13px;color:#7a4f00;">
-              ⚠ Your pricing has not been confirmed yet. Please contact <strong>support@whitestone-partners.com</strong> to activate enrollment.
             </div>
           </div>
 
@@ -1658,32 +1655,6 @@
   </div>
   </div>
 
-    <!-- Confirm Modal -->
-    <div id="pricing-confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;">
-      <div style="background:white;border-radius:12px;padding:2rem;max-width:560px;width:90%;max-height:80vh;overflow-y:auto;">
-        <h3 style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:300;color:var(--navy);margin-bottom:0.5rem;">Confirm Pricing Changes</h3>
-        <p style="font-size:13px;color:var(--mid);margin-bottom:1.5rem;" id="pricing-modal-dealer-name"></p>
-        <div id="pricing-changes-table" style="margin-bottom:1.5rem;"></div>
-        <div style="background:#fff5f0;border:1px solid #f0d060;border-radius:6px;padding:1rem;margin-bottom:1.25rem;font-size:13px;color:#7a4f00;">
-          ⚠ These changes will update this dealer's rate card. Once confirmed, pricing is locked and can only be changed by unlocking it again.
-        </div>
-        <div style="display:flex;flex-direction:column;gap:0.75rem;margin-bottom:1.5rem;">
-          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
-            <input type="checkbox" id="confirm-check-1" style="margin-top:2px;accent-color:var(--navy);">
-            <span style="font-size:13px;color:var(--text);">I have reviewed all pricing changes listed above</span>
-          </label>
-          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
-            <input type="checkbox" id="confirm-check-2" style="margin-top:2px;accent-color:var(--navy);">
-            <span style="font-size:13px;color:var(--text);" id="confirm-check-2-label">I confirm these rates are correct for this dealer</span>
-          </label>
-        </div>
-        <div style="display:flex;gap:1rem;">
-          <button id="pricing-modal-cancel" style="flex:1;padding:11px;border:1px solid var(--border);background:white;border-radius:6px;font-size:13px;cursor:pointer;">Cancel</button>
-          <button id="pricing-modal-save" disabled style="flex:2;padding:11px;background:var(--navy);color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;opacity:0.4;">Confirm & Save</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Unlock Modal -->
     <div id="pricing-unlock-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;">
       <div style="background:white;border-radius:12px;padding:2rem;max-width:420px;width:90%;">
@@ -2674,9 +2645,9 @@ window.addEventListener("load", function() {
     if (pricingData) {
       var confirmedDate = pricingData.confirmed_at ? new Date(pricingData.confirmed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
       document.getElementById("dp-pricing-info").innerHTML = [
-        ["Wholesale 1-Year", "$" + Number(pricingData.contract_retail_1yr || 3325).toLocaleString()],
-        ["Wholesale 2-Year", "$" + Number(pricingData.contract_retail_2yr || 6650).toLocaleString()],
-        ["Wholesale 3-Year", "$" + Number(pricingData.contract_retail_3yr || 9975).toLocaleString()],
+        ["Wholesale 1-Year", "$" + Number(pricingData.contract_retail_1yr || 2495).toLocaleString()],
+        ["Wholesale 2-Year", "$" + Number(pricingData.contract_retail_2yr || 4495).toLocaleString()],
+        ["Wholesale 3-Year", "$" + Number(pricingData.contract_retail_3yr || 6495).toLocaleString()],
         ["Confirmed", pricingData.confirmed ? (confirmedDate || "Yes") : "Not confirmed"]
       ].map(function(row) {
         return '<div style="display:flex;gap:0.5rem;">' +
@@ -3171,7 +3142,7 @@ window.addEventListener("load", function() {
   window.wholesaleState = {
     dealerId: null, dealerName: null, pricingId: null,
     claimsRate: 80, targetMargin: 20,
-    ws1: 3325, ws2: 6650, ws3: 9975,
+    ws1: 2495, ws2: 4495, ws3: 6495,
     confirmed: false, locked: false,
     originalServices: []
   };
@@ -3365,8 +3336,8 @@ window.addEventListener("load", function() {
         body: JSON.stringify({
           dealer_id: dealerId, dealership_name: dealerName,
           service_name: "Default Rate Card", reimbursement_rate: 150,
-          commission_pct: 20, contract_retail_1yr: 3325,
-          contract_retail_2yr: 6650, contract_retail_3yr: 9975,
+          commission_pct: 20, contract_retail_1yr: 2495,
+          contract_retail_2yr: 4495, contract_retail_3yr: 6495,
           confirmed: false, locked: false
         })
       });
@@ -3418,16 +3389,16 @@ window.addEventListener("load", function() {
 
   window.dealerLoadRateCard = async function() {
     if (!currentDealer || !currentDealer.id) return;
-    var pricing = await fetchDealerPricingForCurrentDealer();
     var cardEl = document.getElementById("dealer-rate-card");
     if (!cardEl) return;
-    if (!pricing || !pricing.confirmed) {
-      cardEl.innerHTML = '<div style="background:var(--silver-bg);border:1px solid var(--border);border-radius:8px;padding:1.25rem;margin-top:1rem;"><div style="font-size:13px;color:var(--light);text-align:center;">Contract pricing not yet configured. Contact <strong>support@whitestone-partners.com</strong> to get started.</div></div>';
-      return;
-    }
-    cardEl.innerHTML = '<div style="background:var(--navy2);border-radius:10px;padding:1.25rem 1.5rem;margin-top:1rem;"><div style="font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:1rem;">Your Contract Pricing</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;">' +
-      [{ label: "1-Year", price: pricing.contract_retail_1yr }, { label: "2-Year", price: pricing.contract_retail_2yr }, { label: "3-Year", price: pricing.contract_retail_3yr }].map(function(p) {
-        return '<div style="text-align:center;background:rgba(255,255,255,0.05);border-radius:6px;padding:0.85rem;"><div style="font-size:10px;color:rgba(200,220,235,0.5);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">' + p.label + '</div><div style="font-family:\'Cormorant Garamond\',serif;font-size:24px;font-weight:300;color:var(--gold);">$' + Number(p.price || 0).toLocaleString() + '</div></div>';
+    var prices = [
+      { label: "1-Year", price: 2495 },
+      { label: "2-Year", price: 4495 },
+      { label: "3-Year", price: 6495 }
+    ];
+    cardEl.innerHTML = '<div style="background:var(--navy2);border-radius:10px;padding:1.25rem 1.5rem;margin-top:1rem;"><div style="font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:1rem;">Your Contract Pricing</div><div style="font-size:12px;color:rgba(200,220,235,0.6);margin-bottom:1rem;">Uniform wholesale — you set your own retail prices at enrollment.</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;">' +
+      prices.map(function(p) {
+        return '<div style="text-align:center;background:rgba(255,255,255,0.05);border-radius:6px;padding:0.85rem;"><div style="font-size:10px;color:rgba(200,220,235,0.5);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">' + p.label + '</div><div style="font-family:\'Cormorant Garamond\',serif;font-size:24px;font-weight:300;color:var(--gold);">$' + Number(p.price).toLocaleString() + '</div></div>';
       }).join("") + "</div></div>";
   };
 
@@ -3436,31 +3407,19 @@ window.addEventListener("load", function() {
     var todayIsoInit = new Date().toISOString().split("T")[0];
     var aDateInit = document.getElementById("e-agreement-date");
     if (aDateInit && !aDateInit.value) aDateInit.value = todayIsoInit;
-    dealerPricingData = await fetchDealerPricingForCurrentDealer();
-    var msgEl = document.getElementById("enroll-no-pricing-msg");
-    if (!dealerPricingData || !dealerPricingData.confirmed) {
-      if (msgEl) msgEl.style.display = "block";
-      document.querySelectorAll(".contract-option, .contract-length-option").forEach(function(el) {
-        el.style.opacity = "0.4";
-        el.style.pointerEvents = "none";
-        el.style.borderColor = "var(--border)";
-        el.style.background = "white";
-      });
-      ["1yr", "2yr", "3yr"].forEach(function(yr) {
-        var el = document.getElementById("enroll-price-" + yr);
-        if (el) el.textContent = "—";
-      });
-      selectedContractLength = null;
-      return;
-    }
-    if (msgEl) msgEl.style.display = "none";
+    dealerPricingData = {
+      contract_retail_1yr: 2495,
+      contract_retail_2yr: 4495,
+      contract_retail_3yr: 6495,
+      confirmed: true
+    };
     document.querySelectorAll(".contract-option, .contract-length-option").forEach(function(el) {
       el.style.opacity = "1";
       el.style.pointerEvents = "auto";
     });
-    document.getElementById("enroll-price-1yr").textContent = "$" + Number(dealerPricingData.contract_retail_1yr || 3325).toLocaleString();
-    document.getElementById("enroll-price-2yr").textContent = "$" + Number(dealerPricingData.contract_retail_2yr || 6650).toLocaleString();
-    document.getElementById("enroll-price-3yr").textContent = "$" + Number(dealerPricingData.contract_retail_3yr || 9975).toLocaleString();
+    document.getElementById("enroll-price-1yr").textContent = "$2,495";
+    document.getElementById("enroll-price-2yr").textContent = "$4,495";
+    document.getElementById("enroll-price-3yr").textContent = "$6,495";
   };
 
   window.selectContractLength = function(length, selectedEl) {
@@ -3526,13 +3485,6 @@ window.addEventListener("load", function() {
     if (!selectedContractLength) {
       if (errEl) {
         errEl.textContent = "Please select a contract length.";
-        errEl.style.display = "block";
-      }
-      return;
-    }
-    if (!dealerPricingData || !dealerPricingData.confirmed) {
-      if (errEl) {
-        errEl.textContent = "Your pricing has not been confirmed. Please contact support@whitestone-partners.com.";
         errEl.style.display = "block";
       }
       return;
@@ -3672,10 +3624,10 @@ window.addEventListener("load", function() {
           btn.textContent = "Adding to cart...";
           closeEnrollConfirmModal();
           var contractType = selectedContractLength || "1yr";
-          var wholesaleMap = { "1yr": 3325, "2yr": 6650, "3yr": 9975 };
+          var wholesaleMap = { "1yr": 2495, "2yr": 4495, "3yr": 6495 };
           var retailMap = { "1yr": 4075, "2yr": 8150, "3yr": 12225 };
           var totalDaysMap = { "1yr": 365, "2yr": 730, "3yr": 1095 };
-          var wholesale = wholesaleMap[contractType] || 3325;
+          var wholesale = wholesaleMap[contractType] || 2495;
           var retail = retailMap[contractType] || 4075;
           var fname = (document.getElementById("e-fname") || {}).value || "";
           var lname = (document.getElementById("e-lname") || {}).value || "";
@@ -4791,116 +4743,124 @@ window.addEventListener("load", function() {
   if (retailInput) retailInput.addEventListener("input", function() { wsUpdateDealerExample(wholesaleState.ws1); });
 
   var pricingModalSaveOld = document.getElementById("pricing-modal-save");
-  var pricingModalSave = pricingModalSaveOld.cloneNode(true);
-  pricingModalSaveOld.parentNode.replaceChild(pricingModalSave, pricingModalSaveOld);
+  if (pricingModalSaveOld) {
+    var pricingModalSave = pricingModalSaveOld.cloneNode(true);
+    pricingModalSaveOld.parentNode.replaceChild(pricingModalSave, pricingModalSaveOld);
 
-  var pricingModalCancelOld = document.getElementById("pricing-modal-cancel");
-  var pricingModalCancel = pricingModalCancelOld.cloneNode(true);
-  pricingModalCancelOld.parentNode.replaceChild(pricingModalCancel, pricingModalCancelOld);
+    var pricingModalCancelOld = document.getElementById("pricing-modal-cancel");
+    var pricingModalCancel = pricingModalCancelOld.cloneNode(true);
+    pricingModalCancelOld.parentNode.replaceChild(pricingModalCancel, pricingModalCancelOld);
 
-  var unlockCancelOld = document.getElementById("unlock-cancel-btn");
-  var unlockCancelBtn = unlockCancelOld.cloneNode(true);
-  unlockCancelOld.parentNode.replaceChild(unlockCancelBtn, unlockCancelOld);
-
-  var unlockConfirmOld = document.getElementById("unlock-confirm-btn");
-  var unlockConfirmBtn = unlockConfirmOld.cloneNode(true);
-  unlockConfirmOld.parentNode.replaceChild(unlockConfirmBtn, unlockConfirmOld);
-
-  document.getElementById("ws-confirm-btn").addEventListener("click", function() {
-    if (!wholesaleState.dealerName) { alert("Please select a dealer first."); return; }
-    if (wholesaleState.locked) { alert("Pricing is locked. Unlock it to make changes."); return; }
-    document.getElementById("pricing-modal-dealer-name").textContent = "Dealer: " + wholesaleState.dealerName;
-    document.getElementById("confirm-check-2-label").textContent = "I confirm these rates are correct for " + wholesaleState.dealerName;
-    var actual = wholesaleServices.reduce(function(a, s) { return a + s.cost * (wholesaleState.claimsRate / 100); }, 0);
-    document.getElementById("pricing-changes-table").innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:var(--silver-bg);"><th style="padding:8px;text-align:left;font-size:11px;color:var(--light);">Contract</th><th style="padding:8px;text-align:right;font-size:11px;color:var(--light);">Wholesale Price</th><th style="padding:8px;text-align:right;font-size:11px;color:var(--light);">Your Profit</th></tr></thead><tbody>' +
-      [{ label: "1-Year", ws: wholesaleState.ws1 }, { label: "2-Year", ws: wholesaleState.ws2 }, { label: "3-Year", ws: wholesaleState.ws3 }].map(function(p) {
-        var years = wsContractYears(p.label);
-        var profit = p.ws - actual * years;
-        return '<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">' + p.label + '</td><td style="padding:8px;text-align:right;font-weight:600;color:var(--gold);">' + wsFmt(p.ws) + '</td><td style="padding:8px;text-align:right;font-weight:600;color:' + (profit >= 0 ? 'var(--green)' : 'var(--red)') + ';">' + wsFmt(profit) + '</td></tr>';
-      }).join("") + "</tbody></table>";
-    document.getElementById("confirm-check-1").checked = false;
-    document.getElementById("confirm-check-2").checked = false;
-    document.getElementById("pricing-modal-save").disabled = true;
-    document.getElementById("pricing-modal-save").style.opacity = "0.4";
-    document.getElementById("pricing-confirm-modal").style.display = "flex";
-  });
-
-  ["confirm-check-1", "confirm-check-2"].forEach(function(id) {
-    document.getElementById(id).addEventListener("change", function() {
-      var both = document.getElementById("confirm-check-1").checked && document.getElementById("confirm-check-2").checked;
-      pricingModalSave.disabled = !both;
-      pricingModalSave.style.opacity = both ? "1" : "0.4";
-    });
-  });
-
-  pricingModalSave.addEventListener("click", async function() {
-    if (this.disabled) return;
-    this.disabled = true;
-    this.textContent = "Saving...";
-    await fetch(SUPABASE_URL + "/rest/v1/dealer_pricing?id=eq." + wholesaleState.pricingId, {
-      method: "PATCH",
-      headers: authHeaders(),
-      body: JSON.stringify({
-        contract_retail_1yr: wholesaleState.ws1,
-        contract_retail_2yr: wholesaleState.ws2,
-        contract_retail_3yr: wholesaleState.ws3,
-        reimbursement_rate: wholesaleServices.reduce(function(a, s) { return a + s.cost; }, 0) / wholesaleServices.length,
-        commission_pct: wholesaleState.targetMargin,
-        confirmed: true,
-        locked: true,
-        confirmed_at: new Date().toISOString(),
-        confirmed_by: "admin"
-      })
-    });
-    if (wholesaleState.dealerId) {
-      await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(wholesaleState.dealerId), {
-        method: "PATCH",
-        headers: authHeaders(),
-        body: JSON.stringify({ enrollment_status: "active", active: true })
+    var wsConfirmBtn = document.getElementById("ws-confirm-btn");
+    if (wsConfirmBtn) {
+      wsConfirmBtn.addEventListener("click", function() {
+        if (!wholesaleState.dealerName) { alert("Please select a dealer first."); return; }
+        if (wholesaleState.locked) { alert("Pricing is locked. Unlock it to make changes."); return; }
+        document.getElementById("pricing-modal-dealer-name").textContent = "Dealer: " + wholesaleState.dealerName;
+        document.getElementById("confirm-check-2-label").textContent = "I confirm these rates are correct for " + wholesaleState.dealerName;
+        var actual = wholesaleServices.reduce(function(a, s) { return a + s.cost * (wholesaleState.claimsRate / 100); }, 0);
+        document.getElementById("pricing-changes-table").innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:var(--silver-bg);"><th style="padding:8px;text-align:left;font-size:11px;color:var(--light);">Contract</th><th style="padding:8px;text-align:right;font-size:11px;color:var(--light);">Wholesale Price</th><th style="padding:8px;text-align:right;font-size:11px;color:var(--light);">Your Profit</th></tr></thead><tbody>' +
+          [{ label: "1-Year", ws: wholesaleState.ws1 }, { label: "2-Year", ws: wholesaleState.ws2 }, { label: "3-Year", ws: wholesaleState.ws3 }].map(function(p) {
+            var years = wsContractYears(p.label);
+            var profit = p.ws - actual * years;
+            return '<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">' + p.label + '</td><td style="padding:8px;text-align:right;font-weight:600;color:var(--gold);">' + wsFmt(p.ws) + '</td><td style="padding:8px;text-align:right;font-weight:600;color:' + (profit >= 0 ? 'var(--green)' : 'var(--red)') + ';">' + wsFmt(profit) + '</td></tr>';
+          }).join("") + "</tbody></table>";
+        document.getElementById("confirm-check-1").checked = false;
+        document.getElementById("confirm-check-2").checked = false;
+        document.getElementById("pricing-modal-save").disabled = true;
+        document.getElementById("pricing-modal-save").style.opacity = "0.4";
       });
     }
-    wholesaleState.confirmed = true;
-    wholesaleState.locked = true;
-    document.getElementById("pricing-confirm-modal").style.display = "none";
-    wsUpdateLockStatus();
-    await writeAuditLog("pricing", wholesaleState.pricingId, "pricing_confirmed", null, { dealer: wholesaleState.dealerName, ws1: wholesaleState.ws1, ws2: wholesaleState.ws2, ws3: wholesaleState.ws3 }, wholesaleState.dealerName, null, "Wholesale pricing confirmed and locked");
-    if (typeof wsPricingLoadDealers === "function") await wsPricingLoadDealers();
-    alert("✓ Pricing confirmed and locked for " + wholesaleState.dealerName);
-    this.disabled = false;
-    this.textContent = "Confirm & Save";
-  });
 
-  pricingModalCancel.addEventListener("click", function() {
-    document.getElementById("pricing-confirm-modal").style.display = "none";
-  });
-
-  document.getElementById("ws-unlock-btn").addEventListener("click", function() {
-    document.getElementById("unlock-dealer-name-input").value = "";
-    document.getElementById("pricing-unlock-modal").style.display = "flex";
-  });
-
-  unlockCancelBtn.addEventListener("click", function() {
-    document.getElementById("pricing-unlock-modal").style.display = "none";
-  });
-
-  unlockConfirmBtn.addEventListener("click", async function() {
-    var typed = document.getElementById("unlock-dealer-name-input").value.trim().toLowerCase();
-    var expected = (wholesaleState.dealerName || "").toLowerCase();
-    if (typed !== expected) {
-      alert("Dealer name does not match. Type exactly: " + wholesaleState.dealerName);
-      return;
-    }
-    await fetch(SUPABASE_URL + "/rest/v1/dealer_pricing?id=eq." + wholesaleState.pricingId, {
-      method: "PATCH",
-      headers: authHeaders(),
-      body: JSON.stringify({ locked: false, confirmed: false })
+    ["confirm-check-1", "confirm-check-2"].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener("change", function() {
+        var both = document.getElementById("confirm-check-1").checked && document.getElementById("confirm-check-2").checked;
+        pricingModalSave.disabled = !both;
+        pricingModalSave.style.opacity = both ? "1" : "0.4";
+      });
     });
-    wholesaleState.locked = false;
-    wholesaleState.confirmed = false;
-    document.getElementById("pricing-unlock-modal").style.display = "none";
-    wsUpdateLockStatus();
-    await writeAuditLog("pricing", wholesaleState.pricingId, "pricing_unlocked", null, null, wholesaleState.dealerName, null, "Pricing unlocked for editing by admin");
-  });
+
+    pricingModalSave.addEventListener("click", async function() {
+      if (this.disabled) return;
+      this.disabled = true;
+      this.textContent = "Saving...";
+      await fetch(SUPABASE_URL + "/rest/v1/dealer_pricing?id=eq." + wholesaleState.pricingId, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          contract_retail_1yr: wholesaleState.ws1,
+          contract_retail_2yr: wholesaleState.ws2,
+          contract_retail_3yr: wholesaleState.ws3,
+          reimbursement_rate: wholesaleServices.reduce(function(a, s) { return a + s.cost; }, 0) / wholesaleServices.length,
+          commission_pct: wholesaleState.targetMargin,
+          confirmed: true,
+          locked: true,
+          confirmed_at: new Date().toISOString(),
+          confirmed_by: "admin"
+        })
+      });
+      if (wholesaleState.dealerId) {
+        await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(wholesaleState.dealerId), {
+          method: "PATCH",
+          headers: authHeaders(),
+          body: JSON.stringify({ enrollment_status: "active", active: true })
+        });
+      }
+      wholesaleState.confirmed = true;
+      wholesaleState.locked = true;
+      wsUpdateLockStatus();
+      if (typeof wsPricingLoadDealers === "function") await wsPricingLoadDealers();
+      alert("✓ Pricing confirmed and locked for " + wholesaleState.dealerName);
+      this.disabled = false;
+      this.textContent = "Confirm & Save";
+    });
+
+    pricingModalCancel.addEventListener("click", function() {
+      // modal removed — no-op
+    });
+  }
+
+  var unlockCancelOld = document.getElementById("unlock-cancel-btn");
+  if (unlockCancelOld) {
+    var unlockCancelBtn = unlockCancelOld.cloneNode(true);
+    unlockCancelOld.parentNode.replaceChild(unlockCancelBtn, unlockCancelOld);
+    unlockCancelBtn.addEventListener("click", function() {
+      document.getElementById("pricing-unlock-modal").style.display = "none";
+    });
+  }
+
+  var unlockConfirmOld = document.getElementById("unlock-confirm-btn");
+  if (unlockConfirmOld) {
+    var unlockConfirmBtn = unlockConfirmOld.cloneNode(true);
+    unlockConfirmOld.parentNode.replaceChild(unlockConfirmBtn, unlockConfirmOld);
+    unlockConfirmBtn.addEventListener("click", async function() {
+      var typed = document.getElementById("unlock-dealer-name-input").value.trim().toLowerCase();
+      var expected = (wholesaleState.dealerName || "").toLowerCase();
+      if (typed !== expected) {
+        alert("Dealer name does not match. Type exactly: " + wholesaleState.dealerName);
+        return;
+      }
+      await fetch(SUPABASE_URL + "/rest/v1/dealer_pricing?id=eq." + wholesaleState.pricingId, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ locked: false, confirmed: false })
+      });
+      wholesaleState.locked = false;
+      wholesaleState.confirmed = false;
+      document.getElementById("pricing-unlock-modal").style.display = "none";
+      wsUpdateLockStatus();
+      await writeAuditLog("pricing", wholesaleState.pricingId, "pricing_unlocked", null, null, wholesaleState.dealerName, null, "Pricing unlocked for editing by admin");
+    });
+  }
+
+  var wsUnlockBtn = document.getElementById("ws-unlock-btn");
+  if (wsUnlockBtn) {
+    wsUnlockBtn.addEventListener("click", function() {
+      document.getElementById("unlock-dealer-name-input").value = "";
+      document.getElementById("pricing-unlock-modal").style.display = "flex";
+    });
+  }
 
   var originalPricingInitOnTab = window.pricingInitOnTab;
   window.pricingInitOnTab = async function() {
@@ -4936,11 +4896,11 @@ window.addEventListener("load", function() {
   window.chargeEnrollmentNow = async function() {
     if (!selectedContractLength) return;
     var priceMap = {
-      "1yr": dealerPricingData ? dealerPricingData.contract_retail_1yr : 3325,
-      "2yr": dealerPricingData ? dealerPricingData.contract_retail_2yr : 6650,
-      "3yr": dealerPricingData ? dealerPricingData.contract_retail_3yr : 9975
+      "1yr": dealerPricingData ? dealerPricingData.contract_retail_1yr : 2495,
+      "2yr": dealerPricingData ? dealerPricingData.contract_retail_2yr : 4495,
+      "3yr": dealerPricingData ? dealerPricingData.contract_retail_3yr : 6495
     };
-    var amount = priceMap[selectedContractLength] || 3325;
+    var amount = priceMap[selectedContractLength] || 2495;
     var fname = document.getElementById("e-fname") ? document.getElementById("e-fname").value : "";
     var lname = document.getElementById("e-lname") ? document.getElementById("e-lname").value : "";
     var customerName = (fname + " " + lname).trim();
@@ -4987,9 +4947,9 @@ window.addEventListener("load", function() {
     var eng2Hours  = hasDual ? parseInt((document.getElementById("e-eng2-hours") || {}).value, 10) || null : null;
 
     var wholesaleMap = {
-      "1yr": dealerPricingData ? dealerPricingData.contract_retail_1yr : 3325,
-      "2yr": dealerPricingData ? dealerPricingData.contract_retail_2yr : 6650,
-      "3yr": dealerPricingData ? dealerPricingData.contract_retail_3yr : 9975
+      "1yr": dealerPricingData ? dealerPricingData.contract_retail_1yr : 2495,
+      "2yr": dealerPricingData ? dealerPricingData.contract_retail_2yr : 4495,
+      "3yr": dealerPricingData ? dealerPricingData.contract_retail_3yr : 6495
     };
     var wholesale = wholesaleMap[selectedContractLength] || amount;
 

@@ -1499,9 +1499,9 @@ async function openCancellationModal(contractId, customerName, retailPrice, whol
   var customerRefund = Math.max(0, (retailNum - servicesUsed) * prorateRatio);
   var wpWholesale = parseFloat(wholesalePrice) || 0;
   if (!wpWholesale || wpWholesale < 100) {
-    var wholesaleRates = { "1yr": 3325, "2yr": 6650, "3yr": 9975 };
+    var wholesaleRates = { "1yr": 2495, "2yr": 4495, "3yr": 6495 };
     var ctKey = String(contractType || "1yr").toLowerCase();
-    wpWholesale = wholesaleRates[ctKey] || 3325;
+    wpWholesale = wholesaleRates[ctKey] || 2495;
   }
   var wpRefundShare =
     retailNum > 0 ? Math.max(0, (wpWholesale - servicesUsed * (wpWholesale / retailNum)) * prorateRatio) : 0;
@@ -1539,7 +1539,7 @@ async function openCancellationModal(contractId, customerName, retailPrice, whol
   var dealerTotalEl = document.getElementById("cm-calc-dealer-total");
   if (dealerTotalEl) dealerTotalEl.textContent = "$" + totalDealerOwes.toFixed(2);
 
-  var wpWholesaleFinal = wpWholesale || 3325;
+  var wpWholesaleFinal = wpWholesale || 2495;
   var originalMargin = parseFloat(retailPrice) - wpWholesaleFinal;
   var marginEl = document.getElementById("cm-original-margin");
   if (marginEl) marginEl.textContent = "$" + originalMargin.toFixed(2);
@@ -2245,7 +2245,7 @@ function adminFormatContractContactBlock(c) {
 
 var renewalPipelineDays = 30;
 var renewalPipelineContracts = [];
-var RENEWAL_PIPELINE_EST_VALUE = 3325;
+var RENEWAL_PIPELINE_EST_VALUE = 2495;
 
 function renewalSetFilter(days) {
   renewalPipelineDays = days;
@@ -5273,9 +5273,9 @@ window.financialsLoad = async function() {
     });
     if (!dealerPricing) return total;
     var priceMap = {
-      "1yr": dealerPricing.contract_retail_1yr || 3325,
-      "2yr": dealerPricing.contract_retail_2yr || 6650,
-      "3yr": dealerPricing.contract_retail_3yr || 9975
+      "1yr": dealerPricing.contract_retail_1yr || 2495,
+      "2yr": dealerPricing.contract_retail_2yr || 4495,
+      "3yr": dealerPricing.contract_retail_3yr || 6495
     };
     return total + (priceMap[c.contract_type] || 0);
   }, 0);
@@ -5321,9 +5321,9 @@ window.financialsLoad = async function() {
       amount: "+$" + (function() {
         var dp = pricing.find(function(p) { return p.dealership_name === c.dealership_name; });
         var pm = {
-          "1yr": dp ? dp.contract_retail_1yr : 3325,
-          "2yr": dp ? dp.contract_retail_2yr : 6650,
-          "3yr": dp ? dp.contract_retail_3yr : 9975
+          "1yr": dp ? dp.contract_retail_1yr : 2495,
+          "2yr": dp ? dp.contract_retail_2yr : 4495,
+          "3yr": dp ? dp.contract_retail_3yr : 6495
         };
         return (pm[c.contract_type] || 0).toLocaleString();
       })(),
@@ -5365,9 +5365,9 @@ window.financialsLoad = async function() {
   paidContracts.forEach(function(c) {
     var dp = pricing.find(function(p) { return p.dealership_name === c.dealership_name; });
     var pm = {
-      "1yr": dp ? dp.contract_retail_1yr : 3325,
-      "2yr": dp ? dp.contract_retail_2yr : 6650,
-      "3yr": dp ? dp.contract_retail_3yr : 9975
+      "1yr": dp ? dp.contract_retail_1yr : 2495,
+      "2yr": dp ? dp.contract_retail_2yr : 4495,
+      "3yr": dp ? dp.contract_retail_3yr : 6495
     };
     var amt = pm[c.contract_type] || 0;
     revenueByDealer[c.dealership_name] = (revenueByDealer[c.dealership_name] || 0) + amt;
@@ -5400,9 +5400,9 @@ window.financialsLoad = async function() {
   paidContracts.forEach(function(c) {
     var dp = pricing.find(function(p) { return p.dealership_name === c.dealership_name; });
     var pm = {
-      "1yr": dp ? dp.contract_retail_1yr : 3325,
-      "2yr": dp ? dp.contract_retail_2yr : 6650,
-      "3yr": dp ? dp.contract_retail_3yr : 9975
+      "1yr": dp ? dp.contract_retail_1yr : 2495,
+      "2yr": dp ? dp.contract_retail_2yr : 4495,
+      "3yr": dp ? dp.contract_retail_3yr : 6495
     };
     revenueByType[c.contract_type] = (revenueByType[c.contract_type] || 0) + (pm[c.contract_type] || 0);
   });
@@ -5506,7 +5506,7 @@ window.financialsLoad = async function() {
       projEl.innerHTML = "<div style=\"text-align:center;padding:2rem;color:var(--light);font-size:13px;\">No active contracts to project from yet.</div>";
     } else {
       var avgWholesale = wholesaleTotal / Math.max(contracts.length, 1);
-      var annualCost = active.length * 3325 * 0.8;
+      var annualCost = active.length * 2495 * 0.8;
       var annualRevenue = active.length * avgWholesale;
       var projProfit = annualRevenue - annualCost;
       var renewalRevenue75 = active.length * 0.75 * avgWholesale;
