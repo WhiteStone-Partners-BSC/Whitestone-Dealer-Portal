@@ -92,6 +92,42 @@ async function handler(req, res) {
     return res.status(200).json({ received: true, warning: 'no envelopeId' });
   }
 
+  // --- Metadata router: customer vs dealer ---
+  // Customer envelopes are tagged with customFields.whitestone_type = 'customer_contract'
+  // Dealer envelopes have no customFields (legacy default).
+  // Extract type and route accordingly.
+  let whitestoneType = 'dealer_agreement'; // default for legacy dealer envelopes
+  let whitestoneContractId = null;
+  try {
+    const textFields = (envelopeData.customFields && envelopeData.customFields.textCustomFields) || [];
+    for (let i = 0; i < textFields.length; i++) {
+      const f = textFields[i] || {};
+      if (f.name === 'whitestone_type' && f.value) {
+        whitestoneType = f.value;
+      }
+      if (f.name === 'whitestone_contract_id' && f.value) {
+        whitestoneContractId = f.value;
+      }
+    }
+  } catch (e) {
+    console.warn('docusign-webhook: customFields parse failed:', e && e.message);
+  }
+
+  console.log('docusign-webhook: routing envelopeId=' + envelopeId + ' type=' + whitestoneType + ' eventType=' + eventType);
+
+  // Route customer contract events to the customer handler.
+  // Falls through to existing dealer logic for everything else.
+  if (whitestoneType === 'customer_contract') {
+    return await handleCustomerContractEvent({
+      req: req,
+      res: res,
+      envelopeId: envelopeId,
+      contractId: whitestoneContractId,
+      eventType: eventType,
+      envelopeData: envelopeData
+    });
+  }
+
   // --- Supabase setup ---
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
@@ -327,4 +363,272 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+// ============================================================
+// Customer contract event handler (Sprint 8)
+// ============================================================
+async function handleCustomerContractEvent(args) {
+  const req = args.req;
+  const res = args.res;
+  const envelopeId = args.envelopeId;
+  const contractId = args.contractId;
+  const eventType = args.eventType;
+  const envelopeData = args.envelopeData;
+
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
+  if (!SUPABASE_URL || !SERVICE_KEY) {
+    console.error('docusign-webhook: customer handler missing SUPABASE env');
+    return res.status(500).json({ error: 'Server misconfigured' });
+  }
+  const supaHeaders = {
+    apikey: SERVICE_KEY,
+    Authorization: 'Bearer ' + SERVICE_KEY,
+    'Content-Type': 'application/json'
+  };
+
+  // Find contract: prefer customField contract_id (fast), fall back to envelope_id lookup
+  let contract;
+  try {
+    let url;
+    if (contractId) {
+      url = SUPABASE_URL + '/rest/v1/contracts?id=eq.' + encodeURIComponent(contractId) + '&select=*&limit=1';
+    } else {
+      url = SUPABASE_URL + '/rest/v1/contracts?docusign_envelope_id=eq.' + encodeURIComponent(envelopeId) + '&select=*&limit=1';
+    }
+    const cRes = await fetch(url, { headers: supaHeaders });
+    const rows = await cRes.json();
+    if (Array.isArray(rows) && rows.length > 0) {
+      contract = rows[0];
+    }
+  } catch (e) {
+    console.error('docusign-webhook: customer contract lookup failed:', e && e.message);
+  }
+
+  if (!contract) {
+    console.warn('docusign-webhook: no contract matches envelopeId=' + envelopeId + ' contractId=' + contractId);
+    return res.status(200).json({ received: true, warning: 'no matching contract' });
+  }
+
+  // Look up linked dealer for notification email + storage path
+  let dealer = {};
+  try {
+    if (contract.dealer_id) {
+      const dRes = await fetch(
+        SUPABASE_URL + '/rest/v1/dealers?id=eq.' + encodeURIComponent(contract.dealer_id) + '&select=id,email,dealership_name',
+        { headers: supaHeaders }
+      );
+      const rows = await dRes.json();
+      if (Array.isArray(rows) && rows.length > 0) dealer = rows[0];
+    }
+  } catch (e) {
+    console.warn('docusign-webhook: dealer lookup for customer event failed:', e && e.message);
+  }
+
+  // ---- envelope-sent ----
+  if (eventType === 'envelope-sent') {
+    console.log('docusign-webhook: customer envelope-sent envelopeId=' + envelopeId);
+    try {
+      await fetch(SUPABASE_URL + '/rest/v1/contracts?id=eq.' + encodeURIComponent(contract.id), {
+        method: 'PATCH',
+        headers: Object.assign({}, supaHeaders, { Prefer: 'return=minimal' }),
+        body: JSON.stringify({ docusign_envelope_status: 'sent' })
+      });
+    } catch (e) {}
+    return res.status(200).json({ received: true, type: eventType });
+  }
+
+  // ---- envelope-declined ----
+  if (eventType === 'envelope-declined') {
+    const declineReason = envelopeData.declinedReason || envelopeData.voidedReason || 'No reason given';
+    try {
+      await fetch(SUPABASE_URL + '/rest/v1/contracts?id=eq.' + encodeURIComponent(contract.id), {
+        method: 'PATCH',
+        headers: Object.assign({}, supaHeaders, { Prefer: 'return=minimal' }),
+        body: JSON.stringify({ docusign_envelope_status: 'declined' })
+      });
+    } catch (e) {}
+
+    const customerName = ((contract.customer_first_name || '') + ' ' + (contract.customer_last_name || '')).trim() || contract.customer_email || 'unknown';
+    const htmlBody = '<h2>Customer declined enrollment</h2>'
+      + '<p><strong>Customer:</strong> ' + escapeHtml(customerName) + '</p>'
+      + '<p><strong>Customer email:</strong> ' + escapeHtml(contract.customer_email || '') + '</p>'
+      + '<p><strong>Dealership:</strong> ' + escapeHtml(dealer.dealership_name || '') + '</p>'
+      + '<p><strong>Reason:</strong> ' + escapeHtml(declineReason) + '</p>'
+      + '<p><strong>Envelope:</strong> ' + escapeHtml(envelopeId) + '</p>'
+      + '<p>The customer has been marked as declined. Reach out directly to understand the objection.</p>';
+
+    // Notify admin
+    try {
+      await sendAdminEmail({
+        subject: 'Customer declined enrollment: ' + customerName,
+        html: htmlBody
+      });
+    } catch (e) {
+      console.error('docusign-webhook: customer decline admin email failed:', e && e.message);
+    }
+    // Notify dealer
+    if (dealer.email) {
+      try {
+        await sendEmailTo(dealer.email, {
+          subject: 'Customer declined enrollment: ' + customerName,
+          html: htmlBody
+        });
+      } catch (e) {
+        console.error('docusign-webhook: customer decline dealer email failed:', e && e.message);
+      }
+    }
+    return res.status(200).json({ received: true, type: eventType });
+  }
+
+  // ---- envelope-completed ----
+  if (eventType === 'envelope-completed') {
+    if (contract.docusign_envelope_status === 'completed' && contract.agreement_signed_at) {
+      console.log('docusign-webhook: customer envelope-completed already processed envelopeId=' + envelopeId);
+      return res.status(200).json({ received: true, type: eventType, idempotent: true });
+    }
+
+    const signedAt = new Date().toISOString();
+
+    // Try to extract signer name from payload
+    let signerName = '';
+    try {
+      const signers = (envelopeData.recipients && envelopeData.recipients.signers) || [];
+      if (signers.length > 0) {
+        signerName = signers[0].name || signers[0].email || '';
+      }
+    } catch (e) {}
+    if (!signerName) {
+      signerName = ((contract.customer_first_name || '') + ' ' + (contract.customer_last_name || '')).trim() || contract.customer_email || '';
+    }
+
+    // 1. Download signed PDF and upload to Supabase Storage
+    let storagePath = null;
+    try {
+      const DS_USER_ID = process.env.DOCUSIGN_USER_ID;
+      const DS_ACCOUNT_ID = process.env.DOCUSIGN_ACCOUNT_ID;
+      const DS_BASE_URI = process.env.DOCUSIGN_BASE_URI;
+      const DS_INTEGRATION_KEY = process.env.DOCUSIGN_INTEGRATION_KEY;
+      const DS_PRIVATE_KEY = process.env.DOCUSIGN_PRIVATE_KEY;
+      if (DS_USER_ID && DS_ACCOUNT_ID && DS_BASE_URI && DS_INTEGRATION_KEY && DS_PRIVATE_KEY) {
+        const accessToken = await getDocuSignAccessToken({
+          userId: DS_USER_ID,
+          integrationKey: DS_INTEGRATION_KEY,
+          privateKey: DS_PRIVATE_KEY,
+          authHost: deriveAuthHost(DS_BASE_URI)
+        });
+        const pdfBuf = await fetchSignedEnvelopePdf({
+          accessToken: accessToken,
+          baseUri: DS_BASE_URI,
+          accountId: DS_ACCOUNT_ID,
+          envelopeId: envelopeId
+        });
+        // Upload to customer-contracts bucket: {dealerId}/{envelopeId}.pdf
+        storagePath = (dealer.id || contract.dealer_id) + '/' + envelopeId + '.pdf';
+        const uploadRes = await fetch(
+          SUPABASE_URL + '/storage/v1/object/customer-contracts/' + storagePath,
+          {
+            method: 'POST',
+            headers: {
+              apikey: SERVICE_KEY,
+              Authorization: 'Bearer ' + SERVICE_KEY,
+              'Content-Type': 'application/pdf',
+              'x-upsert': 'true'
+            },
+            body: pdfBuf
+          }
+        );
+        if (!uploadRes.ok) {
+          const errText = await uploadRes.text();
+          console.error('docusign-webhook: customer PDF upload failed:', uploadRes.status, errText);
+          storagePath = null;
+        }
+      } else {
+        console.warn('docusign-webhook: customer skipping PDF retrieval, DocuSign env vars missing');
+      }
+    } catch (e) {
+      console.error('docusign-webhook: customer PDF retrieval/upload error:', e && e.message);
+    }
+
+    // 2. PATCH contract row (we leave `status` alone - payment still drives activation)
+    try {
+      const patch = {
+        docusign_envelope_status: 'completed',
+        agreement_signed_at: signedAt,
+        agreement_signed_by: signerName
+      };
+      const patchRes = await fetch(SUPABASE_URL + '/rest/v1/contracts?id=eq.' + encodeURIComponent(contract.id), {
+        method: 'PATCH',
+        headers: Object.assign({}, supaHeaders, { Prefer: 'return=minimal' }),
+        body: JSON.stringify(patch)
+      });
+      if (!patchRes.ok) {
+        const errText = await patchRes.text();
+        console.error('docusign-webhook: customer contract PATCH failed:', patchRes.status, errText);
+      }
+    } catch (e) {
+      console.error('docusign-webhook: customer contract PATCH error:', e && e.message);
+    }
+
+    // 3. Notify admin + dealer
+    const customerName = ((contract.customer_first_name || '') + ' ' + (contract.customer_last_name || '')).trim() || contract.customer_email || 'unknown';
+    const htmlBody = '<h2 style="color:#0c1e2e;">Customer signed enrollment</h2>'
+      + '<p><strong>Customer:</strong> ' + escapeHtml(customerName) + '</p>'
+      + '<p><strong>Customer email:</strong> ' + escapeHtml(contract.customer_email || '') + '</p>'
+      + '<p><strong>Dealership:</strong> ' + escapeHtml(dealer.dealership_name || '') + '</p>'
+      + '<p><strong>Signed by:</strong> ' + escapeHtml(signerName) + '</p>'
+      + '<p><strong>Signed at:</strong> ' + escapeHtml(signedAt) + '</p>'
+      + '<p><strong>Envelope:</strong> ' + escapeHtml(envelopeId) + '</p>'
+      + (storagePath
+          ? '<p><strong>Signed PDF stored at:</strong> customer-contracts/' + escapeHtml(storagePath) + '</p>'
+          : '<p><em>Note: signed PDF retrieval failed - fetch manually from DocuSign UI.</em></p>');
+
+    try {
+      await sendAdminEmail({
+        subject: 'Customer signed enrollment: ' + customerName,
+        html: htmlBody
+      });
+    } catch (e) {
+      console.error('docusign-webhook: customer signed admin email failed:', e && e.message);
+    }
+    if (dealer.email) {
+      try {
+        await sendEmailTo(dealer.email, {
+          subject: 'Customer signed enrollment: ' + customerName,
+          html: htmlBody
+        });
+      } catch (e) {
+        console.error('docusign-webhook: customer signed dealer email failed:', e && e.message);
+      }
+    }
+
+    return res.status(200).json({ received: true, type: eventType });
+  }
+
+  // Any other event type - log and return 200
+  console.log('docusign-webhook: customer unhandled eventType=' + eventType + ' envelopeId=' + envelopeId);
+  return res.status(200).json({ received: true, warning: 'unhandled event type' });
+}
+
+// Helper: send email to arbitrary recipient (used for dealer notifications)
+// Mirrors sendAdminEmail but with a configurable `to` address.
+async function sendEmailTo(toEmail, args) {
+  const RESEND_API_KEY = process.env.RESEND_API_KEY;
+  if (!RESEND_API_KEY || !toEmail) return;
+
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + RESEND_API_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: 'Whitestone Partners <notifications@whitestone-partners.com>',
+      to: toEmail,
+      reply_to: 'support@whitestone-partners.com',
+      subject: args.subject,
+      html: args.html
+    })
+  });
 }
