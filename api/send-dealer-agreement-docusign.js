@@ -182,6 +182,10 @@ module.exports = async function handler(req, res) {
     emailSubject: emailSubject,
     emailBlurb: 'Hi ' + recipientName + ', please review and sign the attached Dealer Participation Agreement. If you have any questions, reply directly to ' + SUPPORT_REPLY_EMAIL + '.',
     status: 'sent', // send immediately; use 'created' to create as draft instead
+    emailSettings: {
+      replyEmailAddressOverride: SUPPORT_REPLY_EMAIL,
+      replyEmailNameOverride: 'Whitestone Partners'
+    },
     documents: [
       {
         documentBase64: pdfBase64,

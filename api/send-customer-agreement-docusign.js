@@ -200,6 +200,10 @@ module.exports = async function handler(req, res) {
     emailSubject: emailSubject,
     emailBlurb: 'Hi ' + recipientName + ', please review and sign your Marine Maintenance Plan enrollment. If you have any questions, reply directly to ' + SUPPORT_REPLY_EMAIL + '.',
     status: 'sent',
+    emailSettings: {
+      replyEmailAddressOverride: SUPPORT_REPLY_EMAIL,
+      replyEmailNameOverride: 'Whitestone Partners'
+    },
     documents: [
       {
         documentBase64: pdfBase64,
