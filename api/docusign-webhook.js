@@ -158,9 +158,40 @@ async function handler(req, res) {
   }
 
   if (!dealer) {
-    console.warn('docusign-webhook: no dealer matches envelopeId=' + envelopeId + ', eventType=' + eventType);
-    // Return 200 so DocuSign doesn't retry. The envelope may belong to a test dealer that was deleted.
-    return res.status(200).json({ received: true, warning: 'no matching dealer' });
+    // No dealer matched this envelope ID. Before giving up, check whether this
+    // is a CUSTOMER contract envelope. The contracts table stores docusign_envelope_id
+    // the same way the dealers table does. This is the reliable routing path -
+    // customFields from DocuSign Connect proved unreliable, but the envelope ID
+    // is always present in the webhook payload.
+    let matchedContract;
+    try {
+      const contractRes = await fetch(
+        SUPABASE_URL + '/rest/v1/contracts?docusign_envelope_id=eq.' + encodeURIComponent(envelopeId) + '&select=id&limit=1',
+        { headers: supaHeaders }
+      );
+      const crows = await contractRes.json();
+      if (Array.isArray(crows) && crows.length > 0) {
+        matchedContract = crows[0];
+      }
+    } catch (e) {
+      console.error('docusign-webhook: contract fallback lookup failed:', e && e.message);
+    }
+
+    if (matchedContract) {
+      console.log('docusign-webhook: routing to customer handler via envelope-id fallback, envelopeId=' + envelopeId + ' contractId=' + matchedContract.id);
+      return await handleCustomerContractEvent({
+        req: req,
+        res: res,
+        envelopeId: envelopeId,
+        contractId: matchedContract.id,
+        eventType: eventType,
+        envelopeData: envelopeData
+      });
+    }
+
+    console.warn('docusign-webhook: no dealer OR contract matches envelopeId=' + envelopeId + ', eventType=' + eventType);
+    // Return 200 so DocuSign doesn't retry. The envelope may belong to a test record that was deleted.
+    return res.status(200).json({ received: true, warning: 'no matching dealer or contract' });
   }
 
   // ============================================================
