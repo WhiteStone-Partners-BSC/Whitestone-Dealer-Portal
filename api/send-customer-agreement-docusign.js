@@ -248,7 +248,7 @@ module.exports = async function handler(req, res) {
               {
                 anchorString: 'MAINTENANCE PLAN HOLDER SIGNATURE:',
                 anchorXOffset: '420',
-                anchorYOffset: '3',
+                anchorYOffset: '-2',
                 anchorUnits: 'pixels',
                 anchorIgnoreIfNotPresent: 'false'
               }
