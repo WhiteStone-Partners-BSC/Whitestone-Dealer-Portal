@@ -281,7 +281,7 @@ class handler(BaseHTTPRequestHandler):
             put(448, 413, 'X', 7)
 
         # Purchase price & date
-        price_map = {'1yr': '$3,325.00', '2yr': '$6,650.00', '3yr': '$9,975.00'}
+        price_map = {'1yr': '$2,495.00', '2yr': '$4,495.00', '3yr': '$6,495.00'}
         purchase_price = ''
         rp = c.get('retail_price')
         if rp is not None and str(rp).strip() != '':
