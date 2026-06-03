@@ -6101,6 +6101,88 @@ document.addEventListener("DOMContentLoaded", function() {
   window.adminShowPanel = adminShowPanel;
   window.adminLoadDashboard = adminLoadDashboard;
 
+  // ============================================================
+  // Reports section
+  // ============================================================
+  window.reportsOpenQuickbooks = function() {
+    var grid = document.getElementById("reports-tile-grid");
+    var view = document.getElementById("reports-quickbooks-view");
+    if (grid) grid.style.display = "none";
+    if (view) view.style.display = "block";
+  };
+
+  window.reportsBackToTiles = function() {
+    var grid = document.getElementById("reports-tile-grid");
+    var view = document.getElementById("reports-quickbooks-view");
+    if (view) view.style.display = "none";
+    if (grid) grid.style.display = "grid";
+  };
+
+  window.downloadQuickbooksCsv = async function(type) {
+    var btnId = type === "income" ? "qb-income-btn" : "qb-expenses-btn";
+    var btn = document.getElementById(btnId);
+    var statusEl = document.getElementById("qb-export-status");
+    var origLabel = btn ? btn.textContent : "";
+
+    var start = (document.getElementById("qb-export-start") || {}).value || "";
+    var end = (document.getElementById("qb-export-end") || {}).value || "";
+
+    if (btn) { btn.disabled = true; btn.textContent = "Generating..."; btn.style.cursor = "wait"; }
+    if (statusEl) { statusEl.style.display = "none"; }
+
+    try {
+      var url = "/api/export-quickbooks-csv?type=" + encodeURIComponent(type);
+      if (start) url += "&start=" + encodeURIComponent(start);
+      if (end) url += "&end=" + encodeURIComponent(end);
+
+      var resp = await fetch(url, {
+        headers: (typeof authHeaders === "function") ? authHeaders() : { "Content-Type": "application/json" }
+      });
+
+      if (!resp.ok) {
+        var errText = "";
+        try { var j = await resp.json(); errText = j.error || ("HTTP " + resp.status); }
+        catch (e) { errText = "HTTP " + resp.status; }
+        throw new Error(errText);
+      }
+
+      var csvText = await resp.text();
+
+      // Trigger browser download
+      var blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+      var dlUrl = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = dlUrl;
+      var today = new Date().toISOString().slice(0, 10);
+      a.download = "whitestone-quickbooks-" + type
+        + (start ? "-" + start : "")
+        + (end ? "-to-" + end : "")
+        + ".csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(dlUrl);
+
+      // Count rows (minus header) for feedback
+      var lineCount = csvText.split("\n").filter(function(l){ return l.trim().length; }).length;
+      var dataRows = Math.max(0, lineCount - 1);
+      if (statusEl) {
+        statusEl.textContent = "Downloaded " + dataRows + " " + type + " record" + (dataRows === 1 ? "" : "s") + ".";
+        statusEl.style.color = "#1e6b3a";
+        statusEl.style.display = "block";
+      }
+    } catch (err) {
+      console.error("downloadQuickbooksCsv error:", err);
+      if (statusEl) {
+        statusEl.textContent = "Export failed: " + (err && err.message ? err.message : "unknown error");
+        statusEl.style.color = "#c0392b";
+        statusEl.style.display = "block";
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origLabel; btn.style.cursor = "pointer"; }
+    }
+  };
+
   async function doLogin() {
     var email = document.getElementById("login-email").value.trim();
     var password = document.getElementById("login-password").value;

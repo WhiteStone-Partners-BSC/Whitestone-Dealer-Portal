@@ -1132,6 +1132,7 @@
         Billing
       </button>
       <button type="button" class="admin-nav-item" data-admin-panel="financials">Financials</button>
+      <button type="button" class="admin-nav-item" data-admin-panel="reports">Reports</button>
       <button type="button" class="admin-nav-item" data-admin-panel="pricing">Pricing</button>
       <button type="button" class="admin-nav-item" data-admin-panel="messages">
         Messages
@@ -1647,6 +1648,62 @@
           </div>
 
         </div>
+      </div>
+    </div>
+
+    <!-- ============================ REPORTS PANEL ============================ -->
+    <div id="admin-panel-reports" class="admin-panel" style="display:none;">
+      <div class="admin-panel-shell">
+        <div style="margin-bottom:1.5rem;">
+          <div style="font-size:18px;font-weight:600;color:var(--navy);">Reports</div>
+          <div style="font-size:13px;color:var(--light);margin-top:4px;">Generate and download reports for accounting and business analysis.</div>
+        </div>
+
+        <!-- Report tiles grid -->
+        <div id="reports-tile-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;">
+
+          <!-- QuickBooks Export tile -->
+          <button type="button" onclick="window.reportsOpenQuickbooks()" style="text-align:left;background:white;border:1px solid var(--border);border-radius:10px;padding:1.5rem;cursor:pointer;transition:all 0.15s;font-family:inherit;" onmouseover="this.style.borderColor='var(--gold)';this.style.boxShadow='0 2px 12px rgba(0,0,0,0.06)';" onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none';">
+            <div style="font-size:24px;margin-bottom:0.75rem;">📊</div>
+            <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:0.35rem;">QuickBooks Export</div>
+            <div style="font-size:12.5px;color:var(--light);line-height:1.5;">Download income and expense CSVs formatted for QuickBooks Online bank import.</div>
+          </button>
+
+          <!-- Future report tiles go here -->
+
+        </div>
+
+        <!-- QuickBooks Export detail view (hidden until tile clicked) -->
+        <div id="reports-quickbooks-view" style="display:none;">
+          <button type="button" onclick="window.reportsBackToTiles()" style="background:transparent;border:none;color:var(--gold);font-size:13px;cursor:pointer;padding:0;margin-bottom:1.25rem;font-family:inherit;">← Back to Reports</button>
+
+          <div style="background:white;border:1px solid var(--border);border-radius:10px;padding:1.75rem;max-width:560px;">
+            <div style="font-size:17px;font-weight:600;color:var(--navy);margin-bottom:0.35rem;">QuickBooks Export</div>
+            <div style="font-size:13px;color:var(--light);margin-bottom:1.5rem;line-height:1.5;">Choose a date range and download. Import the CSV into QuickBooks Online via Banking &gt; Upload transactions, then categorize to your income/expense accounts.</div>
+
+            <!-- Date range -->
+            <div style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+              <div style="flex:1;min-width:140px;">
+                <label style="display:block;font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--light);margin-bottom:6px;">Start date</label>
+                <input type="date" id="qb-export-start" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box;">
+              </div>
+              <div style="flex:1;min-width:140px;">
+                <label style="display:block;font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--light);margin-bottom:6px;">End date</label>
+                <input type="date" id="qb-export-end" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box;">
+              </div>
+            </div>
+            <div style="font-size:11.5px;color:var(--light);margin-bottom:1.5rem;">Leave dates blank to export all paid records.</div>
+
+            <!-- Download buttons -->
+            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+              <button type="button" id="qb-income-btn" onclick="window.downloadQuickbooksCsv('income')" style="flex:1;min-width:180px;background:#b8963e;color:#0c1e2e;border:none;padding:12px;border-radius:6px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;">Download Income CSV</button>
+              <button type="button" id="qb-expenses-btn" onclick="window.downloadQuickbooksCsv('expenses')" style="flex:1;min-width:180px;background:transparent;color:var(--navy);border:1.5px solid #c5d5e0;padding:12px;border-radius:6px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;">Download Expenses CSV</button>
+            </div>
+
+            <div id="qb-export-status" style="font-size:12.5px;margin-top:1rem;display:none;"></div>
+          </div>
+        </div>
+
       </div>
     </div>
 
