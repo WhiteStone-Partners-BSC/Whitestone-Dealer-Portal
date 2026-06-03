@@ -63,9 +63,11 @@ export default async function handler(req, res) {
 
   // ----- Helpers used by multiple event handlers -----
   var supabaseUrl = process.env.SUPABASE_URL || 'https://ypuohmiynnmbnlqfctlg.supabase.co';
-  var supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
+  // Webhook performs privileged writes (activating contracts), so it MUST use the
+  // service role key. No anon fallback — fail loud if the service key is missing.
+  var supabaseKey = process.env.SUPABASE_SERVICE_KEY;
   if (!supabaseKey) {
-    console.error('stripe-webhook: SUPABASE_SERVICE_KEY and SUPABASE_ANON_KEY both missing');
+    console.error('stripe-webhook: SUPABASE_SERVICE_KEY missing — webhook needs the service role key to update contracts');
     return res.status(500).json({ error: 'Server misconfigured' });
   }
   var supaHeaders = {
