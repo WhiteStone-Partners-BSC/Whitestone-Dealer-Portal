@@ -3733,6 +3733,15 @@ window.addEventListener("load", function() {
           var eng2Model  = hasDual ? (document.getElementById("e-eng2-model") || {}).value || "" : "";
           var eng2Hours  = hasDual ? parseInt((document.getElementById("e-eng2-hours") || {}).value, 10) || null : null;
 
+          // Local reads (these were previously referenced from another function's scope,
+          // causing a ReferenceError that blocked add-to-cart).
+          var engineHours = parseFloat(((document.getElementById("e-engine-hours") || {}).value || "").trim());
+          if (isNaN(engineHours)) engineHours = null;
+          var engineHp = parseInt(((document.getElementById("e-engine-hp") || {}).value || "").trim(), 10);
+          if (isNaN(engineHp)) engineHp = null;
+          var engineMakeModel = ((document.getElementById("e-engine-make-model") || {}).value || "").trim();
+          var engineSupercharged = !!(document.getElementById("e-engine-supercharged") && document.getElementById("e-engine-supercharged").checked);
+
           var agreementNumber = "";
           try {
             var agreeRes = await fetch(SUPABASE_URL + "/rest/v1/rpc/generate_agreement_number", {
