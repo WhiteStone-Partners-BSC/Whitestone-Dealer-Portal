@@ -2569,7 +2569,6 @@ window.addEventListener("load", function() {
       var date = a.created_at ? new Date(a.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
       var location = [a.city, a.state].filter(Boolean).join(", ") || a.location || "—";
       var contact = [a.contact_first_name, a.contact_last_name].filter(Boolean).join(" ") || a.contact_name || "—";
-      var encodedApp = encodeURIComponent(JSON.stringify(a));
       // Phase 5A: derive source pill data from referral_source
       var sourceMeta = { label: "Web", color: "var(--light)", bg: "#eef0f2", border: "var(--border)" };
       if (a.referral_source && a.referral_source.indexOf("box_campaign") === 0) {
@@ -2592,12 +2591,9 @@ window.addEventListener("load", function() {
             (a.service_volume ? '<div style="font-size:12px;color:var(--light);">Service volume: ' + esc(a.service_volume) + ' customers/yr</div>' : '') +
           '</div>' +
           '<div style="display:flex;gap:0.5rem;flex-shrink:0;">' +
-            '<button onclick="approveApplication(\'' + esc(a.id) + '\',\'' + encodedApp + '\')" style="background:var(--green-text);color:white;border:none;padding:7px 16px;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;">Approve</button>' +
+            '<button onclick="window.openConfigureAndSend(\'' + esc(a.id) + '\')" style="background:var(--green-text);color:white;border:none;padding:7px 16px;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;">Approve</button>' +
             '<button onclick="declineApplication(\'' + esc(a.id) + '\')" style="background:white;color:var(--red-text);border:1px solid var(--red-border);padding:7px 14px;border-radius:5px;font-size:12.5px;cursor:pointer;font-family:inherit;">Decline</button>' +
           '</div>' +
-        '</div>' +
-        '<div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">' +
-          '<button onclick="window.openConfigureAndSend(\'' + esc(a.id) + '\')" style="width:100%;background:var(--gold);color:var(--navy);border:none;padding:10px 16px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:0.02em;">Configure &amp; Send Agreement</button>' +
         '</div>' +
       '</div>';
     }).join("");

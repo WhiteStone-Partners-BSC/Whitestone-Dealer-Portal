@@ -1170,6 +1170,21 @@ window.csApproveAndSend = async function() {
 
     var sendResult = await sendRes.json();
 
+    // Auto-activate dealer with a 3-day temporary window so they can log in immediately.
+    try {
+      var threeDays = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+      await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(csCurrentDealerId),
+        {
+          method: "PATCH",
+          headers: Object.assign({}, authHeaders(), { "Content-Type": "application/json" }),
+          body: JSON.stringify({ active: true, active_until: threeDays })
+        }
+      );
+    } catch (activateErr) {
+      console.warn("Auto-activate failed (dealer still created):", activateErr);
+    }
+
     // Stamp the application: status = agreement_sent, reviewed_at = now
     try {
       await fetch(
