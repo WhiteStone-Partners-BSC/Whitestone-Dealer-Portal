@@ -262,6 +262,18 @@
   </div>
 </div>
 
+<div id="set-password-overlay" style="display:none;position:fixed;inset:0;background:rgba(12,30,46,0.85);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;max-width:420px;width:90%;padding:2rem;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <div style="font-family:Georgia,serif;font-size:20px;color:#0c1e2e;margin-bottom:6px;">Email confirmed</div>
+    <div style="font-size:14px;color:#6b8599;margin-bottom:1.25rem;">Thank you for confirming your email. Please set your password to finish.</div>
+    <input type="password" id="sp-password" placeholder="Password" style="width:100%;padding:11px 14px;border:1px solid #d8e0e8;border-radius:7px;font-size:14px;margin-bottom:10px;box-sizing:border-box;font-family:inherit;">
+    <input type="password" id="sp-password2" placeholder="Repeat password" style="width:100%;padding:11px 14px;border:1px solid #d8e0e8;border-radius:7px;font-size:14px;margin-bottom:6px;box-sizing:border-box;font-family:inherit;">
+    <div style="font-size:12px;color:#6b8599;margin-bottom:12px;">At least 6 characters and one special character (!@#$%^&* etc).</div>
+    <div id="sp-error" style="display:none;font-size:13px;color:#c0392b;margin-bottom:10px;"></div>
+    <button id="sp-save-btn" style="width:100%;background:#b8963e;color:#0c1e2e;border:none;padding:12px;border-radius:7px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Set Password &amp; Continue</button>
+  </div>
+</div>
+
 <!-- PORTAL -->
 <div id="portal-screen">
   <div class="portal-nav" id="portal-nav-dealer">

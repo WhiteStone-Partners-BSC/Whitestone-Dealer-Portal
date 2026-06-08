@@ -1054,7 +1054,8 @@ window.csGeneratePreview = async function() {
         auth_id: csAuthId,
         enrollment_status: "submitted",
         active: false,
-        is_admin: false
+        is_admin: false,
+        must_set_password: true
       });
 
       var createRes = await fetch(SUPABASE_URL + "/rest/v1/dealers", {
@@ -5615,6 +5616,51 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   }
 
+  async function spShowSetPasswordModal(onDone) {
+    var overlay = document.getElementById("set-password-overlay");
+    if (!overlay) return;
+    var pw1 = document.getElementById("sp-password");
+    var pw2 = document.getElementById("sp-password2");
+    if (pw1) pw1.value = "";
+    if (pw2) pw2.value = "";
+    overlay.style.display = "flex";
+    var saveBtn = document.getElementById("sp-save-btn");
+    var errEl = document.getElementById("sp-error");
+    if (errEl) errEl.style.display = "none";
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Set Password & Continue";
+    }
+    saveBtn.onclick = async function() {
+      errEl.style.display = "none";
+      var p1 = document.getElementById("sp-password").value || "";
+      var p2 = document.getElementById("sp-password2").value || "";
+      var hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(p1);
+      if (p1.length < 6 || !hasSpecial) {
+        errEl.textContent = "Password must be at least 6 characters and include a special character.";
+        errEl.style.display = "block";
+        return;
+      }
+      if (p1 !== p2) {
+        errEl.textContent = "Passwords do not match.";
+        errEl.style.display = "block";
+        return;
+      }
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving...";
+      var upd = await supabase.auth.updateUser({ password: p1 });
+      if (upd.error) {
+        errEl.textContent = "Could not save password: " + upd.error.message;
+        errEl.style.display = "block";
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Set Password & Continue";
+        return;
+      }
+      overlay.style.display = "none";
+      if (typeof onDone === "function") await onDone();
+    };
+  }
+
   async function onLoginSuccess() {
     try {
       var sessionRes = await window.supabase.auth.getSession();
@@ -5643,6 +5689,24 @@ document.addEventListener("DOMContentLoaded", function() {
       window.currentDealer = currentDealer;
       window._rbacRole = resolved.currentUser.role;
       window._cachedOrgName = null;
+
+      // New dealers: must set their own password after email confirmation (flag on dealers row).
+      var rawDealerRow = resolved.currentDealer;
+      if (rawDealerRow && rawDealerRow.must_set_password === true && rawDealerRow.is_admin !== true) {
+        document.getElementById("login-screen").style.display = "none";
+        document.getElementById("portal-screen").style.display = "block";
+        document.getElementById("login-err").style.display = "none";
+        resetLoginPanels();
+        await spShowSetPasswordModal(async function() {
+          await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(rawDealerRow.id), {
+            method: "PATCH",
+            headers: Object.assign({}, authHeaders(), { "Content-Type": "application/json" }),
+            body: JSON.stringify({ must_set_password: false })
+          });
+          location.reload();
+        });
+        return;
+      }
 
       applySidebarHeader();
       try {
@@ -5705,18 +5769,11 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     if (event === "PASSWORD_RECOVERY") {
-      var newPassword = prompt("Enter your new password (minimum 8 characters):");
-      if (newPassword && newPassword.length >= 8) {
-        var updateResult = await supabase.auth.updateUser({ password: newPassword });
-        if (updateResult.error) {
-          console.error("Password update failed", updateResult.error);
-          alert("Error updating password: " + updateResult.error.message);
-        } else {
-          alert("Password updated successfully! Please sign in with your new password.");
-          await supabase.auth.signOut();
-          location.reload();
-        }
-      }
+      await spShowSetPasswordModal(async function() {
+        alert("Password updated successfully! Please sign in with your new password.");
+        await supabase.auth.signOut();
+        location.reload();
+      });
     }
   });
 
