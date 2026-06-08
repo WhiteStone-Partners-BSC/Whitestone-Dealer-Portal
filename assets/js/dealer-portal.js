@@ -887,6 +887,8 @@ async function messagesSaveNote(id) {
 // =========================================================================
 var csCurrentApp = null;
 var csCurrentDealerId = null;
+var csCurrentTempPassword = null;
+var csCurrentUsername = null;
 
 window.openConfigureAndSend = function(appId) {
   var app = (applicationsLastData && applicationsLastData.pending)
@@ -898,6 +900,8 @@ window.openConfigureAndSend = function(appId) {
   }
   csCurrentApp = app;
   csCurrentDealerId = null;
+  csCurrentTempPassword = null;
+  csCurrentUsername = null;
 
   document.getElementById("cs-panel-sub").textContent = app.dealership_name || "Pending application";
   document.getElementById("cs-ro-name").textContent = app.contact_name
@@ -938,6 +942,8 @@ window.closeConfigureAndSend = function() {
   document.getElementById("cs-panel").style.display = "none";
   csCurrentApp = null;
   csCurrentDealerId = null;
+  csCurrentTempPassword = null;
+  csCurrentUsername = null;
 };
 
 function csShowError(msg) {
@@ -1018,22 +1024,39 @@ window.csGeneratePreview = async function() {
     if (csCurrentApp && csCurrentApp.created_dealer_id && !csCurrentDealerId) {
       csCurrentDealerId = csCurrentApp.created_dealer_id;
     }
-    var dealerPayload = Object.assign({}, formData, {
-      dealership_name: csCurrentApp.dealership_name,
-      email: csCurrentApp.email,
-      phone: csCurrentApp.phone,
-      contact_first_name: csCurrentApp.contact_first_name
-        || (csCurrentApp.contact_name ? String(csCurrentApp.contact_name).trim().split(/\s+/)[0] || null : null),
-      contact_last_name: csCurrentApp.contact_last_name
-        || (csCurrentApp.contact_name ? (String(csCurrentApp.contact_name).trim().split(/\s+/).slice(1).join(" ") || null) : null),
-      username: csCurrentApp.email,
-      password: "PENDING_AGREEMENT",
-      enrollment_status: "submitted",
-      active: false,
-      is_admin: false
-    });
 
     if (!csCurrentDealerId) {
+      // Create the dealer's login account (reuses the proven signUp pattern).
+      var csUsername = await applicationsEnsureUniqueUsername(generateUsername(csCurrentApp.dealership_name));
+      var csTempPassword = generateTempPassword();
+      var csSignUp = await supabase.auth.signUp({
+        email: csCurrentApp.email,
+        password: csTempPassword,
+        options: { emailRedirectTo: "https://whitestone-dealer-portal.vercel.app" }
+      });
+      if (csSignUp.error) {
+        throw new Error("Could not create the dealer's login account: " + csSignUp.error.message);
+      }
+      var csAuthId = csSignUp.data && csSignUp.data.user ? csSignUp.data.user.id : null;
+      csCurrentUsername = csUsername;
+      csCurrentTempPassword = csTempPassword;
+
+      var dealerPayload = Object.assign({}, formData, {
+        dealership_name: csCurrentApp.dealership_name,
+        email: csCurrentApp.email,
+        phone: csCurrentApp.phone,
+        contact_first_name: csCurrentApp.contact_first_name
+          || (csCurrentApp.contact_name ? String(csCurrentApp.contact_name).trim().split(/\s+/)[0] || null : null),
+        contact_last_name: csCurrentApp.contact_last_name
+          || (csCurrentApp.contact_name ? (String(csCurrentApp.contact_name).trim().split(/\s+/).slice(1).join(" ") || null) : null),
+        username: csUsername,
+        password: csTempPassword,
+        auth_id: csAuthId,
+        enrollment_status: "submitted",
+        active: false,
+        is_admin: false
+      });
+
       var createRes = await fetch(SUPABASE_URL + "/rest/v1/dealers", {
         method: "POST",
         headers: Object.assign({}, authHeaders(), {
@@ -1183,6 +1206,35 @@ window.csApproveAndSend = async function() {
       );
     } catch (activateErr) {
       console.warn("Auto-activate failed (dealer still created):", activateErr);
+    }
+
+    // Email the dealer their login credentials — ONLY if created this session (first-time flow).
+    // On re-open of an already-created application, csCurrentTempPassword is null; skip to avoid
+    // sending blank credentials. (Re-open password recovery is a separate later flow.)
+    if (csCurrentTempPassword && csCurrentApp && csCurrentApp.email) {
+      try {
+        var loginMsg =
+          "Welcome to Whitestone Partners!\n\n" +
+          "Your dealer portal account is active. You can log in now while we finish setting up " +
+          "your account on our side.\n\n" +
+          "Portal: https://whitestone-dealer-portal.vercel.app\n" +
+          "Username (email): " + csCurrentApp.email + "\n" +
+          "Temporary Password: " + csCurrentTempPassword + "\n\n" +
+          "Please log in and change your password. You'll also receive a separate email to sign " +
+          "your dealer agreement.\n\n" +
+          "— Whitestone Partners";
+        await fetch(FORMSPREE_CONTACT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: csCurrentApp.email,
+            subject: "Your Whitestone Partners dealer login",
+            message: loginMsg
+          })
+        });
+      } catch (credErr) {
+        console.warn("Credentials email failed (dealer still created + active):", credErr);
+      }
     }
 
     // Stamp the application: status = agreement_sent, reviewed_at = now
