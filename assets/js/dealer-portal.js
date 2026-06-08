@@ -1277,8 +1277,8 @@ window.csApproveAndSend = async function() {
         window.applicationsRefreshTabBadgeOnly();
       }
       // Also refresh the rendered list
-      if (typeof loadApplications === "function") {
-        loadApplications();
+      if (typeof window.applicationsLoadPanel === "function") {
+        window.applicationsLoadPanel();
       }
     }, 2500);
   } catch (e) {
@@ -9511,6 +9511,7 @@ document.addEventListener("DOMContentLoaded", function() {
       });
     }
   }
+  window.applicationsLoadPanel = applicationsLoadPanel;
 
   var supportSubmitBtn = document.getElementById("support-submit-btn");
   if (supportSubmitBtn) {
