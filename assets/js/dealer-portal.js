@@ -5698,11 +5698,20 @@ document.addEventListener("DOMContentLoaded", function() {
         document.getElementById("login-err").style.display = "none";
         resetLoginPanels();
         await spShowSetPasswordModal(async function() {
-          await fetch(SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(rawDealerRow.id), {
-            method: "PATCH",
-            headers: Object.assign({}, authHeaders(), { "Content-Type": "application/json" }),
-            body: JSON.stringify({ must_set_password: false })
-          });
+          try {
+            var sess = await supabase.auth.getSession();
+            var tok = sess && sess.data && sess.data.session ? sess.data.session.access_token : null;
+            var clrRes = await fetch("/api/clear-must-set-password", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": "Bearer " + tok }
+            });
+            if (!clrRes.ok) {
+              console.error("clear-must-set-password failed", await clrRes.text());
+              alert("Your password was saved, but we hit a snag finishing setup. Please contact support@whitestone-partners.com.");
+            }
+          } catch (e) {
+            console.error("clear-must-set-password error", e);
+          }
           location.reload();
         });
         return;
