@@ -1092,6 +1092,30 @@ window.csGeneratePreview = async function() {
         // Non-fatal: dealer row is saved, PDF will still generate. Log only.
         console.warn("Could not link dealer to application:", linkErr);
       }
+
+      // Stage 1: create an organization + principal user so this dealer enters the org world
+      // (enables multi-location/multi-user AND makes enrollment RLS pass via accessible_locations).
+      try {
+        var orgSess = await supabase.auth.getSession();
+        var orgTok = orgSess && orgSess.data && orgSess.data.session ? orgSess.data.session.access_token : null;
+        var orgRes = await fetch("/api/create-org-and-principal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + orgTok },
+          body: JSON.stringify({
+            dealerId: csCurrentDealerId,
+            dealerAuthId: csAuthId,
+            orgName: csCurrentApp.dealership_name,
+            email: csCurrentApp.email,
+            fullName: (csCurrentApp.contact_first_name || "") + " " + (csCurrentApp.contact_last_name || "")
+          })
+        });
+        if (!orgRes.ok) {
+          console.error("create-org-and-principal failed:", await orgRes.text());
+          // Non-fatal for preview, but log loudly — dealer would be legacy-only without this.
+        }
+      } catch (orgErr) {
+        console.error("create-org-and-principal error:", orgErr);
+      }
     } else {
       var patchRes = await fetch(
         SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(csCurrentDealerId),
