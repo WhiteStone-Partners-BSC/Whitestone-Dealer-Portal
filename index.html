@@ -3803,7 +3803,6 @@ window.addEventListener("load", function() {
             contract_type:            contractType,
             retail_price:             retail,
             wholesale_price:          wholesale,
-            dealer_profit:            profit,
             agreement_number:         agreementNumber,
             agreement_date:           (document.getElementById("e-agreement-date") || {}).value || new Date().toISOString().split("T")[0],
             status:                   "pending_payment",
@@ -3817,7 +3816,7 @@ window.addEventListener("load", function() {
             body: JSON.stringify(contractPayload)
           });
           var crows = await cr.json();
-          if (!cr.ok) throw new Error("Contract failed");
+          if (!cr.ok) throw new Error("Contract failed: " + JSON.stringify(crows));
           var contractRow = Array.isArray(crows) ? crows[0] : crows;
           var contractId = contractRow && contractRow.id;
           if (!contractId) throw new Error("Contract save returned no id");
