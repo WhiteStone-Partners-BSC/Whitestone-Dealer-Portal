@@ -1,4 +1,5 @@
 const { getDocuSignAccessToken, deriveAuthHost } = require('./_docusign-helpers.js');
+const { resolveCallerAccess, callerCanActOnLocation } = require('./_caller-access.js');
 
 /**
  * /api/send-customer-agreement-docusign.js
@@ -76,23 +77,16 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Token verification failed' });
   }
 
-  // Step 2: Look up the caller's dealer row
-  let callerDealer;
+  // Step 2: Resolve caller access (handles legacy dealers AND org users)
+  var access;
   try {
-    const callerRes = await fetch(
-      SUPABASE_URL + '/rest/v1/dealers?auth_id=eq.' + encodeURIComponent(callerAuthUid) + '&select=id,is_admin,active',
-      { headers: { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY } }
-    );
-    const rows = await callerRes.json();
-    if (!Array.isArray(rows) || rows.length === 0) {
-      return res.status(403).json({ error: 'No dealer record for this user' });
-    }
-    callerDealer = rows[0];
-    if (!callerDealer.active) {
-      return res.status(403).json({ error: 'Dealer account is inactive' });
-    }
+    access = await resolveCallerAccess(SUPABASE_URL, SERVICE_KEY, callerAuthUid);
   } catch (e) {
-    return res.status(401).json({ error: 'Could not look up caller dealer' });
+    return res.status(500).json({ error: 'Could not look up caller access' });
+  }
+  if (!access.ok) {
+    if (access.reason === 'inactive') return res.status(403).json({ error: 'Dealer account is inactive' });
+    return res.status(403).json({ error: 'No access for this user' });
   }
 
   // Step 3: Fetch the contract
@@ -111,9 +105,9 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Could not fetch contract' });
   }
 
-  // Step 4: Ownership check (admin OR contract owner)
-  const isAdmin = !!callerDealer.is_admin;
-  const isOwner = String(contract.dealer_id) === String(callerDealer.id);
+  // Step 4: Ownership check — admin OR caller can act on the contract's location
+  const isAdmin = access.isAdmin === true;
+  const isOwner = callerCanActOnLocation(access, contract.dealer_id);
   if (!isAdmin && !isOwner) {
     return res.status(403).json({ error: 'You do not have access to this contract' });
   }
