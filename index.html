@@ -672,6 +672,11 @@
                 <div style="font-size:20px;font-weight:700;color:var(--gold);" id="enroll-price-3yr">$6,495</div>
               </div>
             </div>
+            <div style="margin-top:12px;">
+              <label class="form-label">Your sale price to customer (optional)</label>
+              <input type="number" id="e-sale-price" class="form-input" min="0" step="0.01" placeholder="What you sold it for" />
+              <div style="font-size:11px;color:var(--light);margin-top:3px;">Leave blank if not set — profit will show as "Not set".</div>
+            </div>
           </div>
 
           <div id="e-hin-error" class="field-err" style="display:none;"></div>
@@ -3690,10 +3695,12 @@ window.addEventListener("load", function() {
           closeEnrollConfirmModal();
           var contractType = selectedContractLength || "1yr";
           var wholesaleMap = { "1yr": 2495, "2yr": 4495, "3yr": 6495 };
-          var retailMap = { "1yr": 4075, "2yr": 8150, "3yr": 12225 };
           var totalDaysMap = { "1yr": 365, "2yr": 730, "3yr": 1095 };
           var wholesale = wholesaleMap[contractType] || 2495;
-          var retail = retailMap[contractType] || 4075;
+          var salePriceRaw = ((document.getElementById("e-sale-price") || {}).value || "").trim();
+          var retail = salePriceRaw === "" ? null : parseFloat(salePriceRaw);
+          if (retail !== null && (isNaN(retail) || retail < 0)) retail = null;
+          var profit = (retail === null) ? null : (retail - wholesale);
           var fname = (document.getElementById("e-fname") || {}).value || "";
           var lname = (document.getElementById("e-lname") || {}).value || "";
           var email = (document.getElementById("e-email") || {}).value || "";
@@ -3796,6 +3803,7 @@ window.addEventListener("load", function() {
             contract_type:            contractType,
             retail_price:             retail,
             wholesale_price:          wholesale,
+            dealer_profit:            profit,
             agreement_number:         agreementNumber,
             agreement_date:           (document.getElementById("e-agreement-date") || {}).value || new Date().toISOString().split("T")[0],
             status:                   "pending_payment",
@@ -3822,7 +3830,7 @@ window.addEventListener("load", function() {
             dealer_id: currentDealer.id, contract_id: contractId,
             customer_name: (fname + " " + lname).trim(), dealership_name: currentDealer.name,
             contract_type: contractType, retail_price: retail,
-            wholesale_price: wholesale, dealer_profit: retail - wholesale,
+            wholesale_price: wholesale, dealer_profit: profit,
             due_date: dueDate.toISOString(), status: "unpaid", payment_method: "invoice",
             hin: hin, boat_make: make, boat_model: model, boat_year: parseInt(year, 10) || null
           };
@@ -4151,9 +4159,9 @@ window.addEventListener("load", function() {
           '<div style="font-size:11px;color:var(--light);margin-top:1px;"><span style="font-weight:600;color:var(--navy);">HIN:</span> ' + hin + "</div>" +
           '<div style="font-size:10px;color:var(--light);margin-top:2px;">' + String(item.contract_type || "").toUpperCase() + " · Added " + added.toLocaleDateString() + "</div>" +
           "</div>" +
-          '<div style="text-align:right;min-width:80px;"><div style="font-size:10px;color:var(--light);">You Sold</div><div style="font-size:14px;font-weight:600;color:var(--navy);">$' + Number(item.retail_price || 0).toLocaleString() + "</div></div>" +
+          '<div style="text-align:right;min-width:80px;"><div style="font-size:10px;color:var(--light);">You Sold</div><div style="font-size:14px;font-weight:600;color:var(--navy);">' + (item.retail_price == null ? "Not set" : "$" + Number(item.retail_price).toLocaleString()) + "</div></div>" +
           '<div style="text-align:right;min-width:80px;"><div style="font-size:10px;color:var(--light);">You Owe WP</div><div style="font-size:14px;font-weight:600;color:#c0392b;">$' + Number(item.wholesale_price || 0).toLocaleString() + "</div></div>" +
-          '<div style="text-align:right;min-width:80px;"><div style="font-size:10px;color:var(--light);">Your Profit</div><div style="font-size:14px;font-weight:600;color:#1b5e20;">+$' + Number(item.dealer_profit || 0).toLocaleString() + "</div></div>" +
+          '<div style="text-align:right;min-width:80px;"><div style="font-size:10px;color:var(--light);">Your Profit</div><div style="font-size:14px;font-weight:600;color:#1b5e20;">' + (item.dealer_profit == null ? "Not set" : "+$" + Number(item.dealer_profit).toLocaleString()) + "</div></div>" +
           '<div style="text-align:right;min-width:80px;"><div style="font-size:10px;color:var(--light);">Due Date</div><div style="font-size:12px;font-weight:600;color:' + statusColor + ';">' + due.toLocaleDateString() + '</div><div style="font-size:10px;color:' + statusColor + ';">' + statusText + "</div></div>" +
           '<button onclick="cancelCartItem(\'' + item.id + '\',\'' + safeCustomer + '\',\'' + safeContractId + '\')" style="background:transparent;border:1px solid #e0c0c0;color:#c0392b;padding:6px 12px;border-radius:4px;font-size:11px;cursor:pointer;">Cancel</button>' +
           "</div></div>";
@@ -4400,7 +4408,7 @@ window.addEventListener("load", function() {
     });
     var fields = [
       "e-fname", "e-lname", "e-mi", "e-address", "e-email", "e-city", "e-state", "e-zip", "e-phone", "e-agreement-date",
-      "e-make", "e-model", "e-year", "e-hin", "e-condition",
+      "e-make", "e-model", "e-year", "e-hin", "e-condition", "e-sale-price",
       "e-engine-hours", "e-engine-hp", "e-engine-make-model",
       "e-lien-name", "e-lien-address", "e-lien-city", "e-lien-state", "e-lien-zip", "e-lien-phone",
       "e-eng1-serial", "e-eng1-year", "e-eng1-make", "e-eng1-model", "e-eng1-hours",
