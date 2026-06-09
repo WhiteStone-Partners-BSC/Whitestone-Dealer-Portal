@@ -59,34 +59,65 @@ class handler(BaseHTTPRequestHandler):
         if not auth_uid:
             return False, 401, 'No user id in token'
 
-        # Step 2: Look up the dealer row keyed by auth_id, with is_admin flag
+        # Step 2: Resolve caller access — handles legacy dealers AND org users.
         service_key = os.environ.get('SUPABASE_SERVICE_KEY') or anon_key
         q_auth = urllib.parse.quote(str(auth_uid), safe='')
+        svc_headers = {'apikey': service_key, 'Authorization': f'Bearer {service_key}'}
+
+        def _get(path):
+            req = urllib.request.Request(f"{supabase_url}{path}", headers=svc_headers)
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return json.loads(r.read().decode('utf-8'))
+
+        contract_dealer_id = contract.get('dealer_id')
+        accessible_ids = []
+
+        # 2a: legacy dealer row by auth_id
         try:
-            dealer_lookup = urllib.request.Request(
-                f"{supabase_url}/rest/v1/dealers?auth_id=eq.{q_auth}&select=id,is_admin,active",
-                headers={'apikey': service_key, 'Authorization': f'Bearer {service_key}'},
-            )
-            with urllib.request.urlopen(dealer_lookup, timeout=10) as r:
-                rows = json.loads(r.read().decode('utf-8'))
+            dealer_rows = _get(f"/rest/v1/dealers?auth_id=eq.{q_auth}&select=id,is_admin,active&limit=1")
         except Exception as e:
             return False, 401, f'Could not look up dealer: {e}'
+        dealer_row = dealer_rows[0] if dealer_rows else None
 
-        if not rows:
-            return False, 403, 'No dealer record for this user'
-        dealer_row = rows[0]
-        if not dealer_row.get('active'):
-            return False, 403, 'Dealer account is inactive'
-
-        # Step 3: Admin can access anyone's contract
-        if dealer_row.get('is_admin'):
+        # Admin short-circuit
+        if dealer_row and dealer_row.get('is_admin'):
             return True, 200, None
 
-        # Step 4: Non-admin can only access their own contract
-        contract_dealer_id = contract.get('dealer_id')
-        if str(contract_dealer_id) == str(dealer_row.get('id')):
-            return True, 200, None
+        # 2b: org user row by auth_id
+        try:
+            user_rows = _get(f"/rest/v1/users?auth_id=eq.{q_auth}&status=eq.active&select=id,organization_id,role&limit=1")
+        except Exception:
+            user_rows = []
+        user_row = user_rows[0] if user_rows else None
 
+        if user_row:
+            role = user_row.get('role')
+            org_id = user_row.get('organization_id')
+            if role in ('principal', 'org_admin'):
+                q_org = urllib.parse.quote(str(org_id), safe='')
+                try:
+                    locs = _get(f"/rest/v1/dealers?organization_id=eq.{q_org}&select=id")
+                    accessible_ids = [str(x.get('id')) for x in locs]
+                except Exception:
+                    accessible_ids = []
+            else:
+                q_uid = urllib.parse.quote(str(user_row.get('id')), safe='')
+                try:
+                    uls = _get(f"/rest/v1/user_locations?user_id=eq.{q_uid}&select=location_id")
+                    accessible_ids = [str(x.get('location_id')) for x in uls]
+                except Exception:
+                    accessible_ids = []
+        elif dealer_row:
+            # legacy non-admin dealer: their own location
+            if not dealer_row.get('active'):
+                return False, 403, 'Dealer account is inactive'
+            accessible_ids = [str(dealer_row.get('id'))]
+        else:
+            return False, 403, 'No access for this user'
+
+        # Step 3: allow if the contract's location is in the caller's accessible set
+        if str(contract_dealer_id) in accessible_ids:
+            return True, 200, None
         return False, 403, 'You do not have access to this contract'
 
     def do_POST(self):
