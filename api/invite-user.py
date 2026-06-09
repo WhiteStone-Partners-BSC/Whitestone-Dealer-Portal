@@ -103,7 +103,7 @@ class handler(BaseHTTPRequestHandler):
         if not resend_key:
             return False, "RESEND_API_KEY not configured"
 
-        accept_url = f"https://whitestone-dealer-portal.vercel.app/accept-invite?token={token}"
+        accept_url = f"https://whitestone-dealer-portal.vercel.app/accept-invite.html?token={token}"
         role_display = role.replace("_", " ").title()
 
         html = f"""<!DOCTYPE html>
