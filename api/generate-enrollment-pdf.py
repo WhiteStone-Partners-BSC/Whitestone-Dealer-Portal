@@ -243,73 +243,77 @@ class handler(BaseHTTPRequestHandler):
         raw_agreement = c.get('agreement_date') or (c.get('start_date') or '')[:10]
         agreement_date = fmt_mmddyyyy(raw_agreement)
 
-        # Agreement Number — underline at y_top=82.5
-        put(70, 90, c.get('agreement_number'))
-        # Agreement Date — underline at y_top=109.4
-        put(74, 117, agreement_date)
+        # Coordinates mapped to FINAL client template (612x792).
+        # put(x, y_top, ...) — y_top from page top; drawString uses h_page - y_top.
+        # Label tops from pdfplumber; values placed just right of each label.
+
+        # Agreement Number / Date (header)
+        put(148, 84, c.get('agreement_number'))
+        put(148, 111, agreement_date)
 
         # MAINTENANCE PLAN HOLDER INFORMATION
-        put(60, 148, c.get('customer_first_name'))
-        put(305, 148, c.get('customer_last_name'))
-        put(528, 148, c.get('customer_middle_initial'))
-        put(78, 165, c.get('customer_address'))
-        put(360, 165, c.get('customer_email'))
-        put(38, 182, c.get('customer_city'))
-        put(208, 182, c.get('customer_state'))
-        put(281, 182, c.get('customer_zip'))
-        put(421, 182, c.get('customer_phone'))
+        put(60, 140, c.get('customer_first_name'))
+        put(300, 140, c.get('customer_last_name'))
+        put(530, 140, c.get('customer_middle_initial'))
+        put(110, 157, c.get('customer_address'))
+        put(345, 157, c.get('customer_email'))
+        put(50, 174, c.get('customer_city'))
+        put(220, 174, c.get('customer_state'))
+        put(290, 174, c.get('customer_zip'))
+        put(440, 174, c.get('customer_phone'))
 
         # LIENHOLDER INFORMATION
         if c.get('lienholder_name'):
-            put(63, 208, c.get('lienholder_name'))
-            put(78, 225, c.get('lienholder_address'))
-            put(38, 242, c.get('lienholder_city'))
-            put(208, 242, c.get('lienholder_state'))
-            put(281, 242, c.get('lienholder_zip'))
-            put(421, 242, c.get('lienholder_phone'))
+            put(90, 200, c.get('lienholder_name'))
+            put(110, 217, c.get('lienholder_address'))
+            put(50, 234, c.get('lienholder_city'))
+            put(220, 234, c.get('lienholder_state'))
+            put(290, 234, c.get('lienholder_zip'))
+            put(440, 234, c.get('lienholder_phone'))
 
         # SELLING DEALERSHIP INFORMATION
-        put(106, 268, c.get('dealership_name'))
-        put(78, 286, c.get('dealership_address'))
-        put(38, 303, c.get('dealership_city'))
-        put(208, 303, c.get('dealership_state'))
-        put(281, 303, c.get('dealership_zip'))
-        put(421, 303, c.get('dealership_phone'))
+        put(130, 260, c.get('dealership_name'))
+        put(110, 277, c.get('dealership_address'))
+        put(50, 295, c.get('dealership_city'))
+        put(220, 295, c.get('dealership_state'))
+        put(290, 295, c.get('dealership_zip'))
+        put(440, 295, c.get('dealership_phone'))
 
         # VESSEL INFORMATION
-        put(34, 329, c.get('hin'))
-        put(205, 329, str(c.get('boat_year', '') or ''))
-        put(288, 329, c.get('boat_make'))
-        put(415, 329, c.get('boat_model'))
+        put(45, 321, c.get('hin'))
+        put(210, 321, str(c.get('boat_year', '') or ''))
+        put(300, 321, c.get('boat_make'))
+        put(425, 321, c.get('boat_model'))
         condition = (c.get('vessel_condition') or '').strip().lower()
         if condition == 'used':
-            put(571, 335, 'X', 7)
+            put(555, 321, 'X', 7)
         else:
-            put(530, 335, 'X', 7)
+            put(510, 321, 'X', 7)
+        put(95, 339, c.get('vessel_length'))
 
         # ENGINE 1 + ENGINE 2
-        put(70, 347, str(c.get('engine1_serial', '') or ''))
-        put(205, 347, str(c.get('engine1_year', '') or ''))
-        put(288, 347, str(c.get('engine1_make', '') or ''))
-        put(415, 347, str(c.get('engine1_model', '') or ''))
-        put(563, 347, str(c.get('engine1_hours', '') or ''))
+        put(90, 356, str(c.get('engine1_serial', '') or ''))
+        put(210, 356, str(c.get('engine1_year', '') or ''))
+        put(300, 356, str(c.get('engine1_make', '') or ''))
+        put(425, 356, str(c.get('engine1_model', '') or ''))
+        put(545, 356, str(c.get('engine1_hours', '') or ''))
 
         if c.get('engine2_serial') or c.get('engine2_year') or c.get('engine2_make'):
-            put(70, 364, str(c.get('engine2_serial', '') or ''))
-            put(205, 364, str(c.get('engine2_year', '') or ''))
-            put(288, 364, str(c.get('engine2_make', '') or ''))
-            put(415, 364, str(c.get('engine2_model', '') or ''))
-            put(563, 364, str(c.get('engine2_hours', '') or ''))
+            put(90, 373, str(c.get('engine2_serial', '') or ''))
+            put(210, 373, str(c.get('engine2_year', '') or ''))
+            put(300, 373, str(c.get('engine2_make', '') or ''))
+            put(425, 373, str(c.get('engine2_model', '') or ''))
+            put(545, 373, str(c.get('engine2_hours', '') or ''))
 
-        # MAINTENANCE COVERAGE — term checkboxes
+        # MAINTENANCE COVERAGE — term checkboxes (12 / 24 / 36 month)
         term = c.get('contract_type', '1yr')
         tnorm = str(term).strip().lower()
         if term == '1yr' or tnorm in ('12', '12 month', '1', '1-year', '1 year'):
-            put(160, 413, 'X', 7)
+            put(135, 511, 'X', 7)
         elif term == '2yr' or tnorm in ('24', '24 month', '2', '2-year', '2 year'):
-            put(304, 413, 'X', 7)
+            put(279, 511, 'X', 7)
         elif term == '3yr' or tnorm in ('36', '36 month', '3', '3-year', '3 year'):
-            put(448, 413, 'X', 7)
+            put(423, 511, 'X', 7)
 
         # Purchase price & date
         price_map = {'1yr': '$2,495.00', '2yr': '$4,495.00', '3yr': '$6,495.00'}
@@ -322,11 +326,9 @@ class handler(BaseHTTPRequestHandler):
                 purchase_price = price_map.get(term, '')
         else:
             purchase_price = price_map.get(term, '')
-        # Both labels at y_top=424.6
-        # Values sit above the underline (Y nudged up 5pt) with extra padding after the colon (X nudged right 5pt)
-        put(173, 428, purchase_price)
+        put(200, 558, purchase_price)
         purchase_date = fmt_mmddyyyy(c.get('agreement_date') or (c.get('start_date') or '')[:10])
-        put(460, 428, purchase_date)
+        put(465, 558, purchase_date)
 
         cv.save()
         packet.seek(0)
