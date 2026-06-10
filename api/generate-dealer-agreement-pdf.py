@@ -195,7 +195,7 @@ class handler(BaseHTTPRequestHandler):
 
         put(45, 446, primary)
         put(188, 446, principal_title)
-        put(334, 446, principal_email)
+        put(334, 446, principal_email, 6)
         put(480, 446, principal_phone)
 
         # --- PARTICIPATION AGREEMENT (effective date + dealer name blanks) ---
