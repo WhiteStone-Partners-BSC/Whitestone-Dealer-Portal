@@ -681,6 +681,13 @@
 
           <div id="e-hin-error" class="field-err" style="display:none;"></div>
           <div id="e-err" style="display:none;background:#fff5f5;border:1px solid #ffcdd2;border-radius:6px;padding:0.75rem;font-size:13px;color:#c0392b;margin-bottom:1rem;"></div>
+          <div id="test-fill-wrap" style="display:none;margin:12px 0;">
+            <button type="button" id="test-fill-btn"
+              style="background:#6b7280;color:#fff;border:none;padding:8px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;">
+              Fill Test Data (dev only)
+            </button>
+            <span style="font-size:11px;color:var(--light);margin-left:8px;">Populates dummy customer + vessel for testing.</span>
+          </div>
           <button onclick="showEnrollConfirmModal()" style="background:#0c1e2e;color:white;border:none;padding:13px;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;width:100%;font-family:'DM Sans',sans-serif;letter-spacing:0.02em;">
             REVIEW ENROLLMENT
           </button>
@@ -3504,6 +3511,73 @@ window.addEventListener("load", function() {
       selectedEl.style.background = "#fffdf5";
     }
   };
+
+  // Test-only: reveal + wire the Fill Test Data button when ?testtools=1 is present.
+  (function () {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      if (params.get("testtools") !== "1") return;
+      var wrap = document.getElementById("test-fill-wrap");
+      var btn = document.getElementById("test-fill-btn");
+      if (!wrap || !btn) return;
+      wrap.style.display = "block";
+
+      function setVal(id, val) {
+        var el = document.getElementById(id);
+        if (el) el.value = val;
+      }
+
+      btn.addEventListener("click", function () {
+        // Unique-ish suffix so repeat tests don't collide on HIN/email
+        var n = String(Date.now()).slice(-5);
+        setVal("e-fname", "Test");
+        setVal("e-lname", "Customer" + n);
+        setVal("e-mi", "T");
+        setVal("e-email", "neblloydben+cust" + n + "@gmail.com");
+        setVal("e-phone", "8015551234");
+        setVal("e-address", "123 Lake Shore Dr");
+        setVal("e-city", "Draper");
+        setVal("e-state", "UT");
+        setVal("e-zip", "84020");
+        // Vessel
+        setVal("e-make", "Malibu");
+        setVal("e-model", "23 LSV");
+        setVal("e-year", "2024");
+        setVal("e-hin", "MAL" + n + "K304");  // 12-char HIN (MAL + 5 digits + K304)
+        var cond = document.getElementById("e-condition");
+        if (cond) cond.value = "New";
+        // Primary engine (the fields the cart reads)
+        setVal("e-engine-hours", "45");
+        setVal("e-engine-hp", "450");
+        setVal("e-engine-make-model", "Indmar Monsoon 6.2L");
+        var sc = document.getElementById("e-engine-supercharged");
+        if (sc) sc.checked = false;
+        // Engine 1 detail block (if present/used)
+        setVal("e-eng1-serial", "ENG" + n);
+        setVal("e-eng1-year", "2024");
+        setVal("e-eng1-make", "Indmar");
+        setVal("e-eng1-model", "Monsoon 6.2L");
+        setVal("e-eng1-hours", "45");
+        // Sale price (so cart shows real profit, not "Not set")
+        setVal("e-sale-price", "4000");
+        // Agreement date today (if the field is empty)
+        var ad = document.getElementById("e-agreement-date");
+        if (ad && !ad.value) ad.value = new Date().toISOString().split("T")[0];
+        // Default to 1yr contract
+        if (typeof window.selectContractLength === "function") {
+          var opt = document.querySelector('.contract-option[data-length="1yr"]');
+          window.selectContractLength("1yr", opt);
+        }
+        // Make sure lienholder + 2nd engine are OFF for the simple path
+        var lien = document.getElementById("has-lienholder");
+        if (lien && lien.checked) { lien.checked = false; if (typeof toggleLienholder === "function") toggleLienholder(false); }
+        var e2 = document.getElementById("has-engine2");
+        if (e2 && e2.checked) { e2.checked = false; if (typeof toggleEngine2 === "function") toggleEngine2(false); }
+      });
+    } catch (e) {
+      console.warn("test-fill wiring error:", e);
+    }
+  })();
 
   window.showEnrollConfirmModal = async function(formData) {
     var getVal = function(id) {
