@@ -248,19 +248,19 @@ class handler(BaseHTTPRequestHandler):
         # Label tops from pdfplumber; values placed just right of each label.
 
         # Agreement Number / Date (header)
-        put(148, 84, c.get('agreement_number'))
-        put(148, 111, agreement_date)
+        put(139, 83, c.get('agreement_number'))
+        put(135, 110, agreement_date)
 
         # MAINTENANCE PLAN HOLDER INFORMATION
-        put(60, 140, c.get('customer_first_name'))
-        put(300, 140, c.get('customer_last_name'))
-        put(530, 140, c.get('customer_middle_initial'))
-        put(110, 157, c.get('customer_address'))
-        put(345, 157, c.get('customer_email'))
-        put(50, 174, c.get('customer_city'))
-        put(220, 174, c.get('customer_state'))
-        put(290, 174, c.get('customer_zip'))
-        put(440, 174, c.get('customer_phone'))
+        put(63, 145, c.get('customer_first_name'))
+        put(307, 145, c.get('customer_last_name'))
+        put(530, 145, c.get('customer_middle_initial'))
+        put(50, 162, c.get('customer_address'))
+        put(332, 162, c.get('customer_email'))
+        put(41, 180, c.get('customer_city'))
+        put(211, 180, c.get('customer_state'))
+        put(284, 180, c.get('customer_zip'))
+        put(418, 180, c.get('customer_phone'))
 
         # LIENHOLDER INFORMATION
         if c.get('lienholder_name'):
@@ -272,38 +272,38 @@ class handler(BaseHTTPRequestHandler):
             put(440, 234, c.get('lienholder_phone'))
 
         # SELLING DEALERSHIP INFORMATION
-        put(130, 260, c.get('dealership_name'))
-        put(110, 277, c.get('dealership_address'))
-        put(50, 295, c.get('dealership_city'))
-        put(220, 295, c.get('dealership_state'))
-        put(290, 295, c.get('dealership_zip'))
-        put(440, 295, c.get('dealership_phone'))
+        put(108, 266, c.get('dealership_name'))
+        put(50, 283, c.get('dealership_address'))
+        put(41, 300, c.get('dealership_city'))
+        put(211, 300, c.get('dealership_state'))
+        put(284, 300, c.get('dealership_zip'))
+        put(418, 300, c.get('dealership_phone'))
 
         # VESSEL INFORMATION
-        put(45, 321, c.get('hin'))
-        put(210, 321, str(c.get('boat_year', '') or ''))
-        put(300, 321, c.get('boat_make'))
-        put(425, 321, c.get('boat_model'))
+        put(38, 326, c.get('hin'))
+        put(208, 326, str(c.get('boat_year', '') or ''))
+        put(291, 326, c.get('boat_make'))
+        put(419, 326, c.get('boat_model'))
         condition = (c.get('vessel_condition') or '').strip().lower()
         if condition == 'used':
             put(555, 321, 'X', 7)
         else:
             put(510, 321, 'X', 7)
-        put(95, 339, c.get('vessel_length'))
+        put(71, 344, c.get('vessel_length'))
 
         # ENGINE 1 + ENGINE 2
-        put(90, 356, str(c.get('engine1_serial', '') or ''))
-        put(210, 356, str(c.get('engine1_year', '') or ''))
-        put(300, 356, str(c.get('engine1_make', '') or ''))
-        put(425, 356, str(c.get('engine1_model', '') or ''))
-        put(545, 356, str(c.get('engine1_hours', '') or ''))
+        put(72, 361, str(c.get('engine1_serial', '') or ''))
+        put(208, 361, str(c.get('engine1_year', '') or ''))
+        put(291, 361, str(c.get('engine1_make', '') or ''))
+        put(419, 361, str(c.get('engine1_model', '') or ''))
+        put(566, 361, str(c.get('engine1_hours', '') or ''))
 
         if c.get('engine2_serial') or c.get('engine2_year') or c.get('engine2_make'):
-            put(90, 373, str(c.get('engine2_serial', '') or ''))
-            put(210, 373, str(c.get('engine2_year', '') or ''))
-            put(300, 373, str(c.get('engine2_make', '') or ''))
-            put(425, 373, str(c.get('engine2_model', '') or ''))
-            put(545, 373, str(c.get('engine2_hours', '') or ''))
+            put(72, 378, str(c.get('engine2_serial', '') or ''))
+            put(208, 378, str(c.get('engine2_year', '') or ''))
+            put(291, 378, str(c.get('engine2_make', '') or ''))
+            put(419, 378, str(c.get('engine2_model', '') or ''))
+            put(566, 378, str(c.get('engine2_hours', '') or ''))
 
         # MAINTENANCE COVERAGE — term checkboxes (12 / 24 / 36 month)
         term = c.get('contract_type', '1yr')
