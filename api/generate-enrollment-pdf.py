@@ -326,9 +326,9 @@ class handler(BaseHTTPRequestHandler):
                 purchase_price = price_map.get(term, '')
         else:
             purchase_price = price_map.get(term, '')
-        put(200, 558, purchase_price)
+        put(200, 553, purchase_price)
         purchase_date = fmt_mmddyyyy(c.get('agreement_date') or (c.get('start_date') or '')[:10])
-        put(465, 558, purchase_date)
+        put(465, 553, purchase_date)
 
         cv.save()
         packet.seek(0)
