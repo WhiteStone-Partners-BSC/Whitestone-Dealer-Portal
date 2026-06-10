@@ -248,15 +248,15 @@ class handler(BaseHTTPRequestHandler):
         # Label tops from pdfplumber; values placed just right of each label.
 
         # Agreement Number / Date (header)
-        put(139, 83, c.get('agreement_number'))
-        put(135, 110, agreement_date)
+        put(107, 92, c.get('agreement_number'))
+        put(111, 119, agreement_date)
 
         # MAINTENANCE PLAN HOLDER INFORMATION
         put(63, 145, c.get('customer_first_name'))
         put(307, 145, c.get('customer_last_name'))
         put(530, 145, c.get('customer_middle_initial'))
-        put(50, 162, c.get('customer_address'))
-        put(332, 162, c.get('customer_email'))
+        put(80, 162, c.get('customer_address'))
+        put(362, 162, c.get('customer_email'))
         put(41, 180, c.get('customer_city'))
         put(211, 180, c.get('customer_state'))
         put(284, 180, c.get('customer_zip'))
@@ -273,7 +273,7 @@ class handler(BaseHTTPRequestHandler):
 
         # SELLING DEALERSHIP INFORMATION
         put(108, 266, c.get('dealership_name'))
-        put(50, 283, c.get('dealership_address'))
+        put(80, 283, c.get('dealership_address'))
         put(41, 300, c.get('dealership_city'))
         put(211, 300, c.get('dealership_state'))
         put(284, 300, c.get('dealership_zip'))
@@ -286,9 +286,9 @@ class handler(BaseHTTPRequestHandler):
         put(419, 326, c.get('boat_model'))
         condition = (c.get('vessel_condition') or '').strip().lower()
         if condition == 'used':
-            put(555, 321, 'X', 7)
+            put(571, 337, 'X', 7)
         else:
-            put(510, 321, 'X', 7)
+            put(531, 337, 'X', 7)
         put(71, 344, c.get('vessel_length'))
 
         # ENGINE 1 + ENGINE 2
@@ -309,7 +309,7 @@ class handler(BaseHTTPRequestHandler):
         term = c.get('contract_type', '1yr')
         tnorm = str(term).strip().lower()
         if term == '1yr' or tnorm in ('12', '12 month', '1', '1-year', '1 year'):
-            put(135, 511, 'X', 7)
+            put(159, 527, 'X', 7)
         elif term == '2yr' or tnorm in ('24', '24 month', '2', '2-year', '2 year'):
             put(279, 511, 'X', 7)
         elif term == '3yr' or tnorm in ('36', '36 month', '3', '3-year', '3 year'):
