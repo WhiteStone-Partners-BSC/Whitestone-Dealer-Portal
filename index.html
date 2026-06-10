@@ -2985,7 +2985,7 @@ window.addEventListener("load", function() {
         approveBtn.style.display = "";
         rejectBtn.style.display = "";
         approveBtn.onclick = async function() {
-          if (!confirm("Approve this ticket and authorize reimbursement of $" + (t.reimbursement_amount || 0) + "?")) return;
+          if (!confirm("Approve this ticket and authorize reimbursement of $" + (t.requested_amount || t.requestedAmount || 0) + "?")) return;
           if (typeof claimsApprove === "function") {
             await claimsApprove(t.id);
             closeTicketDetailPanel();

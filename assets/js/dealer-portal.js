@@ -8458,20 +8458,30 @@ document.addEventListener("DOMContentLoaded", function() {
         headers: supabaseHeaders({ Prefer: "return=minimal" }),
         body: JSON.stringify({ status: "approved", reimbursement_amount: requestedAmt })
       });
-      if (!r1.ok) throw new Error();
+      if (!r1.ok) {
+        var errTxt = await r1.text();
+        console.error("claimsApprove tickets PATCH failed:", r1.status, errTxt);
+        throw new Error("tickets PATCH " + r1.status + ": " + errTxt);
+      }
 
       if (requestedAmt > 0) {
-        await fetch(SUPABASE_URL + "/rest/v1/reimbursements?ticket_id=eq." + encodeURIComponent(ticketId), {
+        var rr = await fetch(SUPABASE_URL + "/rest/v1/reimbursements?ticket_id=eq." + encodeURIComponent(ticketId), {
           method: "PATCH",
-          headers: supabaseHeaders({ Prefer: "return=minimal" }),
+          headers: supabaseHeaders({ Prefer: "return=representation" }),
           body: JSON.stringify({ amount: requestedAmt })
         });
+        var rrBody = await rr.text();
+        console.log("claimsApprove reimbursements PATCH:", rr.status, rrBody);
+        if (!rr.ok || rrBody === "[]") {
+          console.warn("reimbursements PATCH affected 0 rows or failed -- row may not exist; INSERT may be needed");
+        }
       }
 
       await writeAuditLog("ticket", ticketId, "ticket_approved", { status: "pending" }, { status: "approved", reimbursement_amount: requestedAmt }, "admin", null, null);
       await claimsLoadTab();
     } catch (e) {
-      alert("Could not approve. Please try again.");
+      console.error("claimsApprove error:", e);
+      alert("Could not approve: " + (e && e.message ? e.message : "unknown error"));
     }
   }
 
