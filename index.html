@@ -1321,8 +1321,13 @@
           <div id="claims-pending-body" class="claims-body">Loading…</div>
         </div>
         <div class="card claims-section-card">
-          <div class="card-title">Approved &amp; unpaid reimbursements</div>
-          <div class="card-sub">Outstanding amounts owed to dealers (approved tickets, reimbursement not yet paid).</div>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+            <div>
+              <div class="card-title">Approved &amp; unpaid reimbursements</div>
+              <div class="card-sub">Outstanding amounts owed to dealers (approved tickets, reimbursement not yet paid).</div>
+            </div>
+            <button type="button" onclick="window.buildPendingPayoutCSV()" style="background:transparent;color:var(--navy);border:1.5px solid #c5d5e0;padding:8px 14px;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">Download Payout Report (CSV)</button>
+          </div>
           <div id="claims-unpaid-body" class="claims-body">Loading…</div>
         </div>
         <div class="card claims-section-card">
@@ -1693,7 +1698,12 @@
             <div style="font-size:12.5px;color:var(--light);line-height:1.5;">Download income and expense CSVs formatted for QuickBooks Online bank import.</div>
           </button>
 
-          <!-- Future report tiles go here -->
+          <!-- Pending Dealer Payouts tile -->
+          <button type="button" onclick="window.buildPendingPayoutCSV()" style="text-align:left;background:white;border:1px solid var(--border);border-radius:10px;padding:1.5rem;cursor:pointer;transition:all 0.15s;font-family:inherit;" onmouseover="this.style.borderColor='var(--gold)';this.style.boxShadow='0 2px 12px rgba(0,0,0,0.06)';" onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none';">
+            <div style="font-size:24px;margin-bottom:0.75rem;">💰</div>
+            <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:0.35rem;">Pending Dealer Payouts</div>
+            <div style="font-size:12.5px;color:var(--light);line-height:1.5;">CSV of dealers owed reimbursements — amounts, ticket counts, and whether banking is on file. No account numbers included.</div>
+          </button>
 
         </div>
 

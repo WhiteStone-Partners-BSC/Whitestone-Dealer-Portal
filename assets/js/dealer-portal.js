@@ -8873,6 +8873,85 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   }
 
+  async function buildPendingPayoutCSV() {
+    try {
+      var tRes = await fetch(SUPABASE_URL + "/rest/v1/tickets?status=eq.approved&select=id", { headers: supabaseHeaders() });
+      if (!tRes.ok) throw new Error("Could not load approved tickets");
+      var tickets = await tRes.json();
+      var approvedIds = new Set((Array.isArray(tickets) ? tickets : []).map(function(t) { return t.id; }));
+
+      var rRes = await fetch(SUPABASE_URL + "/rest/v1/reimbursements?status=eq.pending&select=*", { headers: supabaseHeaders() });
+      if (!rRes.ok) throw new Error("Could not load pending reimbursements");
+      var reims = await rRes.json();
+      var list = (Array.isArray(reims) ? reims : []).filter(function(r) { return approvedIds.has(r.ticket_id); });
+
+      var dRes = await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?select=dealership_name,bank_account_number,bank_routing_number",
+        { headers: supabaseHeaders() }
+      );
+      if (!dRes.ok) throw new Error("Could not load dealer banking info");
+      var dealers = await dRes.json();
+      var bankMap = {};
+      (Array.isArray(dealers) ? dealers : []).forEach(function(d) {
+        var has = !!(d.bank_account_number && String(d.bank_account_number).trim() &&
+          d.bank_routing_number && String(d.bank_routing_number).trim());
+        bankMap[d.dealership_name] = has;
+      });
+
+      var byDealer = {};
+      list.forEach(function(r) {
+        var dn = r.dealership_name || "—";
+        if (!byDealer[dn]) byDealer[dn] = { name: dn, tickets: 0, amount: 0, oldest: null };
+        byDealer[dn].tickets += 1;
+        byDealer[dn].amount += parseFloat(r.amount) || 0;
+        var c = r.created_at;
+        if (c && (!byDealer[dn].oldest || c < byDealer[dn].oldest)) byDealer[dn].oldest = c;
+      });
+
+      var rows = Object.keys(byDealer).sort().map(function(k) { return byDealer[k]; });
+      if (rows.length === 0) {
+        alert("No pending payouts to report.");
+        return;
+      }
+
+      function esc(v) {
+        v = String(v == null ? "" : v);
+        return '"' + v.replace(/"/g, '""') + '"';
+      }
+
+      var header = ["Dealer Name", "Approved Tickets", "Total Owed", "Oldest Pending Date", "Banking On File"];
+      var lines = [header.map(esc).join(",")];
+      rows.forEach(function(g) {
+        var oldest = g.oldest
+          ? new Date(g.oldest).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+          : "";
+        lines.push([
+          esc(g.name),
+          esc(g.tickets),
+          esc("$" + (Math.round(g.amount * 100) / 100).toFixed(2)),
+          esc(oldest),
+          esc(bankMap[g.name] ? "Yes" : "No")
+        ].join(","));
+      });
+
+      var csvText = lines.join("\r\n");
+      var blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      var today = new Date().toISOString().split("T")[0];
+      a.href = url;
+      a.download = "whitestone-pending-payouts-" + today + ".csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("buildPendingPayoutCSV error:", e);
+      alert("Could not build payout report: " + (e && e.message ? e.message : "unknown error"));
+    }
+  }
+  window.buildPendingPayoutCSV = buildPendingPayoutCSV;
+
   async function claimsLoadHistory() {
     var el = document.getElementById("claims-history-body");
     var totalEl = document.getElementById("claims-history-total");
