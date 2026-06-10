@@ -4,7 +4,7 @@
       "includeFiles": "api/customer-enrollment-template.pdf"
     },
     "api/generate-dealer-agreement-pdf.py": {
-      "includeFiles": "api/dealer-enrollment-template.pdf"
+      "includeFiles": "api/dealer-agreement-template.pdf"
     }
   }
 }

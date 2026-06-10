@@ -1,5 +1,5 @@
 # api/generate-dealer-agreement-pdf.py
-# Fills api/dealer-enrollment-template.pdf with dealer row data (Supabase REST).
+# Fills api/dealer-agreement-template.pdf with dealer row data (Supabase REST).
 import json
 import os
 from http.server import BaseHTTPRequestHandler
@@ -102,52 +102,57 @@ class handler(BaseHTTPRequestHandler):
         from reportlab.lib.pagesizes import letter
         import io
 
-        template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dealer-enrollment-template.pdf')
+        template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dealer-agreement-template.pdf')
         if not os.path.exists(template_path):
-            alt = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dealer-agreement-template.pdf')
+            alt = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dealer-enrollment-template.pdf')
             if os.path.exists(alt):
                 template_path = alt
         if not os.path.exists(template_path):
-            raise FileNotFoundError('Template not found: dealer-enrollment-template.pdf (or fallback dealer-agreement-template.pdf)')
+            raise FileNotFoundError('Template not found: dealer-agreement-template.pdf (or fallback dealer-enrollment-template.pdf)')
 
         reader = PdfReader(template_path)
-        if len(reader.pages) < 2:
-            raise ValueError('Template must have at least 2 pages; got ' + str(len(reader.pages)))
+        if len(reader.pages) < 1:
+            raise ValueError('Template must have at least 1 page; got ' + str(len(reader.pages)))
 
-        # ---------- PAGE 1–2 OVERLAY (single ReportLab canvas) ----------
+        # ---------- PAGE 1 OVERLAY (ReportLab canvas) ----------
         buf1 = io.BytesIO()
         c = canvas.Canvas(buf1, pagesize=letter)
         c.setFont('Helvetica', 9)
 
-        def put(x, y_top, text):
+        def put(x, y_top, text, font_size=9):
             if text is None or text == '':
                 return
+            c.setFont('Helvetica', font_size)
             c.drawString(x, 792 - y_top, str(text))
+
+        # Coordinates mapped to FINAL dealer template (612x792), page 1.
+        # put(x, y_top) — y_top from page top; values on label baselines.
 
         # --- SECTION: DEALERSHIP INFORMATION ---
         legal = d.get('legal_business_name') or d.get('dealership_name') or ''
-        dba = d.get('dba') or d.get('dba_name') or ''
-        addr = d.get('address') or d.get('business_address') or ''
-        city = d.get('city') or d.get('business_city') or ''
-        state = d.get('state') or d.get('business_state') or ''
-        zipc = d.get('zip') or d.get('business_zip') or ''
-        phone = d.get('phone') or d.get('business_phone') or ''
+        dba = d.get('dba_name') or d.get('dba') or ''
+        addr = d.get('business_address') or d.get('address') or ''
+        city = d.get('business_city') or d.get('city') or ''
+        state = d.get('business_state') or d.get('state') or ''
+        zipc = d.get('business_zip') or d.get('zip') or ''
+        phone = d.get('business_phone') or d.get('phone') or ''
         ein = d.get('ein') or ''
         dealer_num = d.get('dealer_number') or ''
         brands = d.get('brands_carried') or d.get('boat_brands') or ''
 
-        put(92, 185, legal)
-        put(368, 185, dba)
-        put(84, 202, addr)
-        put(38, 219, city)
-        put(208, 219, state)
-        put(281, 219, zipc)
-        put(421, 219, phone)
-        put(34, 236, ein)
-        put(363, 236, dealer_num)
-        put(77, 253, brands)
+        put(95, 181, legal)
+        if dba:
+            put(327, 181, dba)
+        put(86, 198, addr)
+        put(41, 215, city)
+        put(211, 215, state)
+        put(284, 215, zipc)
+        put(418, 215, phone)
+        put(37, 232, ein)
+        put(365, 232, dealer_num)
+        put(79, 249, brands)
 
-        # --- AUTHORIZED DEALERSHIP CONTACTS ---
+        # --- AUTHORIZED DEALERSHIP CONTACTS (skip when empty) ---
         contacts = d.get('authorized_contacts') or d.get('dealer_contacts') or []
         if isinstance(contacts, str):
             try:
@@ -157,77 +162,64 @@ class handler(BaseHTTPRequestHandler):
         if not isinstance(contacts, list):
             contacts = []
 
-        row_y = [288.1, 305.6, 323.1, 340.6, 358.2]
-        # Position text shifted left to sit cleanly inside its column,
-        # clear of the right-column row numbers (6-10) and section dividers.
+        row_y = [293, 310, 328, 345, 363]
         for i in range(5):
             if i < len(contacts) and isinstance(contacts[i], dict):
                 c_ = contacts[i]
-                put(40, row_y[i] + 1, c_.get('name'))
-                put(230, row_y[i] + 1, c_.get('position'))
+                put(45, row_y[i], c_.get('name'))
+                put(197, row_y[i], c_.get('position'))
         for i in range(5, 10):
             if i < len(contacts) and isinstance(contacts[i], dict):
                 c_ = contacts[i]
-                put(328, row_y[i - 5] + 1, c_.get('name'))
-                put(515, row_y[i - 5] + 1, c_.get('position'))
+                put(333, row_y[i - 5], c_.get('name'))
+                put(485, row_y[i - 5], c_.get('position'))
 
-        # --- ACCOUNTING INFORMATION ---
-        ar_name = d.get('ar_contact_name') or d.get('ar_contact') or ''
+        # --- ACCOUNTING INFORMATION (populated columns only) ---
+        ar_name = d.get('ar_contact_name') or ''
         ar_phone = d.get('ar_phone') or ''
         ar_email = d.get('ar_email') or ''
-        acct = d.get('bank_account_number') or d.get('account_number') or ''
-        rout = d.get('bank_routing_number') or d.get('routing_number') or ''
+        acct = d.get('bank_account_number') or ''
+        rout = d.get('bank_routing_number') or ''
 
-        put(128, 386, ar_name)
-        put(72, 403, ar_phone)
-        put(330, 403, ar_email)
-        put(80, 420, acct)
-        put(366, 420, rout)
+        put(127, 387, ar_name)
+        put(75, 404, ar_phone)
+        put(333, 404, ar_email)
+        put(82, 421, acct)
+        put(369, 421, rout)
 
-        eff_raw = d.get('enrollment_effective_date') or d.get('effective_date') or ''
-        eff = str(eff_raw)[:10] if eff_raw else ''
-        # "...is entered into as of __________ ("Effective Date")..." y_top=462.4
-        # Underline blank runs from x=204.4 to x=236.8 (width ~32pt).
-        # Use 6pt so "YYYY-MM-DD" (always 10 chars) fits comfortably inside the blank with breathing room.
-        c.setFont('Helvetica', 6)
-        put(207, 467, eff)
-        # Dealer name fills the blank "_____ ("Dealer")" on the line below — 8pt fits the line width
-        c.setFont('Helvetica', 8)
-        put(25, 473, legal)
-        # Restore default font for any subsequent draws on this page
-        c.setFont('Helvetica', 9)
-
-        c.showPage()
-
-        # ---------- PAGE 2 OVERLAY ----------
-        c.setFont('Helvetica', 9)
-        # "within ____ business days" — underscores at y=147.8, x=242.7-255.6
-        # Raise Y so "10" sits on the underscores instead of below them
-        put(244, 152, '10')
-
-        # Signatures (page 2). Whitestone signature line at y_top=583.3, BY at y_top=591.9
-        # Dealer signature line at y_top=617.6, BY at y_top=626.1
-        # We pre-fill ONLY the dealer "BY" name (printed). Signatures stay blank for in-person sign.
+        # --- DEALER PRINCIPAL / AUTHORIZED SIGNATORY ---
         primary = ((d.get('contact_first_name') or '') + ' ' + (d.get('contact_last_name') or '')).strip()
-        # 8pt font + nudge UP and RIGHT so name lands on the BY: underline (not below it)
-        c.setFont('Helvetica', 8)
-        put(180, 628, primary)
-        c.setFont('Helvetica', 9)
+        principal_title = d.get('contact_title') or ''
+        principal_email = d.get('email') or ''
+        principal_phone = phone
+
+        put(45, 446, primary)
+        put(188, 446, principal_title)
+        put(334, 446, principal_email)
+        put(480, 446, principal_phone)
+
+        # --- PARTICIPATION AGREEMENT (effective date + dealer name blanks) ---
+        eff_raw = d.get('effective_date') or d.get('enrollment_effective_date') or ''
+        eff = str(eff_raw)[:10] if eff_raw else ''
+        if eff and len(eff) == 10 and eff[4] == '-':
+            parts = eff.split('-')
+            eff = parts[1] + '/' + parts[2] + '/' + parts[0]
+        put(203, 622, eff, 8)
+        put(25, 628, legal, 8)
 
         c.save()
         buf1.seek(0)
 
         overlay = PdfReader(buf1)
-        if len(overlay.pages) < 2:
-            raise RuntimeError('Overlay PDF did not generate 2 pages')
+        if len(overlay.pages) < 1:
+            raise RuntimeError('Overlay PDF did not generate')
 
         writer = PdfWriter()
         p1 = reader.pages[0]
         p1.merge_page(overlay.pages[0])
         writer.add_page(p1)
-        p2 = reader.pages[1]
-        p2.merge_page(overlay.pages[1])
-        writer.add_page(p2)
+        for i in range(1, len(reader.pages)):
+            writer.add_page(reader.pages[i])
 
         out = io.BytesIO()
         writer.write(out)
@@ -279,14 +271,13 @@ class handler(BaseHTTPRequestHandler):
 """
 CALIBRATION NOTES (Whitestone / Cursor)
 
-Coordinates in _fill_pdf were taken from dealer-enrollment-template.pdf (612 x 792 pt, 2 pages).
+Coordinates in _fill_pdf mapped to dealer-agreement-template.pdf (612 x 792 pt, 3 pages).
 Y values passed to put() are measured from the TOP of the page; ReportLab uses bottom-left,
 so the helper converts with canvas_y = 792 - y_top.
 
-After first real PDF generation, open the output and confirm each value sits on its underline.
-- X drift: adjust the first argument to put(x, y_top, value).
-- Y drift: adjust y_top (and the +3 row offset for contact rows). Larger y_top moves the
-  baseline DOWN on the page.
+Page 1 only receives text overlay; pages 2-3 pass through unchanged.
+DocuSign signature tabs anchor on page 3 'DEALER:' (see send-dealer-agreement-docusign.js).
 
+After first real PDF generation, open the output and confirm each value sits on its underline.
 If the template file is replaced, re-run calibration (e.g. pdfplumber) and update put() calls.
 """

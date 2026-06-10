@@ -201,29 +201,23 @@ module.exports = async function handler(req, res) {
           name: recipientName,
           recipientId: '1',
           routingOrder: '1',
-          // DocuSign anchor coordinate convention:
-          // - Origin is bottom-left of the matched anchor string
-          // - Positive X moves the tab right on the page
-          // - Positive Y moves the tab DOWN the page (toward bottom)
-          // - Negative Y moves the tab UP the page
-          // Previous attempt used negative Y thinking it pushed down - it didn't,
-          // it pushed tabs UP onto the Whitestone Partners signature line above the dealer line.
-          // anchorIgnoreIfNotPresent is false so DocuSign errors out if the PDF template changes.
+          // Page 3 dealer block: unique anchor 'DEALER:' (top ~654), then SIGNATURE ~676, DATE ~701.
+          // Positive anchorYOffset moves tab DOWN from the anchor origin (bottom-left of matched text).
           tabs: {
             signHereTabs: [
               {
-                anchorString: 'DEALER AUTHORIZED SIGNATURE:',
-                anchorXOffset: '180',
-                anchorYOffset: '8',
+                anchorString: 'DEALER:',
+                anchorXOffset: '50',
+                anchorYOffset: '24',
                 anchorUnits: 'pixels',
                 anchorIgnoreIfNotPresent: 'false'
               }
             ],
             dateSignedTabs: [
               {
-                anchorString: 'DEALER AUTHORIZED SIGNATURE:',
-                anchorXOffset: '420',
-                anchorYOffset: '3',
+                anchorString: 'DEALER:',
+                anchorXOffset: '50',
+                anchorYOffset: '48',
                 anchorUnits: 'pixels',
                 anchorIgnoreIfNotPresent: 'false'
               }
