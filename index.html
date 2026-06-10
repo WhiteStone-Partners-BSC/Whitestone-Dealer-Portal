@@ -2986,15 +2986,21 @@ window.addEventListener("load", function() {
         rejectBtn.style.display = "";
         approveBtn.onclick = async function() {
           if (!confirm("Approve this ticket and authorize reimbursement of $" + (t.requested_amount || t.requestedAmount || 0) + "?")) return;
-          if (typeof claimsApprove === "function") {
-            await claimsApprove(t.id);
+          if (typeof window.claimsApprove === "function") {
+            await window.claimsApprove(t.id);
             closeTicketDetailPanel();
+          } else {
+            console.error("claimsApprove not available on window");
+            alert("Approve action unavailable. Please refresh and try again.");
           }
         };
         rejectBtn.onclick = async function() {
-          if (typeof rejectTicket === "function") {
-            await rejectTicket(t.id);
+          if (typeof window.rejectTicket === "function") {
+            await window.rejectTicket(t.id);
             closeTicketDetailPanel();
+          } else {
+            console.error("rejectTicket not available on window");
+            alert("Reject action unavailable. Please refresh and try again.");
           }
         };
       } else {

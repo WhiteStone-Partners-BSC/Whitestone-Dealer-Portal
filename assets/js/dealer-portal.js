@@ -8484,6 +8484,7 @@ document.addEventListener("DOMContentLoaded", function() {
       alert("Could not approve: " + (e && e.message ? e.message : "unknown error"));
     }
   }
+  window.claimsApprove = claimsApprove;
 
   async function rejectTicket(ticketId) {
     var reason = prompt("Enter rejection reason (this will be shown to the dealer):");
@@ -8522,6 +8523,7 @@ document.addEventListener("DOMContentLoaded", function() {
       alert("Could not reject. Please try again.");
     }
   }
+  window.rejectTicket = rejectTicket;
 
   async function claimsMarkDealerPaid(dealershipName) {
     if (!dealershipName) return;
