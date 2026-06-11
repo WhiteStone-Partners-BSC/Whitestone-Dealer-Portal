@@ -312,6 +312,7 @@
       <button type="button" class="sidebar-nav-item" data-panel="resources">Resources</button>
       <button type="button" class="sidebar-nav-item" data-panel="faq">FAQ &amp; Contact</button>
       <button type="button" class="sidebar-nav-item" data-panel="support">Support</button>
+      <button type="button" class="sidebar-nav-item" data-panel="my-messages">My Messages</button>
       <button type="button" class="sidebar-nav-item" id="dealer-settings-btn" data-panel="settings">Settings</button>
       <div class="dealer-sidebar-footer">
         <button type="button" class="sidebar-logout-btn" id="sidebar-logout">Sign out</button>
@@ -995,6 +996,15 @@
           Something went wrong. Please email support@whitestone-partners.com directly.
         </div>
       </div>
+    </div>
+
+    <div id="panel-my-messages" class="tab-panel">
+      <div class="card">
+        <div class="card-title">My Messages</div>
+        <div style="font-size:13px;color:var(--light);margin-bottom:1rem;">Your conversations with Whitestone Partners. To start a new conversation, use the Support tab.</div>
+        <div id="dealer-threads-list"></div>
+      </div>
+      <div id="dealer-thread-detail" style="display:none;margin-top:1rem;"></div>
     </div>
 
     <div class="tab-panel" id="panel-settings" style="display:none;">

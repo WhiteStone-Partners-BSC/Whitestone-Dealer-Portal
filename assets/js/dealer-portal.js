@@ -33,12 +33,12 @@ window.currentDealer = null;
 // Maps role -> set of panel names this role is permitted to access.
 // Roles not in this map (or null/undefined) fall back to showing ALL tabs (legacy behavior).
 var RBAC_VISIBLE_PANELS = {
-  principal: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "settings"],
-  org_admin: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "settings"],
-  location_manager: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "settings"],
-  sales: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "settings"],
-  service: ["dashboard", "customers", "ticket", "history", "resources", "faq", "support", "settings"],
-  accountant: ["dashboard", "customers", "history", "billing-cart", "resources", "faq", "support", "settings"]
+  principal: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "my-messages", "settings"],
+  org_admin: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "my-messages", "settings"],
+  location_manager: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "my-messages", "settings"],
+  sales: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "my-messages", "settings"],
+  service: ["dashboard", "customers", "ticket", "history", "resources", "faq", "support", "my-messages", "settings"],
+  accountant: ["dashboard", "customers", "history", "billing-cart", "resources", "faq", "support", "my-messages", "settings"]
 };
 
 function rbacCanAccessPanel(role, panelName) {
@@ -1004,6 +1004,131 @@ window.reopenThread = async function(threadId) {
   });
   await adminLoadMessages();
   window.openThread(threadId);
+};
+
+window.dealerLoadThreads = async function() {
+  var el = document.getElementById("dealer-threads-list");
+  var detail = document.getElementById("dealer-thread-detail");
+  if (detail) detail.style.display = "none";
+  if (!el) return;
+  el.innerHTML = "<div style='color:var(--light);font-size:13px;padding:1rem;'>Loading...</div>";
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/message_threads?select=*&order=last_message_at.desc",
+      { headers: authHeaders() }
+    );
+    var threads = (await res.json()) || [];
+    if (!threads.length) {
+      el.innerHTML = "<div style='color:var(--light);font-size:13px;padding:1rem;'>No conversations yet. Use the Support tab to send a message.</div>";
+      return;
+    }
+    el.innerHTML = threads.map(function(t) {
+      var safeId = String(t.id || "").replace(/'/g, "\\'");
+      var isClosed = t.status === "closed";
+      var when = t.last_message_at
+        ? new Date(t.last_message_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        : "";
+      return "<div onclick=\"window.dealerOpenThread('" + safeId + "')\" style='cursor:pointer;background:white;border:1px solid var(--border);border-radius:8px;padding:0.85rem 1.1rem;margin-bottom:0.6rem;border-left:3px solid " + (isClosed ? "var(--light)" : "var(--gold)") + ";'>" +
+        "<div style='display:flex;justify-content:space-between;'><span style='font-weight:600;color:var(--navy);font-size:14px;'>" + escHtml(t.subject || "General") + "</span><span style='font-size:11px;color:" + (isClosed ? "var(--light)" : "var(--gold)") + ";font-weight:600;'>" + (isClosed ? "CLOSED" : "OPEN") + "</span></div>" +
+        "<div style='font-size:11px;color:var(--light);margin-top:3px;'>Last activity: " + escHtml(when) + "</div>" +
+      "</div>";
+    }).join("");
+  } catch (e) {
+    console.error("dealerLoadThreads error:", e);
+    el.innerHTML = "<div style='color:var(--light);'>Could not load conversations.</div>";
+  }
+};
+
+window.dealerOpenThread = async function(threadId) {
+  var detail = document.getElementById("dealer-thread-detail");
+  if (!detail) return;
+  detail.style.display = "block";
+  detail.innerHTML = "<div style='color:var(--light);padding:1rem;'>Loading...</div>";
+  try {
+    var tRes = await fetch(
+      SUPABASE_URL + "/rest/v1/message_threads?id=eq." + encodeURIComponent(threadId) + "&select=*&limit=1",
+      { headers: authHeaders() }
+    );
+    var thread = ((await tRes.json()) || [])[0];
+    var mRes = await fetch(
+      SUPABASE_URL + "/rest/v1/thread_messages?thread_id=eq." + encodeURIComponent(threadId) + "&select=*&order=created_at.asc",
+      { headers: authHeaders() }
+    );
+    var msgs = (await mRes.json()) || [];
+    var convo = msgs.map(function(m) {
+      var mine = m.sender_type === "dealer";
+      var dt = m.created_at
+        ? new Date(m.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+        : "";
+      return "<div style='display:flex;justify-content:" + (mine ? "flex-end" : "flex-start") + ";margin-bottom:0.6rem;'>" +
+        "<div style='max-width:75%;background:" + (mine ? "var(--gold)" : "var(--silver-bg)") + ";color:" + (mine ? "var(--navy)" : "var(--mid)") + ";padding:0.6rem 0.9rem;border-radius:10px;font-size:13px;line-height:1.5;'>" + escHtml(m.body || "") +
+        "<div style='font-size:10px;opacity:0.7;margin-top:4px;'>" + escHtml(m.sender_name || (mine ? "You" : "Whitestone")) + " - " + escHtml(dt) + "</div></div></div>";
+    }).join("");
+    var isClosed = thread && thread.status === "closed";
+    var safeId = String(threadId).replace(/'/g, "\\'");
+    detail.innerHTML = "<div class='card'>" +
+      "<button type='button' onclick=\"window.dealerLoadThreads()\" style='background:none;border:none;color:var(--gold);cursor:pointer;font-family:inherit;font-size:12px;padding:0;margin-bottom:0.75rem;'>&larr; Back to conversations</button>" +
+      "<div style='font-weight:600;color:var(--navy);margin-bottom:0.5rem;'>" + escHtml(thread ? (thread.subject || "General") : "") + "</div>" +
+      "<div style='max-height:45vh;overflow-y:auto;padding:0.5rem;background:#fafafa;border-radius:8px;margin-bottom:0.75rem;'>" + (convo || "") + "</div>" +
+      (isClosed
+        ? "<div style='color:var(--light);font-size:12px;text-align:center;'>This conversation is closed. Use the Support tab to start a new one.</div>"
+        : "<div style='display:flex;gap:0.5rem;align-items:flex-end;'><textarea id='dealer-reply-box' placeholder='Type your reply...' style='flex:1;min-height:55px;padding:0.6rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;'></textarea>" +
+          "<button type='button' onclick=\"window.dealerSendReply('" + safeId + "')\" style='background:var(--gold);color:var(--navy);border:none;padding:0.6rem 1.1rem;border-radius:6px;font-weight:600;cursor:pointer;font-family:inherit;'>Send</button></div>") +
+      "</div>";
+    var scrollEl = detail.querySelector("[style*='max-height:45vh']");
+    if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+  } catch (e) {
+    console.error("dealerOpenThread error:", e);
+    detail.innerHTML = "<div style='color:var(--light);'>Could not open conversation.</div>";
+  }
+};
+
+window.dealerSendReply = async function(threadId) {
+  var box = document.getElementById("dealer-reply-box");
+  if (!box || !box.value.trim()) {
+    alert("Type a reply first.");
+    return;
+  }
+  var body = box.value.trim();
+  try {
+    var ins = await fetch(SUPABASE_URL + "/rest/v1/thread_messages", {
+      method: "POST",
+      headers: authHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({
+        thread_id: threadId,
+        dealer_id: currentDealer && currentDealer.id ? currentDealer.id : null,
+        sender_type: "dealer",
+        sender_user_id: window.currentUser ? window.currentUser.id : null,
+        sender_name: (window.currentUser && window.currentUser.full_name) ? window.currentUser.full_name : (currentDealer ? currentDealer.name : "Dealer"),
+        body: body
+      })
+    });
+    if (!ins.ok) {
+      var errTxt = await ins.text();
+      console.error("dealer reply failed:", ins.status, errTxt);
+      throw new Error(errTxt);
+    }
+    await fetch(SUPABASE_URL + "/rest/v1/message_threads?id=eq." + encodeURIComponent(threadId), {
+      method: "PATCH",
+      headers: authHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ last_message_at: new Date().toISOString(), status: "open" })
+    });
+    fetch("/api/send-email", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        to: "support@whitestone-partners.com",
+        subject: "New dealer reply: " + (currentDealer ? currentDealer.name : "Dealer"),
+        html: "<p><strong>" + escHtml(currentDealer ? currentDealer.name : "A dealer") + "</strong> replied in the portal:</p><blockquote>" + escHtml(body) + "</blockquote><p>Open admin Messages to respond.</p>"
+      })
+    }).then(function(r) {
+      if (!r.ok) console.warn("notify failed", r.status);
+    });
+    window.dealerOpenThread(threadId);
+  } catch (e) {
+    console.error("dealerSendReply error:", e);
+    alert("Could not send: " + (e && e.message ? e.message : "unknown"));
+  }
 };
 
 async function messagesUpdateStatus(id, status) {
@@ -6532,6 +6657,7 @@ document.addEventListener("DOMContentLoaded", function() {
     if (name === "history") loadTickets();
     if (name === "customers") loadCustomersTab();
     if (name === "settings") loadSettingsTab();
+    if (name === "my-messages" && typeof window.dealerLoadThreads === "function") window.dealerLoadThreads();
     if (name === "billing-cart" && typeof window.loadBillingCart === "function") window.loadBillingCart();
   }
 
@@ -9788,48 +9914,58 @@ document.addEventListener("DOMContentLoaded", function() {
       btn.textContent = "Sending...";
 
       try {
-        var res = await fetch(SUPABASE_URL + "/rest/v1/dealer_messages", {
+        var threadRes = await fetch(SUPABASE_URL + "/rest/v1/message_threads", {
           method: "POST",
-          headers: authHeaders({ Prefer: "return=minimal" }),
+          headers: authHeaders({ Prefer: "return=representation" }),
           body: JSON.stringify({
             dealer_id: currentDealer && currentDealer.id ? currentDealer.id : null,
             dealership_name: currentDealer ? currentDealer.name : "",
-            request_type: type,
-            message: message,
-            status: "new"
+            subject: type || "General",
+            status: "open",
+            created_by_user_id: window.currentUser ? window.currentUser.id : null
+          })
+        });
+        if (!threadRes.ok) {
+          var tErr = await threadRes.text();
+          console.error("thread create failed:", threadRes.status, tErr);
+          throw new Error(tErr);
+        }
+        var threadRows = await threadRes.json();
+        var newThread = Array.isArray(threadRows) ? threadRows[0] : threadRows;
+        var res = await fetch(SUPABASE_URL + "/rest/v1/thread_messages", {
+          method: "POST",
+          headers: authHeaders({ Prefer: "return=minimal" }),
+          body: JSON.stringify({
+            thread_id: newThread.id,
+            dealer_id: currentDealer && currentDealer.id ? currentDealer.id : null,
+            sender_type: "dealer",
+            sender_user_id: window.currentUser ? window.currentUser.id : null,
+            sender_name: (window.currentUser && window.currentUser.full_name) ? window.currentUser.full_name : (currentDealer ? currentDealer.name : "Dealer"),
+            body: message
           })
         });
         if (res.ok || res.status === 201) {
+          try {
+            fetch("/api/send-email", {
+              method: "POST",
+              headers: authHeaders(),
+              body: JSON.stringify({
+                to: "support@whitestone-partners.com",
+                subject: "New dealer message: " + (currentDealer ? currentDealer.name : "Dealer") + " (" + (type || "General") + ")",
+                html: "<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;'>" +
+                  "<div style='background:#0c1e2e;padding:1.5rem;text-align:center;'><h1 style='color:#b8963e;font-size:22px;margin:0;'>Whitestone Partners</h1></div>" +
+                  "<div style='padding:1.5rem;'><p><strong>" + escHtml(currentDealer ? currentDealer.name : "A dealer") + "</strong> sent a new message (" + escHtml(type || "General") + "):</p>" +
+                  "<blockquote style='border-left:3px solid #b8963e;margin:0;padding:0.5rem 1rem;color:#444;'>" + escHtml(message) + "</blockquote>" +
+                  "<p style='margin-top:1rem;'>Open the admin portal Messages tab to reply.</p></div></div>"
+              })
+            }).then(function(r) {
+              if (!r.ok) console.warn("admin notify email failed", r.status);
+            });
+          } catch (emailErr) {
+            console.warn("admin notify email error", emailErr);
+          }
           if (okEl) okEl.style.display = "block";
           if (errEl) errEl.style.display = "none";
-          var msgEmailHtml =
-            '<!DOCTYPE html><html><body style="font-family:DM Sans,sans-serif;background:#f0f4f8;margin:0;padding:2rem;">' +
-            '<div style="max-width:560px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">' +
-            '<div style="background:#0c1e2e;padding:1.5rem 2rem;border-bottom:3px solid #b8963e;">' +
-            '<div style="font-family:Georgia,serif;font-size:20px;font-weight:300;color:white;letter-spacing:0.04em;">Whitestone Partners</div>' +
-            '<div style="font-size:11px;color:#b8963e;letter-spacing:0.12em;text-transform:uppercase;margin-top:2px;">New Support Message</div>' +
-            "</div>" +
-            '<div style="padding:1.5rem 2rem;">' +
-            '<p style="font-size:15px;font-weight:600;color:#0c1e2e;margin-bottom:1.25rem;">A dealer has sent a support message.</p>' +
-            '<table style="width:100%;border-collapse:collapse;font-size:13.5px;">' +
-            '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;width:140px;">Dealer</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' +
-            escHtml(currentDealer ? currentDealer.name : "—") +
-            "</td></tr>" +
-            '<tr style="border-bottom:1px solid #eef0f3;"><td style="padding:8px 0;color:#6b8599;">Type</td><td style="padding:8px 0;font-weight:500;color:#0c1e2e;">' +
-            escHtml(type) +
-            "</td></tr>" +
-            '<tr><td style="padding:8px 0;color:#6b8599;vertical-align:top;padding-top:10px;">Message</td><td style="padding:8px 0;color:#0c1e2e;">' +
-            escHtml(message) +
-            "</td></tr>" +
-            "</table>" +
-            '<div style="margin-top:1.5rem;">' +
-            '<a href="https://whitestone-dealer-portal.vercel.app" style="display:inline-block;background:#0c1e2e;color:white;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:13px;font-weight:600;">View Messages →</a>' +
-            "</div>" +
-            "</div>" +
-            '<div style="padding:1rem 2rem;background:#f8f9fb;border-top:1px solid #eef0f3;font-size:11px;color:#9aafbf;">Whitestone Partners LLC · St. George, Utah · support@whitestone-partners.com</div>' +
-            "</div>" +
-            "</body></html>";
-          await sendResendEmail("💬 Support Message — " + (currentDealer ? currentDealer.name : ""), msgEmailHtml);
           document.getElementById("support-type").value = "";
           document.getElementById("support-message").value = "";
           if (currentDealer && currentDealer.isAdmin) adminLoadMessages();
@@ -9837,6 +9973,7 @@ document.addEventListener("DOMContentLoaded", function() {
           if (errEl) errEl.style.display = "block";
         }
       } catch (e) {
+        console.error("support submit error:", e);
         if (errEl) errEl.style.display = "block";
       }
 
