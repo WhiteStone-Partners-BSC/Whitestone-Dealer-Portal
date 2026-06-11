@@ -761,6 +761,49 @@ function toggleSettingsSection(id) {
 
 var allThreads = [];
 var currentThreadFilter = "all";
+var DEALER_THREAD_SELECT = "id,dealer_id,dealership_name,subject,status,created_at,last_message_at,last_sender_type,dealer_last_seen_at";
+
+window.dealerRefreshMsgBadge = async function() {
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/message_threads?select=last_sender_type,last_message_at,dealer_last_seen_at",
+      { headers: authHeaders() }
+    );
+    var threads = (await res.json()) || [];
+    var unread = threads.filter(function(t) {
+      return t.last_sender_type === "admin" &&
+        (!t.dealer_last_seen_at || new Date(t.last_message_at) > new Date(t.dealer_last_seen_at));
+    }).length;
+    var b = document.getElementById("dealer-msg-badge");
+    if (b) {
+      b.textContent = String(unread);
+      b.style.display = unread > 0 ? "inline-block" : "none";
+    }
+  } catch (e) {
+    /* silent */
+  }
+};
+
+window.adminRefreshMsgBadge = async function() {
+  try {
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/message_threads?select=last_sender_type,last_message_at,admin_last_seen_at",
+      { headers: authHeaders() }
+    );
+    var threads = (await res.json()) || [];
+    var unread = threads.filter(function(t) {
+      return t.last_sender_type === "dealer" &&
+        (!t.admin_last_seen_at || new Date(t.last_message_at) > new Date(t.admin_last_seen_at));
+    }).length;
+    var b = document.getElementById("messages-badge");
+    if (b) {
+      b.textContent = String(unread);
+      b.style.display = unread > 0 ? "block" : "none";
+    }
+  } catch (e) {
+    /* silent */
+  }
+};
 
 async function adminLoadMessages() {
   var listEl = document.getElementById("messages-list");
@@ -779,11 +822,7 @@ async function adminLoadMessages() {
 
   var openCount = allThreads.filter(function(t) { return t.status === "open"; }).length;
   var closedCount = allThreads.filter(function(t) { return t.status === "closed"; }).length;
-  var badge = document.getElementById("messages-badge");
-  if (badge) {
-    badge.textContent = String(openCount);
-    badge.style.display = openCount > 0 ? "block" : "none";
-  }
+  if (typeof window.adminRefreshMsgBadge === "function") window.adminRefreshMsgBadge();
 
   var elNew = document.getElementById("msg-count-new");
   var elProg = document.getElementById("msg-count-progress");
@@ -864,6 +903,15 @@ window.openThread = async function(threadId) {
       { headers: authHeaders() }
     );
     var msgs = (await res.json()) || [];
+
+    fetch(SUPABASE_URL + "/rest/v1/message_threads?id=eq." + encodeURIComponent(threadId), {
+      method: "PATCH",
+      headers: authHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ admin_last_seen_at: new Date().toISOString() })
+    }).then(function() {
+      if (thread) thread.admin_last_seen_at = new Date().toISOString();
+      if (typeof window.adminRefreshMsgBadge === "function") window.adminRefreshMsgBadge();
+    });
 
     var dealerEmail = "";
     if (thread.dealer_id) {
@@ -946,7 +994,7 @@ window.sendThreadReply = async function(threadId) {
     await fetch(SUPABASE_URL + "/rest/v1/message_threads?id=eq." + encodeURIComponent(threadId), {
       method: "PATCH",
       headers: authHeaders({ Prefer: "return=minimal" }),
-      body: JSON.stringify({ last_message_at: new Date().toISOString(), status: "open" })
+      body: JSON.stringify({ last_message_at: new Date().toISOString(), status: "open", last_sender_type: "admin" })
     });
 
     var dealerEmail = "";
@@ -1014,12 +1062,13 @@ window.dealerLoadThreads = async function() {
   el.innerHTML = "<div style='color:var(--light);font-size:13px;padding:1rem;'>Loading...</div>";
   try {
     var res = await fetch(
-      SUPABASE_URL + "/rest/v1/message_threads?select=*&order=last_message_at.desc",
+      SUPABASE_URL + "/rest/v1/message_threads?select=" + encodeURIComponent(DEALER_THREAD_SELECT) + "&order=last_message_at.desc",
       { headers: authHeaders() }
     );
     var threads = (await res.json()) || [];
     if (!threads.length) {
       el.innerHTML = "<div style='color:var(--light);font-size:13px;padding:1rem;'>No conversations yet. Use the Support tab to send a message.</div>";
+      if (typeof window.dealerRefreshMsgBadge === "function") window.dealerRefreshMsgBadge();
       return;
     }
     el.innerHTML = threads.map(function(t) {
@@ -1033,6 +1082,7 @@ window.dealerLoadThreads = async function() {
         "<div style='font-size:11px;color:var(--light);margin-top:3px;'>Last activity: " + escHtml(when) + "</div>" +
       "</div>";
     }).join("");
+    if (typeof window.dealerRefreshMsgBadge === "function") window.dealerRefreshMsgBadge();
   } catch (e) {
     console.error("dealerLoadThreads error:", e);
     el.innerHTML = "<div style='color:var(--light);'>Could not load conversations.</div>";
@@ -1046,7 +1096,7 @@ window.dealerOpenThread = async function(threadId) {
   detail.innerHTML = "<div style='color:var(--light);padding:1rem;'>Loading...</div>";
   try {
     var tRes = await fetch(
-      SUPABASE_URL + "/rest/v1/message_threads?id=eq." + encodeURIComponent(threadId) + "&select=*&limit=1",
+      SUPABASE_URL + "/rest/v1/message_threads?id=eq." + encodeURIComponent(threadId) + "&select=" + encodeURIComponent(DEALER_THREAD_SELECT) + "&limit=1",
       { headers: authHeaders() }
     );
     var thread = ((await tRes.json()) || [])[0];
@@ -1055,6 +1105,15 @@ window.dealerOpenThread = async function(threadId) {
       { headers: authHeaders() }
     );
     var msgs = (await mRes.json()) || [];
+
+    fetch(SUPABASE_URL + "/rest/v1/message_threads?id=eq." + encodeURIComponent(threadId), {
+      method: "PATCH",
+      headers: authHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ dealer_last_seen_at: new Date().toISOString() })
+    }).then(function() {
+      if (typeof window.dealerRefreshMsgBadge === "function") window.dealerRefreshMsgBadge();
+    });
+
     var convo = msgs.map(function(m) {
       var mine = m.sender_type === "dealer";
       var dt = m.created_at
@@ -1111,7 +1170,7 @@ window.dealerSendReply = async function(threadId) {
     await fetch(SUPABASE_URL + "/rest/v1/message_threads?id=eq." + encodeURIComponent(threadId), {
       method: "PATCH",
       headers: authHeaders({ Prefer: "return=minimal" }),
-      body: JSON.stringify({ last_message_at: new Date().toISOString(), status: "open" })
+      body: JSON.stringify({ last_message_at: new Date().toISOString(), status: "open", last_sender_type: "dealer" })
     });
     fetch("/api/send-email", {
       method: "POST",
@@ -1641,16 +1700,7 @@ async function adminLoadBadgeCounts() {
       dealerBadge.style.display = apps.length > 0 ? "block" : "none";
     }
 
-    var res2 = await fetch(
-      SUPABASE_URL + "/rest/v1/message_threads?status=eq.open&select=id",
-      { headers: authHeaders() }
-    );
-    var openThreads = await res2.json() || [];
-    var msgBadge = document.getElementById("messages-badge");
-    if (msgBadge) {
-      msgBadge.textContent = String(openThreads.length);
-      msgBadge.style.display = openThreads.length > 0 ? "block" : "none";
-    }
+    if (typeof window.adminRefreshMsgBadge === "function") await window.adminRefreshMsgBadge();
   } catch (e) {
     /* ignore */
   }
@@ -6052,6 +6102,7 @@ document.addEventListener("DOMContentLoaded", function() {
         applySidebarHeader();
         checkOverdueBanners();
         if (typeof checkOnboardingStatus === "function") checkOnboardingStatus();
+        if (typeof window.dealerRefreshMsgBadge === "function") window.dealerRefreshMsgBadge();
       }
     } catch (e) {
       console.error("onLoginSuccess error:", e);
@@ -6657,7 +6708,10 @@ document.addEventListener("DOMContentLoaded", function() {
     if (name === "history") loadTickets();
     if (name === "customers") loadCustomersTab();
     if (name === "settings") loadSettingsTab();
-    if (name === "my-messages" && typeof window.dealerLoadThreads === "function") window.dealerLoadThreads();
+    if (name === "my-messages") {
+      if (typeof window.dealerLoadThreads === "function") window.dealerLoadThreads();
+      if (typeof window.dealerRefreshMsgBadge === "function") window.dealerRefreshMsgBadge();
+    }
     if (name === "billing-cart" && typeof window.loadBillingCart === "function") window.loadBillingCart();
   }
 
@@ -9922,6 +9976,7 @@ document.addEventListener("DOMContentLoaded", function() {
             dealership_name: currentDealer ? currentDealer.name : "",
             subject: type || "General",
             status: "open",
+            last_sender_type: "dealer",
             created_by_user_id: window.currentUser ? window.currentUser.id : null
           })
         });

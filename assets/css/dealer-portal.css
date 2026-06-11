@@ -488,7 +488,8 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .dealer-sidebar-logo{padding:0 1.25rem 1.5rem;border-bottom:1px solid rgba(143,165,184,0.08);margin-bottom:0.75rem;}
 .dealer-sidebar-logo .dealer-name{font-size:13px;font-weight:600;color:var(--white);margin-bottom:2px;}
 .dealer-sidebar-logo .dealer-tier{font-size:11px;color:var(--gold);letter-spacing:0.06em;text-transform:uppercase;}
-.sidebar-nav-item{display:block;padding:11px 1.25rem;font-size:13.5px;font-weight:400;color:rgba(200,220,235,0.6);cursor:pointer;transition:all 0.15s;border-left:3px solid transparent;text-decoration:none;background:none;border-top:none;border-right:none;border-bottom:none;width:100%;text-align:left;font-family:"DM Sans",sans-serif;}
+.sidebar-nav-item{display:block;padding:11px 1.25rem;font-size:13.5px;font-weight:400;color:rgba(200,220,235,0.6);cursor:pointer;transition:all 0.15s;border-left:3px solid transparent;text-decoration:none;background:none;border-top:none;border-right:none;border-bottom:none;width:100%;text-align:left;font-family:"DM Sans",sans-serif;position:relative;}
+.sidebar-nav-badge{position:absolute;right:1rem;top:50%;transform:translateY(-50%);background:var(--red);color:white;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;min-width:16px;text-align:center;}
 .sidebar-nav-item:hover{color:var(--white);background:rgba(255,255,255,0.04);}
 .sidebar-nav-item.active{color:var(--white);background:rgba(255,255,255,0.06);border-left-color:var(--gold);font-weight:500;}
 .sidebar-section-label{font-size:9.5px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:rgba(143,165,184,0.3);padding:1rem 1.25rem 0.4rem;}
