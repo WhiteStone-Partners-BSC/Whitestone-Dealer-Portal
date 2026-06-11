@@ -154,6 +154,32 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .fg label{display:block;font-size:10px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:var(--mid);margin-bottom:5px;}
 .fg input,.fg select,.fg textarea{width:100%;padding:10px 13px;border:1px solid var(--border);border-radius:4px;font-size:13.5px;font-family:"DM Sans",sans-serif;color:var(--text);background:var(--white);outline:none;transition:border-color 0.2s;}
 .fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--blue);}
+/* Native date inputs — larger tap target + navy/gold brand (popup calendar stays browser-native) */
+input[type="date"]{
+  font-size:15px;
+  padding:10px 12px;
+  border:2px solid var(--navy);
+  border-radius:8px;
+  color:var(--navy);
+  background:var(--white);
+  min-height:44px;
+  box-sizing:border-box;
+  font-family:"DM Sans",sans-serif;
+  transition:border-color 0.2s,box-shadow 0.2s;
+}
+input[type="date"]:focus{
+  outline:none;
+  border-color:var(--gold);
+  box-shadow:0 0 0 3px rgba(184,150,62,0.15);
+}
+input[type="date"]::-webkit-calendar-picker-indicator{
+  cursor:pointer;
+  opacity:0.85;
+  filter:invert(12%) sepia(28%) saturate(1200%) hue-rotate(175deg) brightness(0.35);
+  transform:scale(1.35);
+  margin-left:4px;
+}
+input[type="date"]::-webkit-datetime-edit-fields-wrapper{padding:0;}
 .fg textarea{resize:vertical;min-height:85px;}
 .fdiv{border:none;border-top:1px solid var(--border);margin:1.5rem 0;}
 .slbl{font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--mid);font-weight:500;margin-bottom:10px;}
