@@ -1409,27 +1409,26 @@
     <div id="admin-panel-messages" class="admin-panel" style="display:none;">
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;">
         <div class="stat-card">
-          <div class="stat-label">New</div>
-          <div class="stat-num" id="msg-count-new" style="color:var(--red-text);">—</div>
-          <div class="stat-sub">Awaiting response</div>
+          <div class="stat-label">Open</div>
+          <div class="stat-num" id="msg-count-new" style="color:var(--gold);">—</div>
+          <div class="stat-sub">Active conversations</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">In Progress</div>
-          <div class="stat-num" id="msg-count-progress" style="color:var(--gold);">—</div>
-          <div class="stat-sub">Being handled</div>
+          <div class="stat-label">Total</div>
+          <div class="stat-num" id="msg-count-progress" style="color:var(--navy);">—</div>
+          <div class="stat-sub">All threads</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Resolved</div>
-          <div class="stat-num" id="msg-count-resolved" style="color:var(--green-text);">—</div>
-          <div class="stat-sub">All time</div>
+          <div class="stat-label">Closed</div>
+          <div class="stat-num" id="msg-count-resolved" style="color:var(--light);">—</div>
+          <div class="stat-sub">Archived</div>
         </div>
       </div>
 
       <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;">
-        <button onclick="messagesFilter('all')" id="filter-all" class="btn-sm" style="background:var(--navy);color:white;">All</button>
-        <button onclick="messagesFilter('new')" id="filter-new" class="btn-sm">New</button>
-        <button onclick="messagesFilter('in_progress')" id="filter-progress" class="btn-sm">In Progress</button>
-        <button onclick="messagesFilter('resolved')" id="filter-resolved" class="btn-sm">Resolved</button>
+        <button type="button" onclick="messagesFilter('all')" id="filter-all" class="btn-sm" style="background:var(--navy);color:white;">All</button>
+        <button type="button" onclick="messagesFilter('open')" id="filter-open" class="btn-sm">Open</button>
+        <button type="button" onclick="messagesFilter('closed')" id="filter-closed" class="btn-sm">Closed</button>
       </div>
 
       <div id="messages-list"></div>
@@ -2137,6 +2136,14 @@
       <button type="button" id="tdp-approve-btn" class="tdp-btn-approve">Approve Ticket</button>
       <button type="button" id="tdp-reject-btn" class="tdp-btn-reject">Reject Ticket</button>
     </div>
+  </div>
+</div>
+
+<!-- Thread conversation modal (admin messages) -->
+<div id="thread-modal-overlay" onclick="if(event.target===this)window.closeThreadModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:400;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:white;border-radius:12px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;padding:1.5rem;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
+    <button type="button" onclick="window.closeThreadModal()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;font-size:22px;line-height:1;color:var(--light);cursor:pointer;padding:0;">&times;</button>
+    <div id="thread-modal-body"></div>
   </div>
 </div>
 

@@ -759,107 +759,252 @@ function toggleSettingsSection(id) {
   if (arrow) arrow.textContent = isOpen ? "▶" : "▼";
 }
 
-var allMessages = [];
-var currentFilter = "all";
+var allThreads = [];
+var currentThreadFilter = "all";
 
 async function adminLoadMessages() {
   var listEl = document.getElementById("messages-list");
   if (listEl) {
-    listEl.innerHTML = "<div style='text-align:center;padding:2rem;color:var(--light);font-size:13px;'>Loading messages...</div>";
+    listEl.innerHTML = "<div style='text-align:center;padding:2rem;color:var(--light);font-size:13px;'>Loading conversations...</div>";
   }
   try {
     var res = await fetch(
-      SUPABASE_URL + "/rest/v1/dealer_messages?select=*&order=created_at.desc",
+      SUPABASE_URL + "/rest/v1/message_threads?select=*&order=last_message_at.desc",
       { headers: authHeaders() }
     );
-    allMessages = (await res.json()) || [];
+    allThreads = (await res.json()) || [];
   } catch (e) {
-    allMessages = [];
+    allThreads = [];
   }
 
-  var newCount = allMessages.filter(function(m) { return m.status === "new"; }).length;
+  var openCount = allThreads.filter(function(t) { return t.status === "open"; }).length;
+  var closedCount = allThreads.filter(function(t) { return t.status === "closed"; }).length;
   var badge = document.getElementById("messages-badge");
   if (badge) {
-    badge.textContent = String(newCount);
-    badge.style.display = newCount > 0 ? "block" : "none";
+    badge.textContent = String(openCount);
+    badge.style.display = openCount > 0 ? "block" : "none";
   }
 
-  var inProg = allMessages.filter(function(m) { return m.status === "in_progress"; }).length;
-  var resolved = allMessages.filter(function(m) { return m.status === "resolved"; }).length;
   var elNew = document.getElementById("msg-count-new");
   var elProg = document.getElementById("msg-count-progress");
   var elRes = document.getElementById("msg-count-resolved");
-  if (elNew) elNew.textContent = String(newCount);
-  if (elProg) elProg.textContent = String(inProg);
-  if (elRes) elRes.textContent = String(resolved);
+  if (elNew) elNew.textContent = String(openCount);
+  if (elProg) elProg.textContent = String(allThreads.length);
+  if (elRes) elRes.textContent = String(closedCount);
 
-  messagesRender();
+  threadsRender();
 }
+window.adminLoadMessages = adminLoadMessages;
 
 function messagesFilter(filter) {
-  currentFilter = filter;
-  ["all", "new", "progress", "resolved"].forEach(function(f) {
-    var btn = document.getElementById("filter-" + f);
-    if (btn) {
-      btn.style.background = "";
-      btn.style.color = "";
+  currentThreadFilter = filter;
+  ["all", "open", "closed"].forEach(function(f) {
+    var b = document.getElementById("filter-" + f);
+    if (b) {
+      b.style.background = f === filter ? "var(--navy)" : "";
+      b.style.color = f === filter ? "white" : "";
     }
   });
-  var active = document.getElementById("filter-" + (filter === "in_progress" ? "progress" : filter));
-  if (active) {
-    active.style.background = "var(--navy)";
-    active.style.color = "white";
-  }
-  messagesRender();
+  threadsRender();
 }
+window.messagesFilter = messagesFilter;
 
-function messageStatusMeta(status) {
-  if (status === "new") return { color: "var(--red-text)", bg: "rgba(192,57,43,0.1)", label: "New" };
-  if (status === "in_progress") return { color: "var(--gold)", bg: "rgba(184,150,62,0.12)", label: "In Progress" };
-  if (status === "resolved") return { color: "var(--green-text)", bg: "rgba(27,94,32,0.1)", label: "Resolved" };
-  return { color: "var(--light)", bg: "rgba(143,165,184,0.16)", label: String(status || "Unknown") };
-}
-
-function messagesRender() {
-  var filtered = currentFilter === "all"
-    ? allMessages
-    : allMessages.filter(function(m) { return m.status === currentFilter; });
-
+function threadsRender() {
   var el = document.getElementById("messages-list");
   if (!el) return;
-  if (!filtered || filtered.length === 0) {
-    el.innerHTML = "<div style='text-align:center;padding:2rem;color:var(--light);font-size:13px;'>No messages found.</div>";
+  var list = currentThreadFilter === "all"
+    ? allThreads
+    : allThreads.filter(function(t) { return t.status === currentThreadFilter; });
+  if (!list.length) {
+    el.innerHTML = "<div style='text-align:center;padding:2rem;color:var(--light);font-size:13px;'>No conversations found.</div>";
     return;
   }
-
-  el.innerHTML = filtered.map(function(m) {
-    var meta = messageStatusMeta(m.status);
-    var dt = m.created_at ? new Date(m.created_at) : new Date();
-    var date = dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
-    var safeId = String(m.id || "").replace(/'/g, "\\'");
-    return "<div style='background:white;border:1px solid var(--border);border-radius:10px;padding:1.25rem 1.5rem;margin-bottom:0.85rem;border-left:3px solid " + meta.color + ";'>" +
-      "<div style='display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;'>" +
-        "<div>" +
-          "<div style='font-size:15px;font-weight:600;color:var(--navy);'>" + escHtml(m.dealership_name || "Unknown") + "</div>" +
-          "<div style='font-size:12px;color:var(--light);margin-top:2px;'>" + escHtml(m.request_type || "General") + " · " + escHtml(date) + "</div>" +
-        "</div>" +
-        "<span style='font-size:11px;font-weight:600;color:" + meta.color + ";background:" + meta.bg + ";padding:3px 12px;border-radius:20px;border:1px solid " + meta.color + ";'>" + escHtml(meta.label) + "</span>" +
+  el.innerHTML = list.map(function(t) {
+    var dt = t.last_message_at ? new Date(t.last_message_at) : new Date();
+    var when = dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    var isClosed = t.status === "closed";
+    var safeId = String(t.id || "").replace(/'/g, "\\'");
+    return "<div onclick=\"window.openThread('" + safeId + "')\" style='cursor:pointer;background:white;border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;margin-bottom:0.75rem;border-left:3px solid " + (isClosed ? "var(--light)" : "var(--gold)") + ";'>" +
+      "<div style='display:flex;justify-content:space-between;align-items:center;gap:0.5rem;'>" +
+        "<div style='font-size:15px;font-weight:600;color:var(--navy);'>" + escHtml(t.dealership_name || "Unknown") + "</div>" +
+        "<span style='font-size:11px;font-weight:600;color:" + (isClosed ? "var(--light)" : "var(--gold)") + ";'>" + (isClosed ? "CLOSED" : "OPEN") + "</span>" +
       "</div>" +
-      "<div style='font-size:13.5px;color:var(--mid);line-height:1.7;margin-bottom:1rem;padding:0.75rem 1rem;background:var(--silver-bg);border-radius:6px;'>" +
-        escHtml(m.message || "") +
-      "</div>" +
-      "<div style='display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;'>" +
-        "<select onchange=\"messagesUpdateStatus('" + safeId + "', this.value)\" style='padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12.5px;font-family:inherit;color:var(--navy);'>" +
-          "<option value='new'" + (m.status === "new" ? " selected" : "") + ">New</option>" +
-          "<option value='in_progress'" + (m.status === "in_progress" ? " selected" : "") + ">In Progress</option>" +
-          "<option value='resolved'" + (m.status === "resolved" ? " selected" : "") + ">Resolved</option>" +
-        "</select>" +
-        "<input type='text' placeholder='Add a note (optional)...' id='note-" + safeId + "' value=\"" + escHtml(m.admin_notes || "") + "\" style='flex:1;min-width:180px;padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12.5px;font-family:inherit;'>" +
-        "<button onclick=\"messagesSaveNote('" + safeId + "')\" style='background:var(--navy);color:white;border:none;padding:6px 16px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;'>Save Note</button>" +
-      "</div>" +
+      "<div style='font-size:12.5px;color:var(--mid);margin-top:3px;'>" + escHtml(t.subject || "General") + "</div>" +
+      "<div style='font-size:11px;color:var(--light);margin-top:3px;'>Last activity: " + escHtml(when) + "</div>" +
     "</div>";
   }).join("");
 }
+window.threadsRender = threadsRender;
+
+function showThreadModal(html) {
+  var overlay = document.getElementById("thread-modal-overlay");
+  var body = document.getElementById("thread-modal-body");
+  if (!overlay || !body) return;
+  body.innerHTML = html;
+  overlay.style.display = "flex";
+  document.body.style.overflow = "hidden";
+  var convo = body.querySelector(".thread-convo-scroll");
+  if (convo) convo.scrollTop = convo.scrollHeight;
+}
+window.showThreadModal = showThreadModal;
+
+window.closeThreadModal = function() {
+  var overlay = document.getElementById("thread-modal-overlay");
+  if (overlay) overlay.style.display = "none";
+  document.body.style.overflow = "";
+};
+
+window.openThread = async function(threadId) {
+  try {
+    var thread = allThreads.find(function(t) { return t.id === threadId; });
+    if (!thread) return;
+
+    var res = await fetch(
+      SUPABASE_URL + "/rest/v1/thread_messages?thread_id=eq." + encodeURIComponent(threadId) + "&select=*&order=created_at.asc",
+      { headers: authHeaders() }
+    );
+    var msgs = (await res.json()) || [];
+
+    var dealerEmail = "";
+    if (thread.dealer_id) {
+      var dRes = await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(thread.dealer_id) + "&select=email,dealership_name&limit=1",
+        { headers: authHeaders() }
+      );
+      var dRows = await dRes.json();
+      if (dRows && dRows[0]) dealerEmail = dRows[0].email || "";
+    }
+
+    var convo = msgs.map(function(m) {
+      var mine = m.sender_type === "admin";
+      var dt = m.created_at
+        ? new Date(m.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+        : "";
+      return "<div style='display:flex;justify-content:" + (mine ? "flex-end" : "flex-start") + ";margin-bottom:0.6rem;'>" +
+        "<div style='max-width:75%;background:" + (mine ? "var(--navy)" : "var(--silver-bg)") + ";color:" + (mine ? "white" : "var(--mid)") + ";padding:0.6rem 0.9rem;border-radius:10px;font-size:13px;line-height:1.5;'>" +
+          escHtml(m.body || "") +
+          "<div style='font-size:10px;opacity:0.7;margin-top:4px;'>" + escHtml(m.sender_name || (mine ? "Whitestone" : "Dealer")) + " · " + escHtml(dt) + "</div>" +
+        "</div></div>";
+    }).join("");
+
+    var isClosed = thread.status === "closed";
+    var safeId = String(threadId).replace(/'/g, "\\'");
+    var emailLine = dealerEmail
+      ? " · <a href='mailto:" + escHtml(dealerEmail) + "' style='color:var(--gold);'>" + escHtml(dealerEmail) + "</a>"
+      : "";
+    var html =
+      "<div style='margin-bottom:0.75rem;'>" +
+        "<div style='font-size:16px;font-weight:600;color:var(--navy);'>" + escHtml(thread.dealership_name || "Unknown") + "</div>" +
+        "<div style='font-size:12px;color:var(--light);'>" + escHtml(thread.subject || "General") + emailLine + "</div>" +
+      "</div>" +
+      "<div class='thread-convo-scroll' style='max-height:50vh;overflow-y:auto;padding:0.5rem;background:#fafafa;border-radius:8px;margin-bottom:0.75rem;'>" +
+        (convo || "<div style='color:var(--light);font-size:13px;text-align:center;padding:1rem;'>No messages.</div>") +
+      "</div>" +
+      (isClosed
+        ? "<div style='text-align:center;color:var(--light);font-size:12px;padding:0.5rem;'>This conversation is closed. <button type='button' onclick=\"window.reopenThread('" + safeId + "')\" style='background:none;border:none;color:var(--gold);cursor:pointer;font-family:inherit;font-size:12px;'>Reopen</button></div>"
+        : "<div style='display:flex;gap:0.5rem;align-items:flex-end;'>" +
+            "<textarea id='thread-reply-box' placeholder='Type your reply...' style='flex:1;min-height:60px;padding:0.6rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;resize:vertical;'></textarea>" +
+            "<button type='button' onclick=\"window.sendThreadReply('" + safeId + "')\" style='background:var(--gold);color:var(--navy);border:none;padding:0.6rem 1.1rem;border-radius:6px;font-weight:600;cursor:pointer;font-family:inherit;'>Send Reply</button>" +
+          "</div>" +
+          "<div style='text-align:right;margin-top:0.5rem;'><button type='button' onclick=\"window.closeThreadConvo('" + safeId + "')\" style='background:none;border:1px solid var(--border);color:var(--mid);padding:0.4rem 0.9rem;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;'>Close Conversation</button></div>"
+      );
+
+    showThreadModal(html);
+  } catch (e) {
+    console.error("openThread error:", e);
+    alert("Could not open conversation.");
+  }
+};
+
+window.sendThreadReply = async function(threadId) {
+  var box = document.getElementById("thread-reply-box");
+  if (!box || !box.value.trim()) {
+    alert("Type a reply first.");
+    return;
+  }
+  var body = box.value.trim();
+  var thread = allThreads.find(function(t) { return t.id === threadId; });
+  try {
+    var ins = await fetch(SUPABASE_URL + "/rest/v1/thread_messages", {
+      method: "POST",
+      headers: authHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({
+        thread_id: threadId,
+        dealer_id: thread ? thread.dealer_id : null,
+        sender_type: "admin",
+        sender_user_id: window.currentUser ? window.currentUser.id : null,
+        sender_name: window.currentUser ? (window.currentUser.full_name || "Whitestone") : "Whitestone",
+        body: body
+      })
+    });
+    if (!ins.ok) {
+      var errTxt = await ins.text();
+      console.error("reply insert failed:", ins.status, errTxt);
+      throw new Error(errTxt);
+    }
+
+    await fetch(SUPABASE_URL + "/rest/v1/message_threads?id=eq." + encodeURIComponent(threadId), {
+      method: "PATCH",
+      headers: authHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ last_message_at: new Date().toISOString(), status: "open" })
+    });
+
+    var dealerEmail = "";
+    if (thread && thread.dealer_id) {
+      var dRes = await fetch(
+        SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(thread.dealer_id) + "&select=email&limit=1",
+        { headers: authHeaders() }
+      );
+      var dRows = await dRes.json();
+      if (dRows && dRows[0]) dealerEmail = dRows[0].email || "";
+    }
+    if (dealerEmail) {
+      var portalUrl = "https://whitestone-dealer-portal.vercel.app";
+      var subject = "New reply from Whitestone Partners";
+      var notifyHtml =
+        "<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;'>" +
+        "<div style='background:#0c1e2e;padding:1.5rem;text-align:center;'><h1 style='color:#b8963e;font-size:22px;margin:0;'>Whitestone Partners</h1></div>" +
+        "<div style='padding:1.5rem;'><p>You have a new reply to your message in the dealer portal.</p>" +
+        "<p>Log in to view and respond:</p>" +
+        "<a href='" + portalUrl + "' style='display:inline-block;background:#b8963e;color:#0c1e2e;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:700;'>Open Portal</a></div>" +
+        "<div style='padding:1rem;background:#f5f5f5;text-align:center;font-size:12px;color:#666;'>Whitestone Partners LLC · support@whitestone-partners.com</div></div>";
+      fetch("/api/send-email", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ to: dealerEmail, subject: subject, html: notifyHtml })
+      }).then(function(r) {
+        if (!r.ok) console.warn("notify email failed", r.status);
+      });
+    }
+
+    await adminLoadMessages();
+    window.openThread(threadId);
+  } catch (e) {
+    console.error("sendThreadReply error:", e);
+    alert("Could not send reply: " + (e && e.message ? e.message : "unknown"));
+  }
+};
+
+window.closeThreadConvo = async function(threadId) {
+  if (!confirm("Close this conversation?")) return;
+  await fetch(SUPABASE_URL + "/rest/v1/message_threads?id=eq." + encodeURIComponent(threadId), {
+    method: "PATCH",
+    headers: authHeaders({ Prefer: "return=minimal" }),
+    body: JSON.stringify({ status: "closed" })
+  });
+  await adminLoadMessages();
+  window.openThread(threadId);
+};
+
+window.reopenThread = async function(threadId) {
+  await fetch(SUPABASE_URL + "/rest/v1/message_threads?id=eq." + encodeURIComponent(threadId), {
+    method: "PATCH",
+    headers: authHeaders({ Prefer: "return=minimal" }),
+    body: JSON.stringify({ status: "open" })
+  });
+  await adminLoadMessages();
+  window.openThread(threadId);
+};
 
 async function messagesUpdateStatus(id, status) {
   await fetch(SUPABASE_URL + "/rest/v1/dealer_messages?id=eq." + encodeURIComponent(id), {
@@ -1372,14 +1517,14 @@ async function adminLoadBadgeCounts() {
     }
 
     var res2 = await fetch(
-      SUPABASE_URL + "/rest/v1/dealer_messages?status=eq.new&select=id",
+      SUPABASE_URL + "/rest/v1/message_threads?status=eq.open&select=id",
       { headers: authHeaders() }
     );
-    var msgs = await res2.json() || [];
+    var openThreads = await res2.json() || [];
     var msgBadge = document.getElementById("messages-badge");
     if (msgBadge) {
-      msgBadge.textContent = msgs.length;
-      msgBadge.style.display = msgs.length > 0 ? "block" : "none";
+      msgBadge.textContent = String(openThreads.length);
+      msgBadge.style.display = openThreads.length > 0 ? "block" : "none";
     }
   } catch (e) {
     /* ignore */
