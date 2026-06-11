@@ -7029,16 +7029,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
   document.getElementById("qa-ticket").addEventListener("click", function() { window.switchTab("ticket"); });
   document.getElementById("qa-enroll").addEventListener("click", function() { window.switchTab("enroll"); });
-  var qaPricing = document.getElementById("qa-pricing");
-  if (qaPricing) {
-    qaPricing.addEventListener("click", function() {
-      var rateCard = document.getElementById("dealer-rate-card");
-      if (rateCard) {
-        rateCard.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    });
-  }
-
   function prefillEnrollFromContract(c) {
     if (!c) return;
     document.getElementById("e-fname").value = c.customer_first_name || "";
@@ -8579,7 +8569,6 @@ document.addEventListener("DOMContentLoaded", function() {
     var ticketNum = "WSP-" + new Date().getFullYear() + "-" + Math.floor(1000 + Math.random() * 9000);
     var ticketBody = {
       ticket_number: ticketNum,
-      technician: document.getElementById("t-tech").value,
       customer_first_name: fname,
       customer_last_name: lname,
       customer_email: document.getElementById("t-email").value,

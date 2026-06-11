@@ -407,8 +407,6 @@
         </div>
       </div>
 
-      <div id="dealer-rate-card"></div>
-
       <div class="card renewals-card">
         <div class="card-title" style="margin-bottom:0.5rem;">Renewals due soon</div>
         <div class="card-sub" style="margin-bottom:1rem;">Annual contracts ending soon. Showing renewals in the next 90 days (by contract end date).</div>
@@ -458,9 +456,6 @@
           <div class="tb">V-Drive Service</div>
           <div class="tb">Ballast Cartridge Service</div>
         </div>
-        <hr class="fdiv">
-        <p class="slbl">Technician</p>
-        <div class="fg"><label>Technician Name</label><input type="text" id="t-tech" placeholder="Tech performing service"></div>
         <hr class="fdiv">
         <p class="slbl">Customer Information</p>
         <div class="fr">
@@ -953,12 +948,6 @@
             <span style="font-size:11px;color:var(--light);background:var(--border);padding:3px 10px;border-radius:20px;white-space:nowrap;">Coming soon</span>
           </div>
         </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Dealer Rate Card</div>
-        <div class="card-sub">Current covered services and reimbursement framework.</div>
-        <button class="dl-btn" id="resources-rate-dl-btn" style="margin-top:1rem;">Download Dealer Rate Sheet</button>
       </div>
     </div>
 
@@ -3497,21 +3486,6 @@ window.addEventListener("load", function() {
     return row;
   }
 
-  window.dealerLoadRateCard = async function() {
-    if (!currentDealer || !currentDealer.id) return;
-    var cardEl = document.getElementById("dealer-rate-card");
-    if (!cardEl) return;
-    var prices = [
-      { label: "1-Year", price: 2495 },
-      { label: "2-Year", price: 4495 },
-      { label: "3-Year", price: 6495 }
-    ];
-    cardEl.innerHTML = '<div style="background:var(--navy2);border-radius:10px;padding:1.25rem 1.5rem;margin-top:1rem;"><div style="font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:1rem;">Your Contract Pricing</div><div style="font-size:12px;color:rgba(200,220,235,0.6);margin-bottom:1rem;">Uniform wholesale — you set your own retail prices at enrollment.</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;">' +
-      prices.map(function(p) {
-        return '<div style="text-align:center;background:rgba(255,255,255,0.05);border-radius:6px;padding:0.85rem;"><div style="font-size:10px;color:rgba(200,220,235,0.5);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">' + p.label + '</div><div style="font-family:\'Cormorant Garamond\',serif;font-size:24px;font-weight:300;color:var(--gold);">$' + Number(p.price).toLocaleString() + '</div></div>';
-      }).join("") + "</div></div>";
-  };
-
   window.loadDealerPricingForEnrollment = async function() {
     if (!currentDealer || !currentDealer.id) return;
     var todayIsoInit = new Date().toISOString().split("T")[0];
@@ -5060,7 +5034,6 @@ window.addEventListener("load", function() {
   var originalSwitchTab = window.switchTab;
   window.switchTab = function(name) {
     originalSwitchTab(name);
-    if (name === "dashboard") dealerLoadRateCard();
     if (name === "enroll") loadDealerPricingForEnrollment();
     if (name === "billing-cart") loadBillingCart();
     if (name === "settings" && typeof loadPaymentMethodsSection === "function") loadPaymentMethodsSection();
@@ -5071,7 +5044,6 @@ window.addEventListener("load", function() {
     window.onLoginSuccess = function() {
       originalOnLoginSuccess();
       if (currentDealer && !currentDealer.isAdmin) {
-        dealerLoadRateCard();
         loadDealerPricingForEnrollment();
         checkDealerPaymentMethod();
         refreshBillingCartBadge();
@@ -5253,7 +5225,6 @@ window.addEventListener("load", function() {
   });
 
   if (typeof currentDealer !== "undefined" && currentDealer && !currentDealer.isAdmin) {
-    dealerLoadRateCard();
     loadDealerPricingForEnrollment();
     checkDealerPaymentMethod();
   }
