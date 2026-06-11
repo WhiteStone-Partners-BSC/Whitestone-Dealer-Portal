@@ -6189,13 +6189,15 @@ document.addEventListener("DOMContentLoaded", function() {
     var reimbs = [];
     var logs = [];
     var pendingApps = [];
+    var threads = [];
     try {
       var responses = await Promise.all([
         fetch(SUPABASE_URL + "/rest/v1/contracts?select=id,status,end_date,retail_price,wholesale_price,contract_type,dealership_name,created_at,paid_at,payment_method", { headers: hdr }),
         fetch(SUPABASE_URL + "/rest/v1/tickets?status=eq.pending&select=id", { headers: hdr }),
         fetch(SUPABASE_URL + "/rest/v1/reimbursements?select=id,amount,status,created_at", { headers: hdr }),
         fetch(SUPABASE_URL + "/rest/v1/audit_log?select=*&order=created_at.desc&limit=5", { headers: hdr }),
-        fetch(SUPABASE_URL + "/rest/v1/dealer_applications?status=eq.pending&select=id,dealership_name,created_at", { headers: hdr })
+        fetch(SUPABASE_URL + "/rest/v1/dealer_applications?status=eq.pending&select=id,dealership_name,created_at", { headers: hdr }),
+        fetch(SUPABASE_URL + "/rest/v1/message_threads?select=last_sender_type,last_message_at,admin_last_seen_at", { headers: hdr })
       ]);
       for (var ri = 0; ri < responses.length; ri++) {
         var res = responses[ri];
@@ -6210,7 +6212,8 @@ document.addEventListener("DOMContentLoaded", function() {
         else if (ri === 1) pendingTix = rows;
         else if (ri === 2) reimbs = rows;
         else if (ri === 3) logs = rows;
-        else pendingApps = rows;
+        else if (ri === 4) pendingApps = rows;
+        else threads = rows;
       }
     } catch (e) {
       console.error("adminLoadDashboard", e);
@@ -6257,7 +6260,21 @@ document.addEventListener("DOMContentLoaded", function() {
     if (elPT) elPT.style.color = pendingTix.length > 0 ? "var(--red)" : "var(--green-text)";
     if (elEx) elEx.style.color = expiring.length > 0 ? "var(--red)" : "var(--green-text)";
 
+    var unreadThreads = (threads || []).filter(function(t) {
+      return t.last_sender_type === "dealer" &&
+        (!t.admin_last_seen_at || new Date(t.last_message_at) > new Date(t.admin_last_seen_at));
+    });
+
     var actionItems = [];
+    if (unreadThreads.length > 0) {
+      actionItems.push({
+        color: "var(--gold)",
+        icon: "\uD83D\uDCAC",
+        text: unreadThreads.length + " new dealer message" + (unreadThreads.length !== 1 ? "s" : "") + " awaiting reply",
+        action: "Open",
+        panel: "messages"
+      });
+    }
     if (pendingTix.length > 0) {
       actionItems.push({
         color: "var(--amber)",
@@ -6291,7 +6308,7 @@ document.addEventListener("DOMContentLoaded", function() {
     });
     if (outstanding.length > 0) {
       var outTotal = outstanding.reduce(function(a, r) {
-        return a + (Number(r.amount) || 150);
+        return a + (Number(r.amount) || 0);
       }, 0);
       actionItems.push({
         color: "var(--amber)",
