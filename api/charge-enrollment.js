@@ -115,6 +115,26 @@ export default async function handler(req, res) {
     // For ACH, must explicitly include us_bank_account in payment_method_types.
     if (pmType === 'us_bank_account') {
       params.append('payment_method_types[]', 'us_bank_account');
+      params.append('payment_method_options[us_bank_account][verification_method]', 'instant');
+
+      // NACHA requires mandate acceptance for ACH debits. Capture dealer online acceptance from request.
+      var forwardedFor = req.headers['x-forwarded-for'] || req.headers['X-Forwarded-For'] || '';
+      var clientIp = (Array.isArray(forwardedFor) ? forwardedFor[0] : String(forwardedFor)).split(',')[0].trim();
+      if (!clientIp) {
+        clientIp = (req.headers['x-real-ip'] || req.headers['X-Real-Ip'] || '').trim();
+      }
+      if (!clientIp) {
+        return res.status(400).json({ error: 'Could not determine client IP for ACH mandate acceptance' });
+      }
+      var userAgent = req.headers['user-agent'] || req.headers['User-Agent'] || '';
+      if (!userAgent) {
+        return res.status(400).json({ error: 'Missing User-Agent header for ACH mandate acceptance' });
+      }
+      var acceptedAt = Math.floor(Date.now() / 1000).toString();
+      params.append('mandate_data[customer_acceptance][type]', 'online');
+      params.append('mandate_data[customer_acceptance][accepted_at]', acceptedAt);
+      params.append('mandate_data[customer_acceptance][online][ip_address]', clientIp);
+      params.append('mandate_data[customer_acceptance][online][user_agent]', userAgent);
     }
 
     var piRes = await fetch('https://api.stripe.com/v1/payment_intents', {
