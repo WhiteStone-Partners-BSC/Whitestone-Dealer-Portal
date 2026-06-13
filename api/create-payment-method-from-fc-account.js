@@ -33,7 +33,7 @@ export default async function handler(req, res) {
   var callerDealer;
   try {
     var dealerRes = await fetch(
-      supabaseUrl + '/rest/v1/dealers?auth_id=eq.' + encodeURIComponent(authUid) + '&select=id,is_admin,active,stripe_customer_id',
+      supabaseUrl + '/rest/v1/dealers?auth_id=eq.' + encodeURIComponent(authUid) + '&select=id,is_admin,active,stripe_customer_id,dealership_name,email',
       { headers: { apikey: supabaseServiceKey, Authorization: 'Bearer ' + supabaseServiceKey } }
     );
     var dealerRows = await dealerRes.json();
@@ -61,6 +61,10 @@ export default async function handler(req, res) {
     var pmParams = new URLSearchParams();
     pmParams.append('type', 'us_bank_account');
     pmParams.append('us_bank_account[financial_connections_account]', financialConnectionsAccountId);
+    pmParams.append('billing_details[name]', callerDealer.dealership_name || 'Whitestone Dealer');
+    if (callerDealer.email) {
+      pmParams.append('billing_details[email]', callerDealer.email);
+    }
 
     var pmRes = await fetch('https://api.stripe.com/v1/payment_methods', {
       method: 'POST',
