@@ -4641,31 +4641,38 @@ window.addEventListener("load", function() {
 
       // collectFinancialConnectionsAccounts returns:
       // { financialConnectionsSession: { accounts: [...] } }
-      // Each account row has its own id; Stripe creates a us_bank_account PaymentMethod for each.
-      // We grab the PaymentMethod id from the first linked account.
+      // Each account has an id (fca_...). A chargeable PaymentMethod must be created separately.
       var accounts = (result.financialConnectionsSession && result.financialConnectionsSession.accounts) || [];
       if (accounts.length === 0) {
         alert("No bank account was linked. The popup may have been closed before completing.");
         return;
       }
 
-      // The PaymentMethod field is on each account object as `account.payment_method` (object or string id).
+      // The FC account carries an id (fca_...), NOT a payment_method. Create a PaymentMethod from it.
       var firstAccount = accounts[0];
-      var linkedPaymentMethodId = null;
-      if (firstAccount) {
-        if (firstAccount.payment_method) {
-          linkedPaymentMethodId = typeof firstAccount.payment_method === 'string'
-            ? firstAccount.payment_method
-            : (firstAccount.payment_method.id || null);
-        }
-      }
-
-      if (!linkedPaymentMethodId) {
-        // Defensive: some configurations return the PM id elsewhere. Log for diagnostics.
-        console.error("Account linked but no payment_method on first account:", firstAccount);
-        alert("Bank linked but Stripe did not return a payment method id. Please try again or contact support.");
+      var fcAccountId = firstAccount && (firstAccount.id || firstAccount.account || null);
+      if (!fcAccountId) {
+        console.error("Linked account had no id:", firstAccount);
+        alert("Bank linked but no account id returned. Please try again or contact support.");
         return;
       }
+      var pmRes = await fetch("/api/create-payment-method-from-fc-account", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + (window.authToken || "")
+        },
+        body: JSON.stringify({ financialConnectionsAccountId: fcAccountId })
+      });
+      var pmJson = await pmRes.json();
+      if (!pmRes.ok || !pmJson.success || !pmJson.paymentMethodId) {
+        var pmErr = pmJson && pmJson.error;
+        if (pmErr && typeof pmErr === "object") pmErr = pmErr.message || JSON.stringify(pmErr);
+        console.error("create PM from FC account failed:", pmErr);
+        alert("Bank linked but could not create a payment method: " + (pmErr || "unknown error"));
+        return;
+      }
+      var linkedPaymentMethodId = pmJson.paymentMethodId;
 
       // Attach the bank as a payment method on the customer + set as default
       // by reusing the existing /api/create-stripe-customer endpoint with existingCustomerId.
