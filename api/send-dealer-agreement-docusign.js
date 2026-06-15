@@ -24,7 +24,7 @@ const SUPPORT_REPLY_EMAIL = 'support@whitestone-partners.com';
 // ============================================================
 // TEST MODE -- FLIP TO false BEFORE SENDING TO REAL DEALERS
 // ============================================================
-const DOCUSIGN_TEST_MODE_ENABLED = true;
+const DOCUSIGN_TEST_MODE_ENABLED = false;
 const TEST_EMAIL_RECIPIENT = 'neblloydben@gmail.com';
 const TEST_EMAIL_NAME = 'Ben Lloyd (Test)';
 // ============================================================

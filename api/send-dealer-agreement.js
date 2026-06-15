@@ -22,7 +22,7 @@ const SUPPORT_REPLY_EMAIL = 'support@whitestone-partners.com';
 // To go live: change TEST_MODE_ENABLED to false. Real dealer emails
 // will then be used.
 // ============================================================
-const TEST_MODE_ENABLED = true;
+const TEST_MODE_ENABLED = false;
 const TEST_EMAIL_RECIPIENT = 'neblloydben@gmail.com';
 
 // ============================================================
