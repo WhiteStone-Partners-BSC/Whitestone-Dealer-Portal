@@ -132,14 +132,14 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'PDF generation error' });
   }
 
-  // 3. Coordinate fields (converted from DEALER: anchor on page 3).
+  // 3. Coordinate fields (exact positions from BoldSign editor, top-origin; page 3).
   const formFields = [
     {
       id: 'dealer_sign',
       name: 'dealer_sign',
       fieldType: 'Signature',
       pageNumber: 3,
-      bounds: { x: 110, y: 100, width: 180, height: 20 },
+      bounds: { x: 80, y: 877, width: 180, height: 18 },
       isRequired: true
     },
     {
@@ -147,7 +147,7 @@ module.exports = async function handler(req, res) {
       name: 'dealer_date',
       fieldType: 'DateSigned',
       pageNumber: 3,
-      bounds: { x: 110, y: 78, width: 120, height: 16 },
+      bounds: { x: 86, y: 925, width: 120, height: 16 },
       isRequired: true
     }
   ];

@@ -887,7 +887,7 @@
         <p class="faq-cat">Enrolling Customers</p>
         <div class="faq-item"><div class="faq-q" data-dfaq="3">How do I enroll a customer?<span class="faq-arrow" id="darr3">&#8964;</span></div><div class="faq-a" id="dfaq3">Go to "Enroll Customer" in your portal, complete the customer and vessel information (owner details, HIN, vessel and engine info), select the plan term (1, 2, or 3 years), enter the sale price, and submit. The customer receives an enrollment agreement to sign electronically.</div></div>
         <div class="faq-item"><div class="faq-q" data-dfaq="4">What information do I need to enroll a customer?<span class="faq-arrow" id="darr4">&#8964;</span></div><div class="faq-a" id="dfaq4">The owner's name and contact info, the vessel's HIN (hull identification number), year/make/model, engine details, and the plan term you're selling. If the vessel is financed, you can also record lienholder information.</div></div>
-        <div class="faq-item"><div class="faq-q" data-dfaq="5">What does the customer sign?<span class="faq-arrow" id="darr5">&#8964;</span></div><div class="faq-a" id="dfaq5">The customer signs a New Client Enrollment Form electronically (via DocuSign). It captures their acknowledgment of the plan terms, coverage selection, and required initials. You'll countersign as the selling dealer.</div></div>
+        <div class="faq-item"><div class="faq-q" data-dfaq="5">What does the customer sign?<span class="faq-arrow" id="darr5">&#8964;</span></div><div class="faq-a" id="dfaq5">The customer signs a New Client Enrollment Form electronically (via BoldSign). It captures their acknowledgment of the plan terms, coverage selection, and required initials. You'll countersign as the selling dealer.</div></div>
 
         <p class="faq-cat">Plans &amp; Coverage</p>
         <div class="faq-item"><div class="faq-q" data-dfaq="6">What are the plan terms?<span class="faq-arrow" id="darr6">&#8964;</span></div><div class="faq-a" id="dfaq6">Plans are available in 1-year, 2-year, and 3-year terms. Coverage begins on the effective date and covers the routine maintenance services described in the customer's agreement.</div></div>
@@ -3973,11 +3973,11 @@ window.addEventListener("load", function() {
         '<div style="width:60px;height:60px;border-radius:50%;background:#e8f5e9;border:2px solid #a8d5b5;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 1rem;">✓</div>' +
         '<div style="font-family:\'Cormorant Garamond\',serif;font-size:24px;font-weight:300;color:#0c1e2e;margin-bottom:0.5rem;">Enrollment Complete!</div>' +
         '<div style="font-size:13px;color:#4a6278;margin-bottom:1.5rem;">' + (message || (customerName + " has been enrolled successfully.")) + "</div>" +
-        // Primary: send via DocuSign
+        // Primary: send via BoldSign
         '<button onclick="sendCustomerToDocuSign(\'' + safeContractId + '\')" id="send-docusign-btn" style="width:100%;background:#b8963e;color:#0c1e2e;border:none;padding:13px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;margin-bottom:0.5rem;display:flex;align-items:center;justify-content:center;gap:0.5rem;">' +
           "✉️ Send to customer to sign electronically" +
         "</button>" +
-        '<div id="docusign-status-msg" style="font-size:11px;color:#9aafbf;margin-bottom:1rem;">Customer will receive a DocuSign email with the contract</div>' +
+        '<div id="docusign-status-msg" style="font-size:11px;color:#9aafbf;margin-bottom:1rem;">Customer will receive a BoldSign email with the contract</div>' +
         // Secondary: paper fallback
         '<button onclick="downloadEnrollmentForm(\'' + safeContractId + '\')" id="download-pdf-btn" style="width:100%;background:transparent;color:#0c1e2e;border:1.5px solid #c5d5e0;padding:11px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:\'DM Sans\',sans-serif;margin-bottom:0.75rem;display:flex;align-items:center;justify-content:center;gap:0.5rem;">' +
           "📄 Download paper form to sign in person" +
@@ -4069,7 +4069,7 @@ window.addEventListener("load", function() {
       try { data = await response.json(); } catch (e) {}
 
       if (!response.ok) {
-        var errMsg = (data && data.error) || ("DocuSign send failed: " + response.status);
+        var errMsg = (data && data.error) || ("BoldSign send failed: " + response.status);
         throw new Error(errMsg);
       }
 
@@ -4082,7 +4082,7 @@ window.addEventListener("load", function() {
       if (statusMsg) {
         var displayEmail = (data && data.realRecipientEmail) || (data && data.recipientEmail) || "customer";
         var testNote = (data && data.testMode) ? " (test mode - delivered to " + (data.recipientEmail || "test inbox") + ")" : "";
-        statusMsg.textContent = "Envelope sent to " + displayEmail + testNote + ". Customer will receive a DocuSign email shortly.";
+        statusMsg.textContent = "Envelope sent to " + displayEmail + testNote + ". Customer will receive a BoldSign email shortly.";
         statusMsg.style.color = "#1e6b3a";
       }
     } catch (err) {

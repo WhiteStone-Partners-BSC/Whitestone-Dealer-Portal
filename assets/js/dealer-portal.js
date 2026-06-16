@@ -1615,7 +1615,7 @@ window.csApproveAndSend = async function() {
         ? '<div style="background:#fdf9ed;border:1px solid #e8d99b;padding:8px 12px;border-radius:4px;margin-top:8px;color:#5a4810;font-size:12px;">TEST MODE: sent to ' + sendResult.sent_to + ' (would go to ' + sendResult.real_recipient + ' in production)</div>'
         : '';
       previewLink.innerHTML = '<div style="color:var(--green-text);font-weight:600;margin-bottom:6px;">✓ Agreement sent successfully.</div>' +
-        '<div style="color:var(--light);font-size:12px;">The dealer will receive the agreement PDF and instructions to sign and return.</div>' +
+        '<div style="color:var(--light);font-size:12px;">The dealer will receive a BoldSign email to review and sign the agreement electronically.</div>' +
         testBadge;
     }
     if (sendBtn) {
