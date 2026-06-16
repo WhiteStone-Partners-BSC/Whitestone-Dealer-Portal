@@ -2,10 +2,10 @@
  * /api/boldsign-webhook.js
  *
  * Receives BoldSign webhook events (document status updates).
- * Verifies HMAC signature, routes dealer agreements by Labels, mutates dealer state.
+ * Verifies HMAC signature, routes by Labels (dealer_agreement | customer_contract).
  *
  * Events handled:
- *   - Completed  (all signers done — download PDF, update dealer, notify admin)
+ *   - Completed  (all signers done — download PDF, update row, notify)
  *   - others     (acknowledged and ignored)
  *
  * Setup:
@@ -64,30 +64,39 @@ function verifyBoldSignSignature(rawBody, signatureHeader, secret) {
 
 function parseLabels(labels) {
   var dealerId = null;
+  var contractId = null;
   var whitestoneType = null;
   (Array.isArray(labels) ? labels : []).forEach(function (l) {
     var s = String(l);
     if (s.indexOf('dealer_id:') === 0) dealerId = s.slice('dealer_id:'.length);
+    if (s.indexOf('contract_id:') === 0) contractId = s.slice('contract_id:'.length);
     if (s.indexOf('whitestone_type:') === 0) whitestoneType = s.slice('whitestone_type:'.length);
   });
-  return { dealerId: dealerId, whitestoneType: whitestoneType };
+  return { dealerId: dealerId, contractId: contractId, whitestoneType: whitestoneType };
 }
 
 async function fetchDocumentLabels(documentId, apiKey) {
-  if (!apiKey || !documentId) return { dealerId: null, whitestoneType: null, labels: [] };
+  if (!apiKey || !documentId) {
+    return { dealerId: null, contractId: null, whitestoneType: null, labels: [] };
+  }
   try {
     var res = await fetch(
       BOLDSIGN_API_BASE + '/v1/document/properties?documentId=' + encodeURIComponent(documentId),
       { headers: { 'X-API-KEY': apiKey, accept: 'application/json' } }
     );
-    if (!res.ok) return { dealerId: null, whitestoneType: null, labels: [] };
+    if (!res.ok) return { dealerId: null, contractId: null, whitestoneType: null, labels: [] };
     var json = await res.json();
     var labels = json.labels || json.Labels || [];
     var parsed = parseLabels(labels);
-    return { dealerId: parsed.dealerId, whitestoneType: parsed.whitestoneType, labels: labels };
+    return {
+      dealerId: parsed.dealerId,
+      contractId: parsed.contractId,
+      whitestoneType: parsed.whitestoneType,
+      labels: labels
+    };
   } catch (e) {
     console.warn('boldsign-webhook: document properties fetch failed:', e && e.message);
-    return { dealerId: null, whitestoneType: null, labels: [] };
+    return { dealerId: null, contractId: null, whitestoneType: null, labels: [] };
   }
 }
 
@@ -162,6 +171,285 @@ async function sendAdminEmail(opts) {
       subject: opts.subject,
       html: opts.html
     })
+  });
+}
+
+async function sendEmailTo(toEmail, opts) {
+  var RESEND_KEY = process.env.RESEND_API_KEY;
+  if (!RESEND_KEY || !toEmail) {
+    console.warn('boldsign-webhook: RESEND_API_KEY missing or no recipient, skipping email');
+    return;
+  }
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + RESEND_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: 'Whitestone Partners <support@whitestone-partners.com>',
+      to: [toEmail],
+      subject: opts.subject,
+      html: opts.html
+    })
+  });
+}
+
+async function handleDealerAgreementCompleted(args) {
+  var res = args.res;
+  var eventType = args.eventType;
+  var documentId = args.documentId;
+  var dealerId = args.dealerId;
+  var data = args.data;
+  var context = args.context;
+  var SUPABASE_URL = args.SUPABASE_URL;
+  var SERVICE_KEY = args.SERVICE_KEY;
+  var BOLDSIGN_API_KEY = args.BOLDSIGN_API_KEY;
+  var supaHeaders = args.supaHeaders;
+
+  var dealer;
+  try {
+    var dealerRes = await fetch(
+      SUPABASE_URL + '/rest/v1/dealers?id=eq.' + encodeURIComponent(dealerId) + '&select=*&limit=1',
+      { headers: supaHeaders }
+    );
+    var dealerRows = await dealerRes.json();
+    if (!dealerRes.ok || !Array.isArray(dealerRows) || dealerRows.length === 0) {
+      console.warn('boldsign-webhook: dealer not found id=' + dealerId);
+      return res.status(200).json({ received: true, warning: 'dealer not found' });
+    }
+    dealer = dealerRows[0];
+  } catch (e) {
+    console.error('boldsign-webhook: dealer lookup failed:', e && e.message);
+    return res.status(500).json({ error: 'Dealer lookup failed' });
+  }
+
+  if (dealer.agreement_signed_at) {
+    console.log('boldsign-webhook: Completed already processed for dealer=' + dealerId);
+    return res.status(200).json({ received: true, type: eventType, idempotent: true });
+  }
+
+  var signedAt = new Date().toISOString();
+  var signerName = extractSignerName(data, context);
+  if (!signerName) {
+    signerName = [dealer.contact_first_name, dealer.contact_last_name]
+      .filter(function (p) { return !!p; }).join(' ') || dealer.dealership_name || '';
+  }
+
+  var storagePath = null;
+  if (BOLDSIGN_API_KEY) {
+    try {
+      var pdfBuf = await downloadSignedPdf(documentId, BOLDSIGN_API_KEY);
+      storagePath = dealer.id + '/' + documentId + '.pdf';
+      var uploadRes = await fetch(
+        SUPABASE_URL + '/storage/v1/object/dealer-agreements/' + storagePath,
+        {
+          method: 'POST',
+          headers: {
+            apikey: SERVICE_KEY,
+            Authorization: 'Bearer ' + SERVICE_KEY,
+            'Content-Type': 'application/pdf',
+            'x-upsert': 'true'
+          },
+          body: pdfBuf
+        }
+      );
+      if (!uploadRes.ok) {
+        var uploadErr = await uploadRes.text();
+        console.error('boldsign-webhook: PDF upload to storage failed:', uploadRes.status, uploadErr);
+        storagePath = null;
+      }
+    } catch (e) {
+      console.error('boldsign-webhook: PDF retrieve/upload error:', e && e.message);
+    }
+  } else {
+    console.warn('boldsign-webhook: BOLDSIGN_API_KEY missing, skipping PDF download');
+  }
+
+  try {
+    var patch = {
+      agreement_signed_at: signedAt,
+      agreement_signed_by: signerName,
+      enrollment_status: 'signed'
+    };
+    await fetch(SUPABASE_URL + '/rest/v1/dealers?id=eq.' + encodeURIComponent(dealer.id), {
+      method: 'PATCH',
+      headers: Object.assign({}, supaHeaders, { Prefer: 'return=minimal' }),
+      body: JSON.stringify(patch)
+    });
+  } catch (e) {
+    console.error('boldsign-webhook: dealer PATCH failed:', e && e.message);
+  }
+
+  try {
+    await sendAdminEmail({
+      subject: 'Dealer signed agreement (BoldSign): ' + (dealer.dealership_name || dealer.email),
+      html: '<h2 style="color:#0c1e2e;">Agreement signed (BoldSign)</h2>'
+        + '<p><strong>Dealer:</strong> ' + escapeHtml(dealer.dealership_name || '') + '</p>'
+        + '<p><strong>Signed by:</strong> ' + escapeHtml(signerName) + '</p>'
+        + '<p><strong>Signed at:</strong> ' + escapeHtml(signedAt) + '</p>'
+        + '<p><strong>Document ID:</strong> ' + escapeHtml(documentId) + '</p>'
+        + (storagePath
+          ? '<p><strong>Signed PDF stored at:</strong> dealer-agreements/' + escapeHtml(storagePath) + '</p>'
+          : '<p><em>Note: signed PDF retrieval failed — fetch manually from BoldSign UI.</em></p>')
+        + '<p style="margin-top:24px;background:#fdf9ed;padding:14px 18px;border-left:3px solid #b8963e;border-radius:4px;">'
+        + '<strong>Next step:</strong> Set pricing for this dealer in the Pricing tab, then flip their status to active.'
+        + '</p>'
+    });
+  } catch (e) {
+    console.error('boldsign-webhook: admin email failed:', e && e.message);
+  }
+
+  return res.status(200).json({
+    received: true,
+    type: eventType,
+    dealerId: dealer.id,
+    documentId: documentId,
+    stored: !!storagePath
+  });
+}
+
+async function handleCustomerContractCompleted(args) {
+  var res = args.res;
+  var eventType = args.eventType;
+  var documentId = args.documentId;
+  var contractId = args.contractId;
+  var data = args.data;
+  var context = args.context;
+  var SUPABASE_URL = args.SUPABASE_URL;
+  var SERVICE_KEY = args.SERVICE_KEY;
+  var BOLDSIGN_API_KEY = args.BOLDSIGN_API_KEY;
+  var supaHeaders = args.supaHeaders;
+
+  var contract;
+  try {
+    var contractRes = await fetch(
+      SUPABASE_URL + '/rest/v1/contracts?id=eq.' + encodeURIComponent(contractId) + '&select=*&limit=1',
+      { headers: supaHeaders }
+    );
+    var contractRows = await contractRes.json();
+    if (!contractRes.ok || !Array.isArray(contractRows) || contractRows.length === 0) {
+      console.warn('boldsign-webhook: contract not found id=' + contractId);
+      return res.status(200).json({ received: true, warning: 'contract not found' });
+    }
+    contract = contractRows[0];
+  } catch (e) {
+    console.error('boldsign-webhook: contract lookup failed:', e && e.message);
+    return res.status(500).json({ error: 'Contract lookup failed' });
+  }
+
+  if (contract.agreement_signed_at) {
+    console.log('boldsign-webhook: customer Completed already processed contract=' + contractId);
+    return res.status(200).json({ received: true, type: eventType, idempotent: true });
+  }
+
+  var dealer = {};
+  try {
+    if (contract.dealer_id) {
+      var dRes = await fetch(
+        SUPABASE_URL + '/rest/v1/dealers?id=eq.' + encodeURIComponent(contract.dealer_id) + '&select=id,email,dealership_name',
+        { headers: supaHeaders }
+      );
+      var dRows = await dRes.json();
+      if (Array.isArray(dRows) && dRows.length > 0) dealer = dRows[0];
+    }
+  } catch (e) {
+    console.warn('boldsign-webhook: dealer lookup for customer event failed:', e && e.message);
+  }
+
+  var signedAt = new Date().toISOString();
+  var signerName = extractSignerName(data, context);
+  if (!signerName) {
+    signerName = ((contract.customer_first_name || '') + ' ' + (contract.customer_last_name || '')).trim()
+      || contract.customer_email || '';
+  }
+
+  var storagePath = null;
+  if (BOLDSIGN_API_KEY) {
+    try {
+      var pdfBuf = await downloadSignedPdf(documentId, BOLDSIGN_API_KEY);
+      storagePath = contract.id + '/' + documentId + '.pdf';
+      var uploadRes = await fetch(
+        SUPABASE_URL + '/storage/v1/object/customer-contracts/' + storagePath,
+        {
+          method: 'POST',
+          headers: {
+            apikey: SERVICE_KEY,
+            Authorization: 'Bearer ' + SERVICE_KEY,
+            'Content-Type': 'application/pdf',
+            'x-upsert': 'true'
+          },
+          body: pdfBuf
+        }
+      );
+      if (!uploadRes.ok) {
+        var uploadErr = await uploadRes.text();
+        console.error('boldsign-webhook: customer PDF upload failed:', uploadRes.status, uploadErr);
+        storagePath = null;
+      }
+    } catch (e) {
+      console.error('boldsign-webhook: customer PDF retrieve/upload error:', e && e.message);
+    }
+  } else {
+    console.warn('boldsign-webhook: BOLDSIGN_API_KEY missing, skipping customer PDF download');
+  }
+
+  try {
+    var patch = {
+      agreement_signed_at: signedAt,
+      agreement_signed_by: signerName
+    };
+    var patchRes = await fetch(SUPABASE_URL + '/rest/v1/contracts?id=eq.' + encodeURIComponent(contract.id), {
+      method: 'PATCH',
+      headers: Object.assign({}, supaHeaders, { Prefer: 'return=minimal' }),
+      body: JSON.stringify(patch)
+    });
+    if (!patchRes.ok) {
+      var patchErr = await patchRes.text();
+      console.error('boldsign-webhook: customer contract PATCH failed:', patchRes.status, patchErr);
+    }
+  } catch (e) {
+    console.error('boldsign-webhook: customer contract PATCH error:', e && e.message);
+  }
+
+  var customerName = ((contract.customer_first_name || '') + ' ' + (contract.customer_last_name || '')).trim()
+    || contract.customer_email || 'unknown';
+  var htmlBody = '<h2 style="color:#0c1e2e;">Customer signed enrollment (BoldSign)</h2>'
+    + '<p><strong>Customer:</strong> ' + escapeHtml(customerName) + '</p>'
+    + '<p><strong>Customer email:</strong> ' + escapeHtml(contract.customer_email || '') + '</p>'
+    + '<p><strong>Dealership:</strong> ' + escapeHtml(dealer.dealership_name || '') + '</p>'
+    + '<p><strong>Signed by:</strong> ' + escapeHtml(signerName) + '</p>'
+    + '<p><strong>Signed at:</strong> ' + escapeHtml(signedAt) + '</p>'
+    + '<p><strong>Document ID:</strong> ' + escapeHtml(documentId) + '</p>'
+    + (storagePath
+      ? '<p><strong>Signed PDF stored at:</strong> customer-contracts/' + escapeHtml(storagePath) + '</p>'
+      : '<p><em>Note: signed PDF retrieval failed — fetch manually from BoldSign UI.</em></p>');
+
+  try {
+    await sendAdminEmail({
+      subject: 'Customer signed enrollment (BoldSign): ' + customerName,
+      html: htmlBody
+    });
+  } catch (e) {
+    console.error('boldsign-webhook: customer signed admin email failed:', e && e.message);
+  }
+  if (dealer.email) {
+    try {
+      await sendEmailTo(dealer.email, {
+        subject: 'Customer signed enrollment (BoldSign): ' + customerName,
+        html: htmlBody
+      });
+    } catch (e) {
+      console.error('boldsign-webhook: customer signed dealer email failed:', e && e.message);
+    }
+  }
+
+  return res.status(200).json({
+    received: true,
+    type: eventType,
+    contractId: contract.id,
+    documentId: documentId,
+    stored: !!storagePath
   });
 }
 
@@ -240,20 +528,45 @@ async function handler(req, res) {
     return res.status(200).json({ received: true, warning: 'no documentId' });
   }
 
-  // Read dealer_id from Labels/Tags on the payload; fallback to BoldSign document properties API.
+  // Read routing labels from payload; fallback to BoldSign document properties API.
   var labels = data.labels || data.Labels || data.tags || data.Tags || [];
   var labelInfo = parseLabels(labels);
   var dealerId = labelInfo.dealerId;
+  var contractId = labelInfo.contractId;
   var whitestoneType = labelInfo.whitestoneType;
 
-  if (!dealerId && BOLDSIGN_API_KEY) {
-    var fetched = await fetchDocumentLabels(documentId, BOLDSIGN_API_KEY);
-    dealerId = fetched.dealerId;
-    whitestoneType = whitestoneType || fetched.whitestoneType;
+  if ((!dealerId && !contractId) || !whitestoneType) {
+    if (BOLDSIGN_API_KEY) {
+      var fetched = await fetchDocumentLabels(documentId, BOLDSIGN_API_KEY);
+      dealerId = dealerId || fetched.dealerId;
+      contractId = contractId || fetched.contractId;
+      whitestoneType = whitestoneType || fetched.whitestoneType;
+    }
+  }
+
+  var routeArgs = {
+    res: res,
+    eventType: eventType,
+    documentId: documentId,
+    data: data,
+    context: payload.context,
+    SUPABASE_URL: SUPABASE_URL,
+    SERVICE_KEY: SERVICE_KEY,
+    BOLDSIGN_API_KEY: BOLDSIGN_API_KEY,
+    supaHeaders: supaHeaders
+  };
+
+  if (whitestoneType === 'customer_contract') {
+    if (!contractId) {
+      console.warn('boldsign-webhook: customer_contract but no contract_id label documentId=' + documentId);
+      return res.status(200).json({ received: true, warning: 'no contract_id label' });
+    }
+    routeArgs.contractId = contractId;
+    return handleCustomerContractCompleted(routeArgs);
   }
 
   if (whitestoneType && whitestoneType !== 'dealer_agreement') {
-    console.log('boldsign-webhook: ignoring non-dealer document type=' + whitestoneType);
+    console.log('boldsign-webhook: ignoring unknown document type=' + whitestoneType);
     return res.status(200).json({ received: true, ignored: 'whitestone_type:' + whitestoneType });
   }
 
@@ -262,110 +575,8 @@ async function handler(req, res) {
     return res.status(200).json({ received: true, warning: 'no dealer_id label' });
   }
 
-  // Fetch dealer row for idempotency + signer name fallback.
-  var dealer;
-  try {
-    var dealerRes = await fetch(
-      SUPABASE_URL + '/rest/v1/dealers?id=eq.' + encodeURIComponent(dealerId) + '&select=*&limit=1',
-      { headers: supaHeaders }
-    );
-    var dealerRows = await dealerRes.json();
-    if (!dealerRes.ok || !Array.isArray(dealerRows) || dealerRows.length === 0) {
-      console.warn('boldsign-webhook: dealer not found id=' + dealerId);
-      return res.status(200).json({ received: true, warning: 'dealer not found' });
-    }
-    dealer = dealerRows[0];
-  } catch (e) {
-    console.error('boldsign-webhook: dealer lookup failed:', e && e.message);
-    return res.status(500).json({ error: 'Dealer lookup failed' });
-  }
-
-  if (dealer.agreement_signed_at) {
-    console.log('boldsign-webhook: Completed already processed for dealer=' + dealerId);
-    return res.status(200).json({ received: true, type: eventType, idempotent: true });
-  }
-
-  var signedAt = new Date().toISOString();
-  var signerName = extractSignerName(data, payload.context);
-  if (!signerName) {
-    signerName = [dealer.contact_first_name, dealer.contact_last_name]
-      .filter(function (p) { return !!p; }).join(' ') || dealer.dealership_name || '';
-  }
-
-  // 1. Download signed PDF + upload to Supabase Storage.
-  var storagePath = null;
-  if (BOLDSIGN_API_KEY) {
-    try {
-      var pdfBuf = await downloadSignedPdf(documentId, BOLDSIGN_API_KEY);
-      storagePath = dealer.id + '/' + documentId + '.pdf';
-      var uploadRes = await fetch(
-        SUPABASE_URL + '/storage/v1/object/dealer-agreements/' + storagePath,
-        {
-          method: 'POST',
-          headers: {
-            apikey: SERVICE_KEY,
-            Authorization: 'Bearer ' + SERVICE_KEY,
-            'Content-Type': 'application/pdf',
-            'x-upsert': 'true'
-          },
-          body: pdfBuf
-        }
-      );
-      if (!uploadRes.ok) {
-        var uploadErr = await uploadRes.text();
-        console.error('boldsign-webhook: PDF upload to storage failed:', uploadRes.status, uploadErr);
-        storagePath = null;
-      }
-    } catch (e) {
-      console.error('boldsign-webhook: PDF retrieve/upload error:', e && e.message);
-    }
-  } else {
-    console.warn('boldsign-webhook: BOLDSIGN_API_KEY missing, skipping PDF download');
-  }
-
-  // 2. Mutate dealer row — mirror DocuSign envelope-completed patch.
-  try {
-    var patch = {
-      agreement_signed_at: signedAt,
-      agreement_signed_by: signerName,
-      enrollment_status: 'signed'
-    };
-    await fetch(SUPABASE_URL + '/rest/v1/dealers?id=eq.' + encodeURIComponent(dealer.id), {
-      method: 'PATCH',
-      headers: Object.assign({}, supaHeaders, { Prefer: 'return=minimal' }),
-      body: JSON.stringify(patch)
-    });
-  } catch (e) {
-    console.error('boldsign-webhook: dealer PATCH failed:', e && e.message);
-  }
-
-  // 3. Notify admin — mirror DocuSign email build.
-  try {
-    await sendAdminEmail({
-      subject: 'Dealer signed agreement (BoldSign): ' + (dealer.dealership_name || dealer.email),
-      html: '<h2 style="color:#0c1e2e;">Agreement signed (BoldSign)</h2>'
-        + '<p><strong>Dealer:</strong> ' + escapeHtml(dealer.dealership_name || '') + '</p>'
-        + '<p><strong>Signed by:</strong> ' + escapeHtml(signerName) + '</p>'
-        + '<p><strong>Signed at:</strong> ' + escapeHtml(signedAt) + '</p>'
-        + '<p><strong>Document ID:</strong> ' + escapeHtml(documentId) + '</p>'
-        + (storagePath
-          ? '<p><strong>Signed PDF stored at:</strong> dealer-agreements/' + escapeHtml(storagePath) + '</p>'
-          : '<p><em>Note: signed PDF retrieval failed — fetch manually from BoldSign UI.</em></p>')
-        + '<p style="margin-top:24px;background:#fdf9ed;padding:14px 18px;border-left:3px solid #b8963e;border-radius:4px;">'
-        + '<strong>Next step:</strong> Set pricing for this dealer in the Pricing tab, then flip their status to active.'
-        + '</p>'
-    });
-  } catch (e) {
-    console.error('boldsign-webhook: admin email failed:', e && e.message);
-  }
-
-  return res.status(200).json({
-    received: true,
-    type: eventType,
-    dealerId: dealer.id,
-    documentId: documentId,
-    stored: !!storagePath
-  });
+  routeArgs.dealerId = dealerId;
+  return handleDealerAgreementCompleted(routeArgs);
 }
 
 module.exports = handler;
