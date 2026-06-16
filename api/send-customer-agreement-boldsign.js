@@ -132,14 +132,14 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Could not fetch PDF' });
   }
 
-  // Signature + date on page 2 (MAINTENANCE PLAN HOLDER SIGNATURE: anchor, bottom-origin).
+  // Signature + date on page 2 (MAINTENANCE PLAN HOLDER SIGNATURE: line; BoldSign top-origin coords from editor).
   const formFields = [
     {
       id: 'cust_sign',
       name: 'cust_sign',
       fieldType: 'Signature',
       pageNumber: 2,
-      bounds: { x: 235, y: 663, width: 180, height: 18 },
+      bounds: { x: 237, y: 178, width: 180, height: 18 },
       isRequired: true
     },
     {
@@ -147,7 +147,7 @@ module.exports = async function handler(req, res) {
       name: 'cust_date',
       fieldType: 'DateSigned',
       pageNumber: 2,
-      bounds: { x: 430, y: 663, width: 110, height: 16 },
+      bounds: { x: 598, y: 185, width: 110, height: 16 },
       isRequired: true
     }
   ];
