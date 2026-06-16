@@ -139,7 +139,7 @@ module.exports = async function handler(req, res) {
       name: 'cust_sign',
       fieldType: 'Signature',
       pageNumber: 2,
-      bounds: { x: 180, y: 625, width: 180, height: 20 },
+      bounds: { x: 235, y: 663, width: 180, height: 18 },
       isRequired: true
     },
     {
@@ -147,7 +147,7 @@ module.exports = async function handler(req, res) {
       name: 'cust_date',
       fieldType: 'DateSigned',
       pageNumber: 2,
-      bounds: { x: 420, y: 625, width: 110, height: 18 },
+      bounds: { x: 430, y: 663, width: 110, height: 16 },
       isRequired: true
     }
   ];
