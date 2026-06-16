@@ -3783,6 +3783,8 @@ window.addEventListener("load", function() {
           var wholesaleMap = { "1yr": 2495, "2yr": 4495, "3yr": 6495 };
           var totalDaysMap = { "1yr": 365, "2yr": 730, "3yr": 1095 };
           var wholesale = wholesaleMap[contractType] || 2495;
+          var _dualEng = document.getElementById("has-engine2") && document.getElementById("has-engine2").checked;
+          if (_dualEng) { wholesale = wholesale * 2; }
           var salePriceRaw = ((document.getElementById("e-sale-price") || {}).value || "").trim();
           var retail = salePriceRaw === "" ? null : parseFloat(salePriceRaw);
           if (retail !== null && (isNaN(retail) || retail < 0)) retail = null;
@@ -5124,6 +5126,8 @@ window.addEventListener("load", function() {
       "3yr": dealerPricingData ? dealerPricingData.contract_retail_3yr : 6495
     };
     var wholesale = wholesaleMap[selectedContractLength] || amount;
+    // Dual-engine vessels: wholesale doubles (retail/sale price unchanged).
+    if (hasDual) { wholesale = wholesale * 2; }
 
     var agreementNumber = "";
     try {
