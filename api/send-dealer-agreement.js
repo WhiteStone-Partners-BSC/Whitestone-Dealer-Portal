@@ -29,7 +29,7 @@ const TEST_EMAIL_RECIPIENT = 'neblloydben@gmail.com';
 // DOCUSIGN ROUTING FLAG
 // ============================================================
 // When DOCUSIGN_ENABLED is true, this endpoint forwards the request
-// to /api/send-dealer-agreement-docusign and returns its response.
+// to /api/send-dealer-agreement-boldsign and returns its response.
 // When false, the legacy Resend-PDF flow below runs.
 // This lets us swap implementations without changing the frontend.
 // ============================================================
@@ -54,7 +54,7 @@ module.exports = async function handler(req, res) {
     try {
       const host = req.headers['x-forwarded-host'] || req.headers.host;
       const protocol = req.headers['x-forwarded-proto'] || 'https';
-      const targetUrl = protocol + '://' + host + '/api/send-dealer-agreement-docusign';
+      const targetUrl = protocol + '://' + host + '/api/send-dealer-agreement-boldsign';
 
       // Forward the body and the auth header verbatim
       const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
