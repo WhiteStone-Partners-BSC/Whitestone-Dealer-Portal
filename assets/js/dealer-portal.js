@@ -8706,6 +8706,26 @@ document.addEventListener("DOMContentLoaded", function() {
 
   window.toggleEngine2 = function(checked) {
     document.getElementById("engine2-fields").style.display = checked ? "block" : "none";
+    // Dual-engine: live-update the Section 5 price cards to the doubled wholesale, with a note.
+    // Base wholesale per term (matches enrollment calc): 1yr 2495, 2yr 4495, 3yr 6495.
+    var base = { "1yr": 2495, "2yr": 4495, "3yr": 6495 };
+    ["1yr", "2yr", "3yr"].forEach(function(term) {
+      var el = document.getElementById("enroll-price-" + term);
+      if (!el) return;
+      var price = checked ? base[term] * 2 : base[term];
+      // Remove any prior note, then set price.
+      var noteId = "enroll-price-note-" + term;
+      var existingNote = document.getElementById(noteId);
+      if (existingNote) existingNote.remove();
+      el.textContent = "$" + Number(price).toLocaleString();
+      if (checked) {
+        var note = document.createElement("div");
+        note.id = noteId;
+        note.style.cssText = "font-size:10px;color:var(--light);font-weight:500;margin-top:2px;";
+        note.textContent = "dual engine (2x)";
+        el.parentNode.appendChild(note);
+      }
+    });
   };
 
   window.selectContractLength = window.selectContractLength || function(type, el) {

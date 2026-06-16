@@ -3509,6 +3509,10 @@ window.addEventListener("load", function() {
     document.getElementById("enroll-price-1yr").textContent = "$2,495";
     document.getElementById("enroll-price-2yr").textContent = "$4,495";
     document.getElementById("enroll-price-3yr").textContent = "$6,495";
+    ["1yr", "2yr", "3yr"].forEach(function(t) {
+      var n = document.getElementById("enroll-price-note-" + t);
+      if (n) n.remove();
+    });
   };
 
   window.selectContractLength = function(length, selectedEl) {
