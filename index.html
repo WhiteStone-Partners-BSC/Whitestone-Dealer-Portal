@@ -3732,6 +3732,10 @@ window.addEventListener("load", function() {
       "3yr": dealerPricingData.contract_retail_3yr
     };
     var amount = priceMap[selectedContractLength] || 0;
+    // Dual-engine: displayed amount doubles to match the doubled wholesale that will be charged.
+    if (document.getElementById("has-engine2") && document.getElementById("has-engine2").checked) {
+      amount = amount * 2;
+    }
     formData = formData || {
       firstName: fname,
       lastName: lname,
