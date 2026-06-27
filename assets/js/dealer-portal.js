@@ -7044,8 +7044,25 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   });
 
-  document.getElementById("qa-ticket").addEventListener("click", function() { window.switchTab("ticket"); });
-  document.getElementById("qa-enroll").addEventListener("click", function() { window.switchTab("enroll"); });
+  // 4-box dashboard hero routing
+  (function wireDashHero(){
+    var enroll = document.getElementById("hero-enroll");
+    var ticket = document.getElementById("hero-ticket");
+    var reimb  = document.getElementById("hero-reimburse");
+    var msgs   = document.getElementById("hero-messages");
+    if (enroll) enroll.addEventListener("click", function(){ window.switchTab("enroll"); });
+    if (ticket) ticket.addEventListener("click", function(){ window.switchTab("ticket"); });
+    if (msgs)   msgs.addEventListener("click", function(){ window.switchTab("my-messages"); });
+    if (reimb)  reimb.addEventListener("click", function(){
+      window.switchTab("history");
+      setTimeout(function(){
+        var body = document.getElementById("reimb-history-body");
+        if (body && body.style.display !== "block" && typeof toggleReimbursementHistory === "function") {
+          toggleReimbursementHistory();
+        }
+      }, 200);
+    });
+  })();
   function prefillEnrollFromContract(c) {
     if (!c) return;
     document.getElementById("e-fname").value = c.customer_first_name || "";
