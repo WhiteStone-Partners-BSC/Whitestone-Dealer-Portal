@@ -875,11 +875,7 @@
         <div style="display:flex;flex-direction:column;gap:0.6rem;margin-top:1rem;">
           <button id="enroll-cart-btn"
             style="width:100%;background:#b8963e;color:#0c1e2e;border:none;padding:13px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:0.02em;">
-            ★ Add to Cart — Pay within 10 days
-          </button>
-          <button id="enroll-paynow-btn"
-            style="width:100%;background:transparent;border:1.5px solid #c5d5e0;color:#0c1e2e;padding:11px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;">
-            Pay Now — Charge card on file
+            Enroll &amp; Add to Cart
           </button>
           <div style="font-size:10px;color:#9aafbf;text-align:center;padding-top:0.25rem;">
             ⚠ Contract is not active until payment is received
@@ -3968,15 +3964,8 @@ window.addEventListener("load", function() {
           alert("Could not add to cart. Please try again.");
         } finally {
           btn.disabled = false;
-          btn.textContent = "★ Add to Cart — Pay within 10 days";
+          btn.textContent = "Enroll & Add to Cart";
         }
-      };
-    }
-    var payNowBtn = document.getElementById("enroll-paynow-btn");
-    if (payNowBtn) {
-      payNowBtn.onclick = function() {
-        closeEnrollConfirmModal();
-        chargeEnrollmentNow();
       };
     }
     document.getElementById("enroll-confirm-modal").style.display = "flex";
