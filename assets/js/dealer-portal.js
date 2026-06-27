@@ -8330,13 +8330,6 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   });
 
-  // RATE SHEET DOWNLOAD
-  document.getElementById("rate-dl-btn").addEventListener("click", function() {
-    var link = document.createElement("a");
-    link.href = "assets/documents/whitestone-partners-dealer-rate-sheet.pdf";
-    link.download = "Whitestone_Partners_Dealer_Rate_Sheet.pdf";
-    link.click();
-  });
   var resourcesRateBtn = document.getElementById("resources-rate-dl-btn");
   if (resourcesRateBtn) {
     resourcesRateBtn.addEventListener("click", function() {
