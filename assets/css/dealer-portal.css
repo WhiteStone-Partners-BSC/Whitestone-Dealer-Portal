@@ -456,7 +456,39 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper{padding:0;}
 .ticket-status-rejected{background:#ffebee;border:1px solid #ffcdd2;color:#b71c1c;}
 
 /* Claims (admin) */
-.claims-shell{max-width:960px;}
+.claims-shell{max-width:1280px;}
+
+/* Claims redesign: 4 stat boxes */
+.claims-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
+.claims-stat-box{background:linear-gradient(160deg,#0c1e2e,#162840);border:1px solid rgba(184,150,62,.35);border-radius:12px;padding:18px 16px;transition:transform .2s ease,border-color .2s ease;}
+#claims-stat-download{cursor:pointer;}
+.claims-stat-box:hover{transform:scale(1.04);border-color:#b8963e;}
+.csb-label{color:#8aa0b3;font-size:12px;margin-bottom:6px;}
+.csb-value{color:#fff;font-size:26px;font-weight:600;}
+.csb-value.csb-action{font-size:18px;color:#d4ac52;margin-top:8px;}
+
+/* Claims redesign: 3-column board */
+.claims-board{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start;}
+.claims-col{background:#f6f7f9;border-radius:12px;padding:14px;min-height:300px;}
+.claims-col-unpaid{outline:2px solid #e0b341;outline-offset:0;}
+.claims-col-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+.claims-col-title{font-size:14px;font-weight:600;color:#0c1e2e;}
+.claims-col-note{font-size:12px;color:#5f6b76;margin-bottom:12px;}
+.claims-col-filter{margin-bottom:10px;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;}
+.claims-col-filter select,#claims-history-dealer-filter{padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:13px;min-width:180px;font-family:inherit;margin-bottom:10px;}
+.claims-owe-banner{font-size:12px;font-weight:600;color:#9a7a18;background:#faeeda;border-radius:6px;padding:6px 9px;margin-bottom:12px;}
+.claims-dl-link{display:block;width:100%;margin-top:10px;font-size:12px;font-weight:600;color:#0c447c;background:none;border:none;text-align:left;cursor:pointer;padding:4px 0;font-family:inherit;}
+.claims-col-body{background:transparent;}
+
+/* card status stripes reuse triage colors */
+.claims-card-red{border-left:3px solid #e24b4a;}
+.claims-card-yellow{border-left:3px solid #e0b341;}
+.claims-card-green{border-left:3px solid #1d9e75;}
+
+@media (max-width:1000px){
+  .claims-stat-grid{grid-template-columns:repeat(2,1fr);}
+  .claims-board{grid-template-columns:1fr;}
+}
 .claims-section-card{margin-bottom:1.25rem;}
 .claims-body{font-size:13px;color:var(--mid);}
 .claims-year-total{font-size:13px;font-weight:600;color:var(--navy);margin-bottom:0.75rem;padding:0.5rem 0;}

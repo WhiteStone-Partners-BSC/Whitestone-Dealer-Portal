@@ -9501,6 +9501,47 @@ document.addEventListener("DOMContentLoaded", function() {
   async function claimsLoadTab() {
     if (!currentDealer || !currentDealer.isAdmin) return;
     await Promise.all([claimsLoadPending(), claimsLoadUnpaid(), claimsLoadHistory()]);
+
+    // populate the 4 stat boxes (UI summary only — no money logic)
+    try {
+      var pRes = await fetch(SUPABASE_URL + "/rest/v1/tickets?status=eq.pending&select=id", { headers: supabaseHeaders() });
+      var pRows = await pRes.json();
+      var pendEl = document.getElementById("csb-pending-count");
+      if (pendEl) pendEl.textContent = Array.isArray(pRows) ? String(pRows.length) : "0";
+
+      var tRes = await fetch(SUPABASE_URL + "/rest/v1/tickets?status=eq.approved&select=id", { headers: supabaseHeaders() });
+      var approved = await tRes.json();
+      var approvedIds = new Set((Array.isArray(approved) ? approved : []).map(function(x) { return x.id; }));
+
+      var uRes = await fetch(
+        SUPABASE_URL + "/rest/v1/reimbursements?status=eq.pending&select=amount,dealership_name,ticket_id",
+        { headers: supabaseHeaders() }
+      );
+      var uRows = await uRes.json();
+      var eligible = (Array.isArray(uRows) ? uRows : []).filter(function(r) { return approvedIds.has(r.ticket_id); });
+      var owe = eligible.reduce(function(s, r) { return s + (parseFloat(r.amount) || 0); }, 0);
+      var oweFmt = "$" + Math.round(owe).toLocaleString();
+      var unpaidEl = document.getElementById("csb-unpaid-total");
+      if (unpaidEl) unpaidEl.textContent = oweFmt;
+      var dealerCount = new Set(eligible.map(function(r) { return r.dealership_name; }).filter(Boolean)).size;
+      var banner = document.getElementById("claims-owe-banner");
+      if (banner) {
+        banner.textContent = dealerCount > 0
+          ? "You owe " + oweFmt + " across " + dealerCount + " dealer" + (dealerCount === 1 ? "" : "s")
+          : "You owe $0";
+      }
+
+      var yr = new Date().getFullYear();
+      var hRes = await fetch(SUPABASE_URL + "/rest/v1/payout_batches?select=total_amount,paid_at", { headers: supabaseHeaders() });
+      var hRows = await hRes.json();
+      var ytd = (Array.isArray(hRows) ? hRows : [])
+        .filter(function(b) { return b.paid_at && new Date(b.paid_at).getFullYear() === yr; })
+        .reduce(function(s, b) { return s + (parseFloat(b.total_amount) || 0); }, 0);
+      var paidEl = document.getElementById("csb-paid-ytd");
+      if (paidEl) paidEl.textContent = "$" + Math.round(ytd).toLocaleString();
+    } catch (e) {
+      console.warn("stat box population failed (non-critical):", e);
+    }
   }
 
   var applicationsGridBound = false;

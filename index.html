@@ -1314,43 +1314,73 @@
     <div id="admin-panel-claims" class="admin-panel" style="display:none;">
     <div id="panel-claims">
       <div class="admin-panel-shell claims-shell">
-        <div class="card claims-section-card">
-          <div class="card-title">Pending claims queue</div>
-          <div class="card-sub">Tickets awaiting review — approve or reject with a reason.</div>
-          <div style="display:flex;gap:0.75rem;align-items:center;margin:0.75rem 0;flex-wrap:wrap;">
-            <label for="claims-pending-color-filter" style="font-size:12px;color:var(--mid);text-transform:uppercase;letter-spacing:0.06em;">Filter by triage color:</label>
-            <select id="claims-pending-color-filter" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:13px;min-width:180px;">
-              <option value="">All</option>
-              <option value="red">Red — Needs attention</option>
-              <option value="yellow">Yellow — Review</option>
-              <option value="green">Green — Looks clean</option>
-              <option value="null">No color (legacy)</option>
-            </select>
-            <span id="claims-pending-color-summary" style="font-size:12px;color:var(--mid);margin-left:auto;"></span>
+
+        <!-- 4 STAT BOXES -->
+        <div class="claims-stat-grid">
+          <div class="claims-stat-box" id="claims-stat-pending">
+            <div class="csb-label">Pending claims</div>
+            <div class="csb-value" id="csb-pending-count">—</div>
           </div>
-          <div id="claims-pending-body" class="claims-body">Loading…</div>
+          <div class="claims-stat-box" id="claims-stat-unpaid">
+            <div class="csb-label">Approved &amp; unpaid</div>
+            <div class="csb-value" id="csb-unpaid-total">—</div>
+          </div>
+          <div class="claims-stat-box" id="claims-stat-download" onclick="window.buildPendingPayoutCSV()">
+            <div class="csb-label">Payout report</div>
+            <div class="csb-value csb-action">Download</div>
+          </div>
+          <div class="claims-stat-box" id="claims-stat-paid">
+            <div class="csb-label">Paid this year</div>
+            <div class="csb-value" id="csb-paid-ytd">—</div>
+          </div>
         </div>
-        <div class="card claims-section-card">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
-            <div>
-              <div class="card-title">Approved &amp; unpaid reimbursements</div>
-              <div class="card-sub">Outstanding amounts owed to dealers (approved tickets, reimbursement not yet paid).</div>
+
+        <!-- 3-COLUMN BOARD -->
+        <div class="claims-board">
+
+          <!-- COLUMN 1: PENDING -->
+          <div class="claims-col">
+            <div class="claims-col-head">
+              <span class="claims-col-title">Pending</span>
             </div>
-            <button type="button" onclick="window.buildPendingPayoutCSV()" style="background:transparent;color:var(--navy);border:1.5px solid #c5d5e0;padding:8px 14px;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">Download Payout Report (CSV)</button>
+            <div class="claims-col-note">Claims waiting for your review</div>
+            <div class="claims-col-filter">
+              <select id="claims-pending-color-filter">
+                <option value="">All</option>
+                <option value="red">Red — Needs attention</option>
+                <option value="yellow">Yellow — Review</option>
+                <option value="green">Green — Looks clean</option>
+                <option value="null">No color (legacy)</option>
+              </select>
+              <span id="claims-pending-color-summary"></span>
+            </div>
+            <div id="claims-pending-body" class="claims-body claims-col-body">Loading…</div>
           </div>
-          <div id="claims-unpaid-body" class="claims-body">Loading…</div>
-        </div>
-        <div class="card claims-section-card">
-          <div class="card-title">Payout history</div>
-          <div class="card-sub">Completed payout batches, most recent first.</div>
-          <div id="claims-history-total" class="claims-year-total"></div>
-          <div style="display:flex;gap:0.75rem;align-items:center;margin:0.75rem 0;flex-wrap:wrap;">
-            <label for="claims-history-dealer-filter" style="font-size:12px;color:var(--mid);text-transform:uppercase;letter-spacing:0.06em;">Filter by dealer:</label>
-            <select id="claims-history-dealer-filter" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:13px;min-width:200px;">
+
+          <!-- COLUMN 2: APPROVED & UNPAID (emphasized) -->
+          <div class="claims-col claims-col-unpaid">
+            <div class="claims-col-head">
+              <span class="claims-col-title">Approved &amp; unpaid</span>
+            </div>
+            <div id="claims-owe-banner" class="claims-owe-banner">You owe —</div>
+            <div id="claims-unpaid-body" class="claims-body claims-col-body">Loading…</div>
+            <button type="button" class="claims-dl-link" onclick="window.buildPendingPayoutCSV()">
+              Download payout report for Carson
+            </button>
+          </div>
+
+          <!-- COLUMN 3: PAID / HISTORY -->
+          <div class="claims-col">
+            <div class="claims-col-head">
+              <span class="claims-col-title">Paid</span>
+            </div>
+            <div id="claims-history-total" class="claims-col-note"></div>
+            <select id="claims-history-dealer-filter">
               <option value="">All dealers</option>
             </select>
+            <div id="claims-history-body" class="claims-body claims-col-body">Loading…</div>
           </div>
-          <div id="claims-history-body" class="claims-body">Loading…</div>
+
         </div>
       </div>
     </div>
