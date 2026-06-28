@@ -9247,8 +9247,12 @@ document.addEventListener("DOMContentLoaded", function() {
       var list = (Array.isArray(reims) ? reims : []).filter(function(r) { return approvedIds.has(r.ticket_id); });
 
       var dRes = await fetch(
-        SUPABASE_URL + "/rest/v1/dealers?select=dealership_name,bank_account_number,bank_routing_number",
-        { headers: supabaseHeaders() }
+        SUPABASE_URL + "/rest/v1/rpc/admin_dealer_banking_summary",
+        {
+          method: "POST",
+          headers: supabaseHeaders({ "Content-Type": "application/json" }),
+          body: "{}"
+        }
       );
       if (!dRes.ok) throw new Error("Could not load dealer banking info");
       var dealers = await dRes.json();
@@ -10626,8 +10630,26 @@ window.openDealerEnrollmentModal = async function(dealerId, dealerName) {
     setVal("den-ar-contact", d.ar_contact_name || d.ar_contact || "");
     setVal("den-ar-phone", d.ar_phone || "");
     setVal("den-ar-email", d.ar_email || "");
-    setVal("den-account-number", d.bank_account_number || d.account_number || "");
-    setVal("den-routing-number", d.bank_routing_number || d.routing_number || "");
+
+    var bankRow = null;
+    try {
+      var bankRes = await fetch(
+        SUPABASE_URL + "/rest/v1/rpc/admin_get_dealer_bank",
+        {
+          method: "POST",
+          headers: authHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({ p_dealer_id: dealerId })
+        }
+      );
+      if (bankRes.ok) {
+        var bankRows = await bankRes.json();
+        bankRow = Array.isArray(bankRows) && bankRows[0] ? bankRows[0] : null;
+      }
+    } catch (bankErr) {
+      console.warn("admin_get_dealer_bank failed (non-fatal):", bankErr);
+    }
+    setVal("den-account-number", (bankRow && bankRow.bank_account_number) || (bankRow && bankRow.account_number) || "");
+    setVal("den-routing-number", (bankRow && bankRow.bank_routing_number) || (bankRow && bankRow.routing_number) || "");
 
     var effEl = document.getElementById("den-effective-date");
     if (effEl) {
