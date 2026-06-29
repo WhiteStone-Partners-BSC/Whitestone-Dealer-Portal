@@ -1805,8 +1805,9 @@ async function verifyHINForTicket(hin) {
     if (!contracts || contracts.length === 0) {
       return { valid: false, message: "No contract found for this HIN. Please enroll this customer first." };
     }
+    var eligibleStatuses = ["active", "pending_payment"];
     var active = contracts.filter(function(c) {
-      return String(c.status || "").toLowerCase() === "active";
+      return eligibleStatuses.indexOf(String(c.status || "").toLowerCase()) !== -1;
     });
     if (active.length === 0) {
       var pendingCancel = contracts.find(function(c) {
@@ -1830,7 +1831,14 @@ async function verifyHINForTicket(hin) {
       }
       return { valid: false, expired: true, message: "This customer's contract has expired. Please re-enroll them before submitting a ticket.", customer: contracts[0].customer_first_name + " " + contracts[0].customer_last_name };
     }
-    return { valid: true, contract: active[0], customer: active[0].customer_first_name + " " + active[0].customer_last_name };
+    var matched = active[0];
+    var isPendingPayment = String(matched.status || "").toLowerCase() === "pending_payment";
+    return {
+      valid: true,
+      contract: matched,
+      customer: matched.customer_first_name + " " + matched.customer_last_name,
+      pendingPayment: isPendingPayment
+    };
   } catch (e) {
     return { valid: true };
   }
@@ -2383,6 +2391,7 @@ function contractCardStatus(c) {
   now.setHours(0, 0, 0, 0);
   if (st === "cancelled") return { label: "Cancelled", cls: "badge-contract-cancelled", sort: 4 };
   if (st === "cancellation_pending") return { label: "Cancellation Pending", cls: "badge-contract-soon", sort: 2 };
+  if (st === "pending_payment") return { label: "Pending payment", cls: "badge-contract-pending", sort: 2 };
   if (st !== "active") return { label: "Expired", cls: "badge-contract-expired", sort: 3 };
   if (!end) return { label: "Active", cls: "badge-contract-active", sort: 0 };
   var days = Math.round((end - now) / 86400000);
@@ -2395,6 +2404,7 @@ function getEffectiveContractStatus(c) {
   var raw = String(c.status || "").toLowerCase();
   if (raw === "cancelled") return "cancelled";
   if (raw === "cancellation_pending") return "cancellation_pending";
+  if (raw === "pending_payment") return "pending_payment";
   var st = contractCardStatus(c);
   if (st.sort === 3) return "expired";
   if (st.sort === 1) return "expiring_soon";
@@ -5020,7 +5030,7 @@ function adminRecentContractsFromSearches(all, recentAdmin) {
 
 function buildCustomerCardsHtml(list) {
   var contracts = Array.isArray(list) ? list.slice() : [];
-  var statusOrder = { active: 0, expiring_soon: 1, cancellation_pending: 2, expired: 3, cancelled: 4 };
+  var statusOrder = { active: 0, expiring_soon: 1, pending_payment: 2, cancellation_pending: 2, expired: 3, cancelled: 4 };
   contracts.sort(function(a, b) {
     var sa = getEffectiveContractStatus(a);
     var sb = getEffectiveContractStatus(b);
@@ -5036,6 +5046,8 @@ function buildCustomerCardsHtml(list) {
         ? "#0F6E56"
         : status === "expiring_soon"
           ? "#BA7517"
+          : status === "pending_payment"
+            ? "#9a7a18"
           : status === "cancellation_pending"
             ? "#7e57c2"
             : status === "cancelled"
@@ -5046,6 +5058,8 @@ function buildCustomerCardsHtml(list) {
         ? "Active"
         : status === "expiring_soon"
           ? "Expiring Soon"
+          : status === "pending_payment"
+            ? "Pending payment"
           : status === "cancellation_pending"
             ? "Cancellation Pending"
             : status === "cancelled"
@@ -8485,8 +8499,13 @@ document.addEventListener("DOMContentLoaded", function() {
     try {
       var r = await verifyHINForTicket(hin);
       if (r.valid) {
-        el.textContent = "✓ Active contract — " + (r.customer || "");
-        el.style.color = "#0F6E56";
+        if (r.pendingPayment) {
+          el.textContent = "● Pending payment — " + (r.customer || "customer") + ". Ticket allowed; contract activates when paid.";
+          el.style.color = "#9a7a18";
+        } else {
+          el.textContent = "✓ Active contract — " + (r.customer || "");
+          el.style.color = "#0F6E56";
+        }
       } else if (r.expired) {
         el.textContent = "⚠ Contract expired — " + (r.customer || "customer") + ". Please re-enroll.";
         el.style.color = "#BA7517";
