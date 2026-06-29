@@ -502,7 +502,16 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper{padding:0;}
 .btn-claims-reject{background:#c62828;color:#fff;border:none;padding:0.45rem 1rem;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;}
 .btn-claims-reject:hover{filter:brightness(1.05);}
 .btn-claims-paid{background:var(--navy);color:var(--gold);border:1px solid rgba(184,150,62,0.4);padding:0.4rem 0.85rem;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;}
-.claims-unpaid-group{border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:0.65rem;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:0.75rem;}
+.claims-unpaid-group{border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:0.65rem;}
+.claims-unpaid-search{width:100%;padding:8px 10px;margin-bottom:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;}
+.cug-head{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;}
+.cug-sub{font-size:12px;color:var(--light);margin-left:auto;margin-right:10px;}
+.cug-tickets{margin-top:8px;border-top:1px solid var(--border);}
+.cug-ticket{display:flex;gap:10px;align-items:baseline;padding:6px 0;font-size:12.5px;border-bottom:1px dashed var(--border);}
+.cug-tnum{font-weight:600;color:#0c1e2e;min-width:130px;}
+.cug-tcust{color:var(--light);flex:1;}
+.cug-tamt{font-weight:600;}
+.cug-ticket.cug-hidden,.claims-unpaid-group.cug-hidden{display:none;}
 .claims-history-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:0.5rem;padding:0.6rem 0;border-bottom:1px solid var(--border);font-size:12px;}
 .claims-history-row:last-child{border-bottom:none;}
 

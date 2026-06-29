@@ -9289,6 +9289,29 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   }
 
+  function wireUnpaidSearch() {
+    var box = document.getElementById("claims-unpaid-search");
+    if (!box || box._wired) return;
+    box._wired = true;
+    box.addEventListener("input", function() {
+      var q = this.value.trim().toLowerCase();
+      document.querySelectorAll("#claims-unpaid-body .claims-unpaid-group").forEach(function(group) {
+        var anyVisible = false;
+        group.querySelectorAll(".cug-ticket").forEach(function(row) {
+          var num = row.getAttribute("data-ticketnum") || "";
+          var match = !q || num.indexOf(q) !== -1;
+          row.classList.toggle("cug-hidden", !match);
+          if (match) anyVisible = true;
+        });
+        var dealerMatch = !q || (group.getAttribute("data-dealer") || "").indexOf(q) !== -1;
+        group.classList.toggle("cug-hidden", !(anyVisible || dealerMatch));
+        if (dealerMatch && q) {
+          group.querySelectorAll(".cug-ticket").forEach(function(row) { row.classList.remove("cug-hidden"); });
+        }
+      });
+    });
+  }
+
   async function claimsLoadUnpaid() {
     var el = document.getElementById("claims-unpaid-body");
     if (!el) return;
@@ -9305,22 +9328,54 @@ document.addEventListener("DOMContentLoaded", function() {
         el.innerHTML = "<div class='renewals-empty'>No pending payouts.</div>";
         return;
       }
+
+      var ticketIds = list.map(function(r) { return r.ticket_id; }).filter(Boolean);
+      var ticketMap = {};
+      if (ticketIds.length) {
+        var inList = ticketIds.map(encodeURIComponent).join(",");
+        var tRes = await fetch(
+          SUPABASE_URL + "/rest/v1/tickets?id=in.(" + inList + ")&select=id,ticket_number,customer_first_name,customer_last_name,service_type",
+          { headers: supabaseHeaders() }
+        );
+        var tRows = await tRes.json();
+        (Array.isArray(tRows) ? tRows : []).forEach(function(t) { ticketMap[t.id] = t; });
+      }
+
       var byDealer = {};
       list.forEach(function(r) {
         var dn = r.dealership_name || "—";
-        if (!byDealer[dn]) byDealer[dn] = { name: dn, tickets: 0, amount: 0 };
-        byDealer[dn].tickets += 1;
+        if (!byDealer[dn]) byDealer[dn] = { name: dn, tickets: [], amount: 0 };
+        var t = ticketMap[r.ticket_id] || {};
+        byDealer[dn].tickets.push({
+          reimbursement_id: r.id,
+          ticket_number: t.ticket_number || "(no #)",
+          customer: ((t.customer_first_name || "") + " " + (t.customer_last_name || "")).trim() || "—",
+          service: t.service_type || "",
+          amount: parseFloat(r.amount) || 0,
+          pending_since: r.created_at || ""
+        });
         byDealer[dn].amount += parseFloat(r.amount) || 0;
       });
+
       var html = "";
       Object.keys(byDealer).sort().forEach(function(k) {
         var g = byDealer[k];
-        html += "<div class='claims-unpaid-group'>";
-        html += "<div><strong>" + escHtml(g.name) + "</strong><br><span style='font-size:12px;color:var(--light);'>" + g.tickets + " approved ticket(s) · $" + Math.round(g.amount).toLocaleString() + " owed</span></div>";
-        html += "<button type='button' class='btn-claims-paid' data-dealer-enc='" + encodeURIComponent(g.name) + "'>Mark as paid</button>";
-        html += "</div>";
+        html += "<div class='claims-unpaid-group' data-dealer='" + escHtml(g.name).toLowerCase() + "'>";
+        html += "<div class='cug-head'><strong>" + escHtml(g.name) + "</strong>";
+        html += "<span class='cug-sub'>" + g.tickets.length + " approved ticket(s) · $" + Math.round(g.amount).toLocaleString() + " owed</span>";
+        html += "<button type='button' class='btn-claims-paid' data-dealer-enc='" + encodeURIComponent(g.name) + "'>Mark as paid</button></div>";
+        html += "<div class='cug-tickets'>";
+        g.tickets.forEach(function(tk) {
+          html += "<div class='cug-ticket' data-ticketnum='" + escHtml(String(tk.ticket_number)).toLowerCase() + "'>";
+          html += "<span class='cug-tnum'>" + escHtml(tk.ticket_number) + "</span>";
+          html += "<span class='cug-tcust'>" + escHtml(tk.customer) + (tk.service ? (" · " + escHtml(tk.service)) : "") + "</span>";
+          html += "<span class='cug-tamt'>$" + tk.amount.toLocaleString() + "</span>";
+          html += "</div>";
+        });
+        html += "</div></div>";
       });
-      el.innerHTML = html;
+      el.innerHTML = html || "<div class='renewals-empty'>No approved unpaid reimbursements.</div>";
+
       el.querySelectorAll(".btn-claims-paid").forEach(function(btn) {
         btn.addEventListener("click", function() {
           var dn = decodeURIComponent(btn.getAttribute("data-dealer-enc") || "");
@@ -9328,6 +9383,10 @@ document.addEventListener("DOMContentLoaded", function() {
           claimsMarkDealerPaid(dn);
         });
       });
+
+      wireUnpaidSearch();
+      var searchBox = document.getElementById("claims-unpaid-search");
+      if (searchBox && searchBox.value.trim()) searchBox.dispatchEvent(new Event("input"));
     } catch (e) {
       el.innerHTML = "<div class='renewals-empty'>Could not load reimbursements.</div>";
     }
@@ -9362,20 +9421,22 @@ document.addEventListener("DOMContentLoaded", function() {
         bankMap[d.dealership_name] = has;
       });
 
-      var byDealer = {};
-      list.forEach(function(r) {
-        var dn = r.dealership_name || "—";
-        if (!byDealer[dn]) byDealer[dn] = { name: dn, tickets: 0, amount: 0, oldest: null };
-        byDealer[dn].tickets += 1;
-        byDealer[dn].amount += parseFloat(r.amount) || 0;
-        var c = r.created_at;
-        if (c && (!byDealer[dn].oldest || c < byDealer[dn].oldest)) byDealer[dn].oldest = c;
-      });
-
-      var rows = Object.keys(byDealer).sort().map(function(k) { return byDealer[k]; });
-      if (rows.length === 0) {
+      if (list.length === 0) {
         alert("No pending payouts to report.");
         return;
+      }
+
+      var ticketIds = list.map(function(r) { return r.ticket_id; }).filter(Boolean);
+      var ticketMap = {};
+      if (ticketIds.length) {
+        var inList = ticketIds.map(encodeURIComponent).join(",");
+        var tkRes = await fetch(
+          SUPABASE_URL + "/rest/v1/tickets?id=in.(" + inList + ")&select=id,ticket_number,customer_first_name,customer_last_name,service_type",
+          { headers: supabaseHeaders() }
+        );
+        if (!tkRes.ok) throw new Error("Could not load ticket details");
+        var tRows = await tkRes.json();
+        (Array.isArray(tRows) ? tRows : []).forEach(function(t) { ticketMap[t.id] = t; });
       }
 
       function esc(v) {
@@ -9383,18 +9444,35 @@ document.addEventListener("DOMContentLoaded", function() {
         return '"' + v.replace(/"/g, '""') + '"';
       }
 
-      var header = ["Dealer Name", "Approved Tickets", "Total Owed", "Oldest Pending Date", "Banking On File"];
+      function fmtDate(iso) {
+        if (!iso) return "";
+        return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+      }
+
+      var header = ["Dealer Name", "Ticket #", "Customer", "Service", "Amount", "Pending Since", "Banking On File"];
       var lines = [header.map(esc).join(",")];
-      rows.forEach(function(g) {
-        var oldest = g.oldest
-          ? new Date(g.oldest).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
-          : "";
+
+      list.sort(function(a, b) {
+        var da = (a.dealership_name || "").localeCompare(b.dealership_name || "");
+        if (da !== 0) return da;
+        var ta = (ticketMap[a.ticket_id] && ticketMap[a.ticket_id].ticket_number) || "";
+        var tb = (ticketMap[b.ticket_id] && ticketMap[b.ticket_id].ticket_number) || "";
+        return ta.localeCompare(tb);
+      });
+
+      list.forEach(function(r) {
+        var dn = r.dealership_name || "—";
+        var t = ticketMap[r.ticket_id] || {};
+        var cust = ((t.customer_first_name || "") + " " + (t.customer_last_name || "")).trim() || "—";
+        var amt = parseFloat(r.amount) || 0;
         lines.push([
-          esc(g.name),
-          esc(g.tickets),
-          esc("$" + (Math.round(g.amount * 100) / 100).toFixed(2)),
-          esc(oldest),
-          esc(bankMap[g.name] ? "Yes" : "No")
+          esc(dn),
+          esc(t.ticket_number || "—"),
+          esc(cust),
+          esc(t.service_type || ""),
+          esc("$" + amt.toFixed(2)),
+          esc(fmtDate(r.created_at)),
+          esc(bankMap[dn] ? "Yes" : "No")
         ].join(","));
       });
 
@@ -9603,6 +9681,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
   async function claimsLoadTab() {
     if (!currentDealer || !currentDealer.isAdmin) return;
+    wireUnpaidSearch();
     await Promise.all([claimsLoadPending(), claimsLoadUnpaid(), claimsLoadHistory()]);
 
     // populate the 4 stat boxes (UI summary only — no money logic)
