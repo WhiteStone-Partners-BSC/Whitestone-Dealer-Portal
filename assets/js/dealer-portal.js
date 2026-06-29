@@ -59,6 +59,7 @@ var dashboardPeriod = "year";
 var earningsAnimRaf = null;
 var dealerContractCount = 0;
 var renewalContractsDealer = [];
+var dealerReimbursements = [];
 var adminContractsCache = [];
 var dealerContractsCache = [];
 var dealerContractsPricingRow = null;
@@ -491,6 +492,25 @@ function ticketMatchesPeriod(t, period) {
   return d.getFullYear() === new Date().getFullYear();
 }
 
+function parseReimbursementDate(r) {
+  var raw = r.paid_date || r.created_at;
+  if (!raw) return null;
+  var d = new Date(raw);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function reimbursementMatchesPeriod(r, period) {
+  if (period === "all") return true;
+  var d = parseReimbursementDate(r);
+  if (!d) return false;
+  return d.getFullYear() === new Date().getFullYear();
+}
+
+function reimbursementCountable(r) {
+  var s = String(r.status || "").toLowerCase();
+  return s === "pending" || s === "approved" || s === "paid";
+}
+
 function countUniqueCustomers(tickets) {
   var seen = {};
   tickets.forEach(function(t) {
@@ -521,6 +541,38 @@ function escHtml(s) {
     .replace(/</g, "&lt;")
     .replace(/"/g, "&quot;");
 }
+
+// Reusable success animation: green check card -> hold -> fade. Optional onDone clears fields.
+window.showSuccessCheck = function(message, opts) {
+  opts = opts || {};
+  var overlay = document.getElementById("success-check-overlay");
+  if (!overlay) {
+    if (typeof opts.onDone === "function") opts.onDone();
+    return;
+  }
+  var msgEl = document.getElementById("success-check-msg");
+  if (msgEl) msgEl.textContent = message || "Done";
+  var circle = overlay.querySelector(".sc-circle");
+  var tick = overlay.querySelector(".sc-tick");
+  [circle, tick].forEach(function(el) {
+    if (el) {
+      el.style.animation = "none";
+      void el.offsetWidth;
+      el.style.animation = "";
+    }
+  });
+  overlay.style.display = "flex";
+  void overlay.offsetWidth;
+  overlay.classList.add("sc-show");
+  var hold = opts.hold || 1300;
+  setTimeout(function() {
+    overlay.classList.remove("sc-show");
+    setTimeout(function() {
+      overlay.style.display = "none";
+      if (typeof opts.onDone === "function") opts.onDone();
+    }, 260);
+  }, hold);
+};
 
 // Supabase (run in SQL editor if needed): alter table tickets add column if not exists rejection_reason text;
 
@@ -6791,7 +6843,7 @@ document.addEventListener("DOMContentLoaded", function() {
     earningsAnimRaf = requestAnimationFrame(tick);
   }
 
-  function renderSparkline(ticketsInPeriod) {
+  function renderSparkline(reimbsInPeriod) {
     var el = document.getElementById("earnings-sparkline");
     if (!el) return;
     var buckets = {};
@@ -6813,11 +6865,13 @@ document.addEventListener("DOMContentLoaded", function() {
         labels.push(keyA);
       }
     }
-    ticketsInPeriod.filter(ticketBillable).forEach(function(t) {
-      var d = parseTicketDate(t);
+    reimbsInPeriod.filter(reimbursementCountable).forEach(function(r) {
+      var d = parseReimbursementDate(r);
       if (!d) return;
       var keyB = d.getFullYear() + "-" + pad2(d.getMonth() + 1);
-      if (Object.prototype.hasOwnProperty.call(buckets, keyB)) buckets[keyB] += 150;
+      if (Object.prototype.hasOwnProperty.call(buckets, keyB)) {
+        buckets[keyB] += parseFloat(r.amount) || 0;
+      }
     });
     var maxAmt = 1;
     labels.forEach(function(k) {
@@ -6835,10 +6889,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
   function updateDashboardStats() {
     var filtered = allTickets.filter(function(t) { return ticketMatchesPeriod(t, dashboardPeriod); });
-    var billableTickets = filtered.filter(function(t) {
-      var s = (t.status || "pending").toLowerCase();
-      return s === "approved" || s === "pending";
-    });
     var ticketCount = filtered.length;
     var contractsAllTime = countUniqueCustomers(allTickets);
     var y = new Date().getFullYear();
@@ -6850,9 +6900,16 @@ document.addEventListener("DOMContentLoaded", function() {
     if (stTix) stTix.textContent = String(ticketCount);
     if (stHint) stHint.textContent = dashboardPeriod === "year" ? "Submitted in " + y : "All submitted tickets";
     if (stCust) stCust.textContent = String(dealerContractCount > 0 ? dealerContractCount : contractsAllTime);
-    var earnings = billableTickets.length * 150;
+    var filteredReimbs = dealerReimbursements.filter(function(r) {
+      return reimbursementMatchesPeriod(r, dashboardPeriod) && reimbursementCountable(r);
+    });
+    var earnings = filteredReimbs.reduce(function(sum, r) {
+      return sum + (parseFloat(r.amount) || 0);
+    }, 0);
     if (earnHint) {
-      earnHint.textContent = "~$150 avg per ticket (approved + pending)";
+      earnHint.textContent = dashboardPeriod === "year"
+        ? "Approved + pending in " + y
+        : "All approved + pending reimbursements";
     }
     animateEarningsTo(earnings, earnEl);
   }
@@ -6928,6 +6985,13 @@ document.addEventListener("DOMContentLoaded", function() {
       var tRows = await tRes.json();
       if (!tRes.ok) throw new Error();
       allTickets = Array.isArray(tRows) ? tRows.map(mapTicketFromRow) : [];
+      dealerReimbursements = [];
+      if (!currentDealer.isAdmin && filterClause) {
+        var rUrl = SUPABASE_URL + "/rest/v1/reimbursements?" + filterClause + "&select=amount,status,created_at,paid_date";
+        var rRes = await fetch(rUrl, { headers: supabaseHeaders() });
+        var rRows = await rRes.json();
+        if (rRes.ok && Array.isArray(rRows)) dealerReimbursements = rRows;
+      }
       dealerContractCount = 0;
       renewalContractsDealer = [];
       if (!currentDealer.isAdmin) {
@@ -6957,6 +7021,7 @@ document.addEventListener("DOMContentLoaded", function() {
       if (currentDealer && !currentDealer.isAdmin && typeof loadTierIndicator === "function") loadTierIndicator();
     } catch (e) {
       allTickets = [];
+      dealerReimbursements = [];
       dealerContractCount = 0;
       renewalContractsDealer = [];
       updateDashboardStats();
@@ -8673,18 +8738,6 @@ document.addEventListener("DOMContentLoaded", function() {
       var newTicket = result.ticket;
       ticketNum = (newTicket && newTicket.ticket_number) || ticketNum;
 
-      var colorMsg = "";
-      if (result.triage && result.triage.color) {
-        if (result.triage.color === "green") {
-          colorMsg = "\n\nStatus: Pending review (looks routine).";
-        } else if (result.triage.color === "yellow") {
-          colorMsg = "\n\nStatus: Pending review (admin will take a closer look).";
-        } else {
-          colorMsg = "\n\nStatus: Pending review (additional verification needed).";
-        }
-      }
-      alert("Service ticket submitted!" + colorMsg + "\n\nTicket #: " + ticketNum);
-
       await writeAuditLog("ticket", newTicket.id, "ticket_submitted", null, { hin: hinVal, services: services, requested_amount: requestedAmount }, currentDealer.name, fname + " " + lname, null);
       if (typeof window.onboardingMarkStep === "function") await window.onboardingMarkStep("first_ticket");
       var ticketEmailHtml =
@@ -8731,6 +8784,19 @@ document.addEventListener("DOMContentLoaded", function() {
       document.getElementById("t-ok").style.display = "block";
       document.getElementById("t-err").style.display = "none";
       document.getElementById("t-ok").scrollIntoView({ behavior: "smooth", block: "center" });
+      window.showSuccessCheck("Ticket " + ticketNum + " submitted and on file.", {
+        onDone: function() {
+          ["t-fname", "t-lname", "t-email", "t-phone", "t-make", "t-model", "t-year", "t-hin",
+            "t-hin-status", "t-ro-number", "t-hours", "t-date", "t-requested-amount", "t-notes"]
+            .forEach(function(id) {
+              var el = document.getElementById(id);
+              if (el) el.value = "";
+            });
+          document.querySelectorAll(".tb.sel").forEach(function(b) { b.classList.remove("sel"); });
+          var ind = document.getElementById("t-hin-status");
+          if (ind) ind.textContent = "";
+        }
+      });
       loadDashboard();
     } catch (e) {
       var terr = document.getElementById("t-err");
@@ -10135,8 +10201,14 @@ document.addEventListener("DOMContentLoaded", function() {
           }
           if (okEl) okEl.style.display = "block";
           if (errEl) errEl.style.display = "none";
-          document.getElementById("support-type").value = "";
-          document.getElementById("support-message").value = "";
+          window.showSuccessCheck("Message sent! The team will reply within 1 business day.", {
+            onDone: function() {
+              var t = document.getElementById("support-type");
+              if (t) t.value = "";
+              var m = document.getElementById("support-message");
+              if (m) m.value = "";
+            }
+          });
           if (currentDealer && currentDealer.isAdmin) adminLoadMessages();
         } else {
           if (errEl) errEl.style.display = "block";

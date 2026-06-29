@@ -418,9 +418,9 @@
           <div class="stat-card-hint">Unique customers (contracts) from your tickets</div>
         </div>
         <div class="stat-card" id="stat-earnings-card">
-          <div class="stat-card-label">Est. reimbursements</div>
+          <div class="stat-card-label">Reimbursements</div>
           <div class="stat-card-value stat-earnings-value"><span id="stat-earnings">$0</span></div>
-          <div class="stat-card-hint" id="stat-earnings-hint">~$150 avg per ticket (approved + pending)</div>
+          <div class="stat-card-hint" id="stat-earnings-hint">Approved + pending payouts</div>
         </div>
       </div>
 
@@ -2176,6 +2176,17 @@
       <button type="button" id="tdp-approve-btn" class="tdp-btn-approve">Approve Ticket</button>
       <button type="button" id="tdp-reject-btn" class="tdp-btn-reject">Reject Ticket</button>
     </div>
+  </div>
+</div>
+
+<!-- Reusable success check animation (ticket / pay / message) -->
+<div id="success-check-overlay" style="display:none;">
+  <div class="sc-card">
+    <svg class="sc-check" viewBox="0 0 72 72" aria-hidden="true">
+      <circle class="sc-circle" cx="36" cy="36" r="32"/>
+      <path class="sc-tick" d="M22 37 L32 47 L51 27"/>
+    </svg>
+    <div class="sc-msg" id="success-check-msg">Done</div>
   </div>
 </div>
 
@@ -4465,9 +4476,9 @@ window.addEventListener("load", function() {
       }
 
       if (isAch) {
-        alert("Payment submitted successfully.\n\nFunds will settle in 3-5 business days. Customer coverage is active now. If the bank rejects the payment, the invoice will return to your cart with the failure reason.");
+        window.showSuccessCheck("Payment submitted. Funds settle in 3-5 business days.", { hold: 1600 });
       } else {
-        alert("Payment successful! " + ids.length + " contract(s) are now active.");
+        window.showSuccessCheck(ids.length + " contract(s) now active.", { hold: 1600 });
       }
 
       await loadBillingCart();

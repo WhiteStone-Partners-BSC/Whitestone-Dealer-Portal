@@ -815,3 +815,35 @@ button[style*="border:1.5px solid"]:hover{
 #login-screen div[style*="border-radius:12px"]{
   box-shadow:0 4px 32px rgba(12,30,46,0.1) !important;
 }
+
+#success-check-overlay{
+  position:fixed; inset:0; z-index:9999;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(12,30,46,0.45);
+  opacity:0; transition:opacity .25s ease;
+}
+#success-check-overlay.sc-show{ opacity:1; }
+.sc-card{
+  background:#fff; border-radius:18px; padding:34px 40px;
+  display:flex; flex-direction:column; align-items:center; gap:14px;
+  box-shadow:0 24px 60px rgba(12,30,46,0.28);
+  transform:scale(0.9); transition:transform .28s cubic-bezier(.2,.8,.2,1);
+}
+#success-check-overlay.sc-show .sc-card{ transform:scale(1); }
+.sc-check{ width:72px; height:72px; }
+.sc-circle{
+  fill:none; stroke:#1d9e75; stroke-width:5;
+  stroke-dasharray:201; stroke-dashoffset:201;
+  animation:sc-draw-circle .45s ease forwards;
+}
+.sc-tick{
+  fill:none; stroke:#1d9e75; stroke-width:6; stroke-linecap:round; stroke-linejoin:round;
+  stroke-dasharray:60; stroke-dashoffset:60;
+  animation:sc-draw-tick .3s .4s ease forwards;
+}
+@keyframes sc-draw-circle{ to{ stroke-dashoffset:0; } }
+@keyframes sc-draw-tick{ to{ stroke-dashoffset:0; } }
+.sc-msg{ font-size:16px; font-weight:600; color:#0c1e2e; text-align:center; max-width:320px; }
+@media (prefers-reduced-motion:reduce){
+  .sc-circle,.sc-tick{ animation:none; stroke-dashoffset:0; }
+}
