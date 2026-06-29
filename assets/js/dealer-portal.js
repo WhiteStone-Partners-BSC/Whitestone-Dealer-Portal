@@ -202,6 +202,20 @@ function supabaseHeaders(extra) {
   return authHeaders(extra);
 }
 
+// Option 1: authenticated has column-level SELECT only (no bank cols). PostgREST select=* fails
+// if any column is denied — use this explicit list for browser-side dealer reads.
+var DEALER_SAFE_SELECT =
+  "id,username,password,dealership_name,location,phone,email,active,is_admin,created_at,auth_id," +
+  "address,city,state,zip,website,contact_first_name,contact_last_name,contact_title,boat_brands," +
+  "service_volume,joined_at,stripe_customer_id,onboarding_completed,onboarding_steps,dealer_number," +
+  "legal_business_name,dba_name,business_address,business_city,business_state,business_zip," +
+  "business_phone,ein,brands_carried,dealer_contacts,ar_contact,ar_phone,ar_email,effective_date," +
+  "agreement_signed_at,stripe_bank_account_id,ach_verified,dba,ar_contact_name,authorized_contacts," +
+  "enrollment_status,enrollment_submitted_at,enrollment_effective_date,agreement_signed_by,slug," +
+  "box_recipient_first_name,box_recipient_last_name,box_recipient_title,box_shipped_at," +
+  "box_delivered_at,box_tracking_number,box_recipient_email,followup_email_sent_at,organization_id," +
+  "docusign_envelope_id,docusign_envelope_status,active_until,must_set_password";
+
 function buildDealerSession(dealer, session) {
   var authUserId = session && session.user ? session.user.id : null;
   return {
@@ -221,7 +235,7 @@ function buildDealerSession(dealer, session) {
 
 async function fetchDealerByAuthId(authId, accessToken) {
   var res = await fetch(
-    SUPABASE_URL + "/rest/v1/dealers?auth_id=eq." + encodeURIComponent(authId) + "&active=eq.true&select=*",
+    SUPABASE_URL + "/rest/v1/dealers?auth_id=eq." + encodeURIComponent(authId) + "&active=eq.true&select=" + DEALER_SAFE_SELECT,
     {
       headers: authHeaders({ Authorization: "Bearer " + accessToken })
     }
@@ -4531,7 +4545,7 @@ function adminFetchRenewalsContracts() {
 }
 
 function fetchDealersSupabase() {
-  return fetch(SUPABASE_URL + "/rest/v1/dealers?select=*&order=created_at.asc", {
+  return fetch(SUPABASE_URL + "/rest/v1/dealers?select=" + DEALER_SAFE_SELECT + "&order=created_at.asc", {
     headers: supabaseHeaders()
   })
     .then(function(r) { return r.json(); })
@@ -7189,7 +7203,7 @@ document.addEventListener("DOMContentLoaded", function() {
   async function fetchDealerRowByAuthId(authId) {
     if (!authId) return null;
     try {
-      var url = SUPABASE_URL + "/rest/v1/dealers?auth_id=eq." + encodeURIComponent(authId) + "&limit=1";
+      var url = SUPABASE_URL + "/rest/v1/dealers?auth_id=eq." + encodeURIComponent(authId) + "&select=" + DEALER_SAFE_SELECT + "&limit=1";
       var res = await fetch(url, { headers: supabaseHeaders() });
       if (!res.ok) return null;
       var rows = await res.json();
@@ -7287,7 +7301,7 @@ document.addEventListener("DOMContentLoaded", function() {
       if (accessible.length > 0) {
         var focusedId = await findMostRecentActivityLocation(accessible);
         if (focusedId) {
-          var focusedUrl = SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(focusedId) + "&limit=1";
+          var focusedUrl = SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(focusedId) + "&select=" + DEALER_SAFE_SELECT + "&limit=1";
           var focusedRes = await fetch(focusedUrl, { headers: supabaseHeaders() });
           if (focusedRes.ok) {
             var focusedRows = await focusedRes.json();
@@ -7415,7 +7429,7 @@ document.addEventListener("DOMContentLoaded", function() {
     if (window._dealerRowCache[dealerId]) return window._dealerRowCache[dealerId];
     try {
       var res = await fetch(
-        SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(dealerId) + "&limit=1",
+        SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(dealerId) + "&select=" + DEALER_SAFE_SELECT + "&limit=1",
         { headers: supabaseHeaders() }
       );
       var rows = await res.json();
@@ -9739,7 +9753,7 @@ document.addEventListener("DOMContentLoaded", function() {
       pending = Array.isArray(pending) ? pending : [];
 
       var resA = await fetch(
-        SUPABASE_URL + "/rest/v1/dealers?active=eq.true&is_admin=eq.false&select=*&order=dealership_name.asc",
+        SUPABASE_URL + "/rest/v1/dealers?active=eq.true&is_admin=eq.false&select=" + DEALER_SAFE_SELECT + "&order=dealership_name.asc",
         { headers: supabaseHeaders() }
       );
       var active = await resA.json();
@@ -9755,7 +9769,7 @@ document.addEventListener("DOMContentLoaded", function() {
       declined = Array.isArray(declined) ? declined : [];
 
       var resI = await fetch(
-        SUPABASE_URL + "/rest/v1/dealers?active=eq.false&is_admin=eq.false&select=*&order=dealership_name.asc",
+        SUPABASE_URL + "/rest/v1/dealers?active=eq.false&is_admin=eq.false&select=" + DEALER_SAFE_SELECT + "&order=dealership_name.asc",
         { headers: supabaseHeaders() }
       );
       var inactive = await resI.json();
@@ -10606,7 +10620,7 @@ window.openDealerEnrollmentModal = async function(dealerId, dealerName) {
 
   try {
     var res = await fetch(
-      SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(dealerId) + "&select=*",
+      SUPABASE_URL + "/rest/v1/dealers?id=eq." + encodeURIComponent(dealerId) + "&select=" + DEALER_SAFE_SELECT,
       { headers: authHeaders() }
     );
     var rows = await res.json();

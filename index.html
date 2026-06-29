@@ -2575,7 +2575,7 @@ window.addEventListener("load", function() {
   window.adminLoadDealerTable = async function() {
     try {
       var res = await fetch(
-        SUPABASE_URL + "/rest/v1/dealers?is_admin=eq.false&select=*&order=dealership_name.asc",
+        SUPABASE_URL + "/rest/v1/dealers?is_admin=eq.false&select=" + DEALER_SAFE_SELECT + "&order=dealership_name.asc",
         { headers: authHeaders() }
       );
       allDealersData = (await res.json()) || [];
