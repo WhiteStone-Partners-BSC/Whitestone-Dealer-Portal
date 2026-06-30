@@ -1068,6 +1068,26 @@
         </div>
       </div>
 
+      <!-- Customer View Mode (Phase 0 — Coming Soon) -->
+      <div id="settings-customer-view-card" class="card" style="max-width:900px;margin-bottom:1.5rem;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem;">
+          <div style="flex:1;min-width:200px;">
+            <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.35rem;">
+              <div class="card-title" style="margin-bottom:0;">Customer View Mode</div>
+              <span class="badge-soon">Coming Soon</span>
+            </div>
+            <div class="card-sub" style="margin-bottom:0;">
+              A clean, customer-facing screen for menu selling — show a buyer how a plan affects their
+              monthly payment, right on your screen.
+            </div>
+          </div>
+          <label class="settings-toggle is-disabled" aria-label="Customer View Mode (coming soon)" title="Coming soon">
+            <input type="checkbox" disabled>
+            <span class="settings-toggle-track"></span>
+          </label>
+        </div>
+      </div>
+
       <!-- Invite User modal -->
       <div id="invite-user-modal" style="display:none;position:fixed;inset:0;background:rgba(15,42,68,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
         <div style="background:white;max-width:500px;width:100%;border-radius:8px;padding:24px;max-height:90vh;overflow-y:auto;">
@@ -4044,6 +4064,58 @@ window.addEventListener("load", function() {
       "</div>";
     successScreen.innerHTML = successHTML;
     successScreen.style.display = "block";
+  };
+
+  window.downloadSignedContract = async function(contractId) {
+    if (!contractId) {
+      alert("Could not download contract");
+      return;
+    }
+    var token = window.authToken;
+    if (!token && window.supabase && window.supabase.auth) {
+      try {
+        var session = await window.supabase.auth.getSession();
+        token = session && session.data && session.data.session ? session.data.session.access_token : null;
+      } catch (e) {}
+    }
+    if (!token) {
+      alert("Please sign in again to download the contract.");
+      return;
+    }
+    try {
+      var res = await fetch("/api/get-customer-contract-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ contractId: contractId })
+      });
+      var json = {};
+      try {
+        json = await res.json();
+      } catch (e) {}
+      if (!res.ok) {
+        alert(json.error || "Could not download contract");
+        return;
+      }
+      if (!json.base64) {
+        alert("Could not download contract");
+        return;
+      }
+      var binary = atob(json.base64);
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      var blob = new Blob([bytes], { type: "application/pdf" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = json.filename || "Whitestone_Contract.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("downloadSignedContract error:", e);
+      alert("Could not download contract");
+    }
   };
 
   window.downloadEnrollmentForm = async function(contractId) {

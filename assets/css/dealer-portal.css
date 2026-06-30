@@ -142,6 +142,12 @@ h1,h2,h3{font-family:"Cormorant Garamond",serif;}
 .card:hover{box-shadow:0 2px 8px rgba(12,30,46,0.1),0 4px 16px rgba(12,30,46,0.06);}
 .card-title{font-family:"Cormorant Garamond",serif;font-size:28px;font-weight:300;color:var(--navy);margin-bottom:0.35rem;}
 .card-sub{font-size:13px;color:var(--light);margin-bottom:1.75rem;line-height:1.7;}
+.badge-soon{display:inline-block;font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:3px 10px;border-radius:999px;background:#FBF4E4;color:#B8963D;white-space:nowrap;}
+.settings-toggle{position:relative;display:inline-flex;align-items:center;flex-shrink:0;cursor:not-allowed;}
+.settings-toggle input{position:absolute;opacity:0;width:0;height:0;pointer-events:none;}
+.settings-toggle-track{position:relative;display:block;width:44px;height:24px;border-radius:999px;background:var(--border);transition:background 0.2s;}
+.settings-toggle-track::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--white);box-shadow:0 1px 3px rgba(12,30,46,0.15);transition:transform 0.2s;}
+.settings-toggle.is-disabled{opacity:0.55;}
 .download-card{background:var(--navy);border-radius:10px;padding:1.75rem 2rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;}
 .download-card-left h3{font-family:"Cormorant Garamond",serif;font-size:24px;font-weight:300;color:var(--white);margin-bottom:0.25rem;}
 .download-card-left p{font-size:12.5px;color:rgba(191,207,220,0.7);}

@@ -5162,6 +5162,15 @@ function buildCustomerCardsHtml(list) {
         formatUsd(remaining) +
         "</div></div></div></details>";
     }
+    var downloadBtnBlock = "";
+    if (c.docusign_envelope_id && c.agreement_signed_at) {
+      downloadBtnBlock =
+        '<div style="padding:0.75rem 1.25rem;background:white;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">' +
+        '<button type="button" class="btn-secondary" onclick="event.stopPropagation(); window.downloadSignedContract(\'' +
+        escHtml(String(c.id)) +
+        '\')" style="flex:none;padding:6px 14px;border-radius:4px;font-size:11px;font-weight:500;cursor:pointer;font-family:\'DM Sans\',sans-serif;">Download Contract</button>' +
+        "</div>";
+    }
     var cancelBtnBlock = "";
     if (showRequestBtn) {
       cancelBtnBlock =
@@ -5245,6 +5254,7 @@ function buildCustomerCardsHtml(list) {
       '<div style="padding:1rem 1.25rem;text-align:center;color:var(--light);font-size:13px;">Loading service history...</div>' +
       "</div>" +
       pricingBlock +
+      downloadBtnBlock +
       cancelBtnBlock +
       (status === "expired"
         ? '<div style="padding:0.75rem 1.25rem;background:white;border-top:1px solid var(--border);">' +
