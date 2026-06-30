@@ -33,10 +33,10 @@ window.currentDealer = null;
 // Maps role -> set of panel names this role is permitted to access.
 // Roles not in this map (or null/undefined) fall back to showing ALL tabs (legacy behavior).
 var RBAC_VISIBLE_PANELS = {
-  principal: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "my-messages", "settings"],
-  org_admin: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "my-messages", "settings"],
-  location_manager: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "my-messages", "settings"],
-  sales: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "resources", "faq", "support", "my-messages", "settings"],
+  principal: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "customer-view", "resources", "faq", "support", "my-messages", "settings"],
+  org_admin: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "customer-view", "resources", "faq", "support", "my-messages", "settings"],
+  location_manager: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "customer-view", "resources", "faq", "support", "my-messages", "settings"],
+  sales: ["dashboard", "customers", "ticket", "history", "enroll", "billing-cart", "customer-view", "resources", "faq", "support", "my-messages", "settings"],
   service: ["dashboard", "customers", "ticket", "history", "resources", "faq", "support", "my-messages", "settings"],
   accountant: ["dashboard", "customers", "history", "billing-cart", "resources", "faq", "support", "my-messages", "settings"]
 };
@@ -3401,6 +3401,7 @@ function pricingCurrentRetail(years) {
   var source = pricingState && pricingState.currentRates ? pricingState.currentRates : null;
   return source && source[key] ? Number(source[key]) : fallback;
 }
+window.pricingCurrentRetail = pricingCurrentRetail;
 
 function pricingFormatCycle(s) {
   var y = s.yearly;
@@ -6820,6 +6821,7 @@ document.addEventListener("DOMContentLoaded", function() {
       if (typeof window.dealerRefreshMsgBadge === "function") window.dealerRefreshMsgBadge();
     }
     if (name === "billing-cart" && typeof window.loadBillingCart === "function") window.loadBillingCart();
+    if (name === "customer-view" && typeof loadCustomerViewTab === "function") loadCustomerViewTab();
   }
 
   window.switchTab = switchTab;

@@ -308,6 +308,7 @@
         Billing Cart
         <span id="cart-badge" style="display:none;background:#c0392b;color:white;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:6px;">0</span>
       </button>
+      <button type="button" class="sidebar-nav-item" data-panel="customer-view" onclick="window.switchTab('customer-view');">Customer View</button>
       <div class="sidebar-section-label">Info</div>
       <button type="button" class="sidebar-nav-item" data-panel="resources">Resources</button>
       <button type="button" class="sidebar-nav-item" data-panel="faq">FAQ &amp; Contact</button>
@@ -822,6 +823,96 @@
       </div>
     </div>
 
+    <div id="panel-customer-view" class="tab-panel" style="display:none;">
+      <div class="cv-wrap">
+        <div class="cv-header">
+          <div class="cv-brand">
+            <span class="cv-brand-name">Whitestone Partners</span>
+            <span class="cv-brand-sub">Maintenance Plan Calculator</span>
+          </div>
+          <div class="cv-mode-row">
+            <span id="cv-mode-label" class="cv-mode-label">Manager view</span>
+            <button type="button" id="cv-mode-switch" class="cv-mode-switch" onclick="cvToggleMode()" aria-label="Toggle manager or customer view"></button>
+          </div>
+        </div>
+
+        <div id="cv-controls" class="cv-controls">
+          <p class="cv-mgr-hint">Manager only — hidden in customer view</p>
+          <div class="cv-inputs">
+            <label class="cv-field">
+              <span class="cv-field-lbl">Boat purchase amount</span>
+              <div class="cv-field-wrap">
+                <span class="cv-prefix">$</span>
+                <input type="number" id="cv-amt" value="85000" min="0" step="100" oninput="cvRecalc()">
+              </div>
+            </label>
+            <label class="cv-field">
+              <span class="cv-field-lbl">APR</span>
+              <div class="cv-field-wrap">
+                <input type="number" id="cv-apr" value="7.99" min="0" max="30" step="0.01" oninput="cvRecalc()">
+                <span class="cv-suffix">%</span>
+              </div>
+            </label>
+            <label class="cv-field">
+              <span class="cv-field-lbl">Loan term</span>
+              <div class="cv-field-wrap">
+                <input type="number" id="cv-term" value="240" min="1" max="360" step="1" oninput="cvRecalc()">
+                <span class="cv-suffix">mo</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="cv-base-row">
+          <span class="cv-base-lbl">Base monthly payment</span>
+          <span id="cv-base" class="cv-base-amt">$0/mo</span>
+        </div>
+
+        <div class="cv-plans">
+          <div id="cv-opt-3" class="cv-opt cv-sel" onclick="cvSelect(3)">
+            <div class="cv-opt-main">
+              <span class="cv-opt-yrs">3-Year Plan</span>
+              <span class="cv-opt-price">$<span class="cv-pv">9,297</span><input type="number" class="cv-price-inp" value="9297" min="0" step="1" oninput="cvRecalc()" onclick="event.stopPropagation()"></span>
+            </div>
+            <span id="cv-d3" class="cv-delta">+$0</span>
+          </div>
+          <div id="cv-opt-2" class="cv-opt" onclick="cvSelect(2)">
+            <div class="cv-opt-main">
+              <span class="cv-opt-yrs">2-Year Plan</span>
+              <span class="cv-opt-price">$<span class="cv-pv">6,798</span><input type="number" class="cv-price-inp" value="6798" min="0" step="1" oninput="cvRecalc()" onclick="event.stopPropagation()"></span>
+            </div>
+            <span id="cv-d2" class="cv-delta">+$0</span>
+          </div>
+          <div id="cv-opt-1" class="cv-opt" onclick="cvSelect(1)">
+            <div class="cv-opt-main">
+              <span class="cv-opt-yrs">1-Year Plan</span>
+              <span class="cv-opt-price">$<span class="cv-pv">3,699</span><input type="number" class="cv-price-inp" value="3699" min="0" step="1" oninput="cvRecalc()" onclick="event.stopPropagation()"></span>
+            </div>
+            <span id="cv-d1" class="cv-delta">+$0</span>
+          </div>
+          <div id="cv-opt-0" class="cv-opt cv-opt-none" onclick="cvSelect(0)">
+            <div class="cv-opt-main">
+              <span class="cv-opt-yrs">No plan</span>
+              <span class="cv-opt-price cv-opt-muted">Skip coverage</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="cv-result">
+          <div class="cv-result-top">
+            <span id="cv-res-lbl" class="cv-res-lbl">New monthly payment</span>
+            <span id="cv-res" class="cv-res-amt">$0<small>/mo</small></span>
+          </div>
+          <div id="cv-callout" class="cv-callout">3 years of covered maintenance for just <b>+$0</b>/mo</div>
+        </div>
+
+        <div class="cv-footer">
+          <button type="button" id="cv-editlink" class="cv-editlink" onclick="cvToggleEdit()">&#9998; Edit plan prices</button>
+          <p class="cv-disclaimer">Estimates only. Actual loan terms may vary. Plan prices shown are retail — not a binding quote.</p>
+        </div>
+      </div>
+    </div>
+
     <div id="enroll-confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:500;align-items:center;justify-content:center;">
       <div style="background:white;border-radius:12px;padding:2rem;max-width:440px;width:90%;">
         <div style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:300;color:var(--navy);margin-bottom:1.5rem;">Confirm Enrollment</div>
@@ -1065,6 +1156,22 @@
         </div>
         <div id="settings-payment-methods-body" style="margin-top:1rem;">
           <div style="color:var(--mid);font-style:italic;">Loading payment methods…</div>
+        </div>
+      </div>
+
+      <!-- Customer View Mode -->
+      <div id="settings-customer-view-card" class="card" style="max-width:900px;margin-bottom:1.5rem;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem;">
+          <div style="flex:1;min-width:200px;">
+            <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.35rem;">
+              <div class="card-title" style="margin-bottom:0;">Customer View Mode</div>
+              <span class="badge-active">Active</span>
+            </div>
+            <div class="card-sub" style="margin-bottom:0;">
+              A clean, customer-facing screen for menu selling — show a buyer how a plan affects their
+              monthly payment, right on your screen. Open <strong>Customer View</strong> from the sidebar.
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2401,6 +2508,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="assets/js/dealer-portal.js" defer></script>
+<script src="assets/js/customer-view.js" defer></script>
 <script>
 window.addEventListener("load", function() {
   var esc = typeof escHtml === "function" ? escHtml : function(s) {
