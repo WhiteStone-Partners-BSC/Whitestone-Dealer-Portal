@@ -109,9 +109,11 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // Hosted onboarding link. www. return urls (apex 307-redirects drop POST bodies).
+  // Hosted onboarding link. Use the APEX vercel.app host: the www. variant has no valid
+  // TLS cert (the *.vercel.app wildcard covers only one label), and apex serves /api/*
+  // directly with no 307 redirect (verified against the live deployment).
   try {
-    var base = 'https://www.whitestone-dealer-portal.vercel.app';
+    var base = 'https://whitestone-dealer-portal.vercel.app';
     var lp = new URLSearchParams();
     lp.append('account', acct);
     lp.append('type', 'account_onboarding');
