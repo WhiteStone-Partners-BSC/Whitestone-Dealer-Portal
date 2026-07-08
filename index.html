@@ -1138,6 +1138,19 @@
         </div>
       </div>
 
+      <!-- Payouts (Stripe Connect) section -->
+      <div id="settings-payout-setup-card" class="card" style="max-width:900px;margin-bottom:1.5rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+          <div>
+            <div class="card-title">Payouts</div>
+            <div class="card-sub">Set up how Whitestone pays you reimbursements for approved service tickets.</div>
+          </div>
+        </div>
+        <div id="settings-payout-setup-body" style="margin-top:1rem;">
+          <div style="color:var(--mid);font-style:italic;">Loading payout setup…</div>
+        </div>
+      </div>
+
       <!-- Menu Shop -->
       <div id="settings-customer-view-card" class="card" style="max-width:900px;margin-bottom:1.5rem;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem;">
@@ -4754,6 +4767,91 @@ window.addEventListener("load", function() {
     if (addBankBtn2) addBankBtn2.addEventListener("click", startBankAccountLink);
   };
 
+  // ===== Payout Setup (Stripe Connect Express) — Settings panel =====
+  // Dealers complete Stripe-hosted Express onboarding so Whitestone can pay reimbursements.
+  // SANDBOX: the server side uses STRIPE_CONNECT_SECRET_KEY and never touches inbound ACH.
+  window.loadPayoutSetupSection = async function() {
+    var bodyEl = document.getElementById("settings-payout-setup-body");
+    if (!bodyEl) return;
+
+    var orgId = window.currentUser && window.currentUser.organization_id;
+    var payoutsEnabled = false;
+    var detailsSubmitted = false;
+    if (orgId) {
+      try {
+        var orgRes = await fetch(
+          SUPABASE_URL + "/rest/v1/organizations?id=eq." + encodeURIComponent(orgId) +
+            "&select=payouts_enabled,connect_details_submitted,stripe_connect_account_id&limit=1",
+          { headers: authHeaders() }
+        );
+        if (orgRes.ok) {
+          var orgRows = await orgRes.json();
+          if (Array.isArray(orgRows) && orgRows[0]) {
+            payoutsEnabled = !!orgRows[0].payouts_enabled;
+            detailsSubmitted = !!orgRows[0].connect_details_submitted;
+          }
+        }
+      } catch (e) { /* non-fatal: fall back to the setup button */ }
+    }
+
+    var statusLine;
+    if (payoutsEnabled) {
+      statusLine =
+        '<div style="color:#1b5e20;font-size:13px;margin-bottom:1rem;">' +
+          'Payouts are enabled. You are set up to receive reimbursements.' +
+        '</div>';
+    } else if (detailsSubmitted) {
+      statusLine =
+        '<div style="color:var(--mid);font-size:13px;margin-bottom:1rem;">' +
+          'Your payout details were submitted and are being verified by Stripe. ' +
+          'You can re-open onboarding if anything else is needed.' +
+        '</div>';
+    } else {
+      statusLine =
+        '<div style="color:var(--mid);font-size:13px;margin-bottom:1rem;">' +
+          'Set up payouts to receive reimbursements for approved service tickets. ' +
+          'You will complete a short, secure onboarding hosted by Stripe.' +
+        '</div>';
+    }
+
+    var btnLabel = (payoutsEnabled || detailsSubmitted) ? "Manage payout setup" : "Set up payouts";
+    bodyEl.innerHTML =
+      statusLine +
+      '<div style="display:flex;gap:0.75rem;flex-wrap:wrap;">' +
+        '<button type="button" id="payout-setup-btn" style="background:var(--navy);color:white;border:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">' +
+          btnLabel +
+        '</button>' +
+      '</div>';
+    var setupBtn = document.getElementById("payout-setup-btn");
+    if (setupBtn) setupBtn.addEventListener("click", startPayoutSetup);
+  };
+
+  // Redirect to Stripe-hosted Express onboarding (NOT a Stripe.js popup — Connect is a redirect).
+  window.startPayoutSetup = async function() {
+    var setupBtn = document.getElementById("payout-setup-btn");
+    var originalLabel = setupBtn ? setupBtn.textContent : "Set up payouts";
+    if (setupBtn) { setupBtn.disabled = true; setupBtn.textContent = "Opening…"; }
+    try {
+      var r = await fetch("/api/start-connect-onboarding", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + (window.authToken || "")
+        }
+      });
+      var j = await r.json();
+      if (r.ok && j.url) {
+        window.location.href = j.url;
+        return;
+      }
+      alert((j && j.error) || "Could not start payout setup.");
+    } catch (e) {
+      alert("Could not start payout setup: " + (e && e.message ? e.message : "unknown error"));
+    } finally {
+      if (setupBtn) { setupBtn.disabled = false; setupBtn.textContent = originalLabel; }
+    }
+  };
+
   // Starts the Stripe Financial Connections (Plaid) flow to link a bank account.
   // Calls the backend to create a session, then opens the Plaid popup via Stripe.js.
   window.startBankAccountLink = async function() {
@@ -5206,6 +5304,7 @@ window.addEventListener("load", function() {
     if (name === "enroll") loadDealerPricingForEnrollment();
     if (name === "billing-cart") loadBillingCart();
     if (name === "settings" && typeof loadPaymentMethodsSection === "function") loadPaymentMethodsSection();
+    if (name === "settings" && typeof loadPayoutSetupSection === "function") loadPayoutSetupSection();
   };
 
   var originalOnLoginSuccess = window.onLoginSuccess;
