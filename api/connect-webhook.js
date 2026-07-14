@@ -67,16 +67,6 @@ async function handler(req, res) {
   var bodyBuf = await rawBody(req);
   var body = bodyBuf.toString('utf8');
   var sig = req.headers['stripe-signature'] || '';
-  var parts = Object.fromEntries(String(sig).split(',').map(function (kv) {
-    var i = kv.indexOf('=');
-    if (i < 0) return [kv, ''];
-    return [kv.slice(0, i), kv.slice(i + 1)];
-  }));
-
-  // Temporary diagnostic — remove once deliveries return 200. Never log the secret or full sig.
-  console.log('connect-webhook: secretPresent=', !!process.env.STRIPE_CONNECT_WEBHOOK_SECRET,
-              'bodyLen=', body.length, 'hasT=', !!parts.t, 'hasV1=', !!parts.v1);
-
   if (!verifyStripeSignature(body, sig, SECRET)) {
     return res.status(400).json({ error: 'Bad signature' });
   }
