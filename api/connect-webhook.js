@@ -10,11 +10,11 @@ const crypto = require('crypto');
  * details_submitted onto the organizations row (matched by stripe_connect_account_id).
  *
  * Setup: register in Stripe TEST dashboard, "Listen to events on Connected accounts",
- * event account.updated, URL https://www.whitestone-dealer-portal.vercel.app/api/connect-webhook,
+ * event account.updated, URL https://whitestone-dealer-portal.vercel.app/api/connect-webhook,
  * copy signing secret to STRIPE_CONNECT_WEBHOOK_SECRET.
  */
 
-module.exports.config = { api: { bodyParser: false } };
+const config = { api: { bodyParser: false } };
 
 function rawBody(req) {
   return new Promise(function (resolve, reject) {
@@ -53,7 +53,7 @@ function verifyStripeSignature(payload, sigHeader, secret) {
   return false;
 }
 
-module.exports = async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   var SECRET = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
@@ -65,15 +65,25 @@ module.exports = async function handler(req, res) {
   }
 
   var bodyBuf = await rawBody(req);
-  var payload = bodyBuf.toString('utf8');
+  var body = bodyBuf.toString('utf8');
   var sig = req.headers['stripe-signature'] || '';
-  if (!verifyStripeSignature(payload, sig, SECRET)) {
+  var parts = Object.fromEntries(String(sig).split(',').map(function (kv) {
+    var i = kv.indexOf('=');
+    if (i < 0) return [kv, ''];
+    return [kv.slice(0, i), kv.slice(i + 1)];
+  }));
+
+  // Temporary diagnostic — remove once deliveries return 200. Never log the secret or full sig.
+  console.log('connect-webhook: secretPresent=', !!process.env.STRIPE_CONNECT_WEBHOOK_SECRET,
+              'bodyLen=', body.length, 'hasT=', !!parts.t, 'hasV1=', !!parts.v1);
+
+  if (!verifyStripeSignature(body, sig, SECRET)) {
     return res.status(400).json({ error: 'Bad signature' });
   }
 
   var event;
   try {
-    event = JSON.parse(payload);
+    event = JSON.parse(body);
   } catch (e) {
     return res.status(400).json({ error: 'Invalid JSON' });
   }
@@ -109,4 +119,7 @@ module.exports = async function handler(req, res) {
   }
 
   return res.status(200).json({ received: true, ignored: event.type });
-};
+}
+
+module.exports = handler;
+module.exports.config = config;
