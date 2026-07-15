@@ -8997,11 +8997,101 @@ document.addEventListener("DOMContentLoaded", function() {
   }
   window.rejectTicket = rejectTicket;
 
+  async function claimsFinishPayoutReceiptAndAudit(opts) {
+    var dealershipName = opts.dealershipName;
+    var batchId = opts.batchId;
+    var totalAmount = opts.totalAmount;
+    var ticketCount = opts.ticketCount;
+    var paymentRef = opts.paymentRef;
+    var cycleStart = opts.cycleStart;
+    var todayStr = opts.todayStr;
+    var pdfDownloaded = false;
+    var pdfFilename = null;
+    var pdfError = null;
+    try {
+      var session = await window.supabase.auth.getSession();
+      var accessToken = session && session.data && session.data.session ? session.data.session.access_token : null;
+      var pdfRes = await fetch("/api/generate-payout-receipt-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + accessToken },
+        body: JSON.stringify({ payoutBatchId: batchId })
+      });
+      if (pdfRes.ok) {
+        var blob = await pdfRes.blob();
+        var storagePath = pdfRes.headers.get("X-Receipt-Storage-Path");
+        pdfFilename = storagePath || ("PayoutReceipt_" + dealershipName.replace(/[^a-z0-9]+/gi, "_") + "_" + todayStr + ".pdf");
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = pdfFilename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        pdfDownloaded = true;
+      } else {
+        pdfError = await pdfRes.text();
+        console.error("PDF generation returned " + pdfRes.status + ":", pdfError);
+      }
+    } catch (e) {
+      pdfError = e.message || String(e);
+      console.error("PDF generation failed:", e);
+    }
+
+    try {
+      await writeAuditLog(
+        "payout_batch",
+        batchId,
+        "dealer_payout_completed",
+        null,
+        {
+          dealership_name: dealershipName,
+          total_amount: totalAmount,
+          ticket_count: ticketCount,
+          payment_reference: paymentRef,
+          cycle_start: cycleStart,
+          cycle_end: todayStr
+        },
+        dealershipName,
+        null,
+        "Payout of $" + totalAmount.toFixed(2) + " to " + dealershipName + " (ref: " + paymentRef + ")"
+      );
+    } catch (e) {
+      console.warn("Audit log write failed (non-fatal):", e);
+    }
+
+    if (typeof claimsLoadTab === "function") {
+      await claimsLoadTab();
+    }
+
+    if (pdfDownloaded) {
+      alert(
+        "Payout completed for " + dealershipName + ".\n\n" +
+        "Total: $" + totalAmount.toFixed(2) + " across " + ticketCount + " tickets\n" +
+        "Payment reference: " + paymentRef + "\n\n" +
+        "Receipt downloaded: " + pdfFilename + "\n" +
+        "(Also saved to payout-receipts storage)"
+      );
+    } else {
+      alert(
+        "Payout completed for " + dealershipName + ", but the receipt PDF could not be generated.\n\n" +
+        "Total: $" + totalAmount.toFixed(2) + " across " + ticketCount + " tickets\n" +
+        "Payment reference: " + paymentRef + "\n\n" +
+        "Error: " + (pdfError ? pdfError.substring(0, 300) : "Unknown") + "\n\n" +
+        "You can regenerate the receipt later from the payout history."
+      );
+    }
+  }
+
   async function claimsMarkDealerPaid(dealershipName) {
     if (!dealershipName) return;
+    if (window._claimsPayoutInFlight) {
+      alert("A payout is already in progress. Please wait.");
+      return;
+    }
     try {
       var dealerLookup = await fetch(
-        SUPABASE_URL + "/rest/v1/dealers?dealership_name=eq." + encodeURIComponent(dealershipName) + "&select=id&limit=1",
+        SUPABASE_URL + "/rest/v1/dealers?dealership_name=eq." + encodeURIComponent(dealershipName) + "&select=id,organization_id&limit=1",
         { headers: supabaseHeaders() }
       );
       var dealerRows = await dealerLookup.json();
@@ -9010,6 +9100,7 @@ document.addEventListener("DOMContentLoaded", function() {
         return;
       }
       var dealerId = dealerRows[0].id;
+      var organizationId = dealerRows[0].organization_id || null;
 
       var resT = await fetch(SUPABASE_URL + "/rest/v1/tickets?status=eq.approved&select=id", { headers: supabaseHeaders() });
       var approved = await resT.json();
@@ -9030,6 +9121,95 @@ document.addEventListener("DOMContentLoaded", function() {
         return;
       }
 
+      var oldest = eligible[0];
+      var cycleStart = (oldest.created_at || new Date().toISOString()).substring(0, 10);
+      var todayStr = new Date().toISOString().split("T")[0];
+      var totalAmount = eligible.reduce(function(sum, r) { return sum + (parseFloat(r.amount) || 0); }, 0);
+      var ticketCount = eligible.length;
+
+      var payoutsEnabled = false;
+      if (organizationId) {
+        try {
+          var orgRes = await fetch(
+            SUPABASE_URL + "/rest/v1/organizations?id=eq." + encodeURIComponent(organizationId) +
+              "&select=payouts_enabled,stripe_connect_account_id&limit=1",
+            { headers: supabaseHeaders() }
+          );
+          if (orgRes.ok) {
+            var orgRows = await orgRes.json();
+            payoutsEnabled = !!(orgRows[0] && orgRows[0].payouts_enabled === true && orgRows[0].stripe_connect_account_id);
+          }
+        } catch (orgErr) { /* fall through to manual */ }
+      }
+
+      var useStripe = false;
+      if (payoutsEnabled) {
+        var choice = prompt(
+          "Payout to " + dealershipName + " — $" + totalAmount.toFixed(2) + " across " + ticketCount + " ticket(s).\n\n" +
+          "Type 1 for Reimburse via Stripe (recommended)\n" +
+          "Type 2 for Record manual payment (ACH#/check#)\n\n" +
+          "Cancel to abort."
+        );
+        if (choice === null) return;
+        choice = String(choice).trim();
+        if (choice === "1") useStripe = true;
+        else if (choice === "2") useStripe = false;
+        else {
+          alert("Cancelled — enter 1 or 2 next time.");
+          return;
+        }
+      }
+
+      // ---- Stripe Connect transfer path (server recomputes amount + moves money) ----
+      if (useStripe) {
+        if (!confirm(
+          "Send $" + totalAmount.toFixed(2) + " to " + dealershipName + " via Stripe Connect?\n\n" +
+          "This creates a real sandbox transfer to their connected account."
+        )) return;
+
+        window._claimsPayoutInFlight = true;
+        document.querySelectorAll(".btn-claims-paid").forEach(function(b) {
+          b.disabled = true;
+          b.textContent = "Paying…";
+        });
+        try {
+          var xferRes = await fetch("/api/create-connect-transfer", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer " + (window.authToken || "")
+            },
+            body: JSON.stringify({
+              dealerId: dealerId,
+              cycleStart: cycleStart,
+              cycleEnd: todayStr
+            })
+          });
+          var xferJson = await xferRes.json().catch(function() { return {}; });
+          if (!xferRes.ok || !xferJson.success) {
+            alert("Stripe reimbursement failed:\n\n" + ((xferJson && xferJson.error) || ("HTTP " + xferRes.status)));
+            return;
+          }
+          await claimsFinishPayoutReceiptAndAudit({
+            dealershipName: dealershipName,
+            batchId: xferJson.payoutBatchId,
+            totalAmount: typeof xferJson.amount === "number" ? xferJson.amount : totalAmount,
+            ticketCount: typeof xferJson.ticketCount === "number" ? xferJson.ticketCount : ticketCount,
+            paymentRef: xferJson.transferId || "stripe",
+            cycleStart: cycleStart,
+            todayStr: todayStr
+          });
+        } finally {
+          window._claimsPayoutInFlight = false;
+          document.querySelectorAll(".btn-claims-paid").forEach(function(b) {
+            b.disabled = false;
+            b.textContent = "Mark as paid";
+          });
+        }
+        return;
+      }
+
+      // ---- Manual record fallback (existing path — records only, moves no money) ----
       var paymentRef = prompt(
         "Enter the payment reference for this payout to " + dealershipName + ".\n\n" +
         "Examples: ACH#12345, Check#0142, Zelle confirmation, etc.\n\n" +
@@ -9041,13 +9221,6 @@ document.addEventListener("DOMContentLoaded", function() {
         alert("Payment reference cannot be empty. Payout cancelled.");
         return;
       }
-
-      var oldest = eligible[0];
-      var cycleStart = (oldest.created_at || new Date().toISOString()).substring(0, 10);
-      var todayStr = new Date().toISOString().split("T")[0];
-
-      var totalAmount = eligible.reduce(function(sum, r) { return sum + (parseFloat(r.amount) || 0); }, 0);
-      var ticketCount = eligible.length;
 
       var paidBy = (currentDealer && currentDealer.name) ? currentDealer.name : "admin";
       var batchRes = await fetch(SUPABASE_URL + "/rest/v1/payout_batches", {
@@ -9094,82 +9267,15 @@ document.addEventListener("DOMContentLoaded", function() {
         console.warn("Some reimbursements failed to update: " + patchFailures + " of " + eligible.length);
       }
 
-      var pdfDownloaded = false;
-      var pdfFilename = null;
-      var pdfError = null;
-      try {
-        var session = await window.supabase.auth.getSession();
-        var accessToken = session && session.data && session.data.session ? session.data.session.access_token : null;
-        var pdfRes = await fetch("/api/generate-payout-receipt-pdf", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: "Bearer " + accessToken },
-          body: JSON.stringify({ payoutBatchId: batchId })
-        });
-        if (pdfRes.ok) {
-          var blob = await pdfRes.blob();
-          var storagePath = pdfRes.headers.get("X-Receipt-Storage-Path");
-          pdfFilename = storagePath || ("PayoutReceipt_" + dealershipName.replace(/[^a-z0-9]+/gi, "_") + "_" + todayStr + ".pdf");
-          var url = URL.createObjectURL(blob);
-          var a = document.createElement("a");
-          a.href = url;
-          a.download = pdfFilename;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
-          pdfDownloaded = true;
-        } else {
-          pdfError = await pdfRes.text();
-          console.error("PDF generation returned " + pdfRes.status + ":", pdfError);
-        }
-      } catch (e) {
-        pdfError = e.message || String(e);
-        console.error("PDF generation failed:", e);
-      }
-
-      try {
-        await writeAuditLog(
-          "payout_batch",
-          batchId,
-          "dealer_payout_completed",
-          null,
-          {
-            dealership_name: dealershipName,
-            total_amount: totalAmount,
-            ticket_count: ticketCount,
-            payment_reference: paymentRef,
-            cycle_start: cycleStart,
-            cycle_end: todayStr
-          },
-          dealershipName,
-          null,
-          "Payout of $" + totalAmount.toFixed(2) + " to " + dealershipName + " (ref: " + paymentRef + ")"
-        );
-      } catch (e) {
-        console.warn("Audit log write failed (non-fatal):", e);
-      }
-
-      if (typeof claimsLoadTab === "function") {
-        await claimsLoadTab();
-      }
-
-      if (pdfDownloaded) {
-        alert(
-          "Payout completed for " + dealershipName + ".\n\n" +
-          "Total: $" + totalAmount.toFixed(2) + " across " + ticketCount + " tickets\n" +
-          "Payment reference: " + paymentRef + "\n\n" +
-          "Receipt downloaded: " + pdfFilename + "\n" +
-          "(Also saved to payout-receipts storage)"
-        );
-      } else {
-        alert(
-          "Payout completed for " + dealershipName + ", but the receipt PDF could not be generated.\n\n" +
-          "Total: $" + totalAmount.toFixed(2) + " across " + ticketCount + " tickets\n" +
-          "Payment reference: " + paymentRef + "\n\n" +
-          "Error: " + (pdfError ? pdfError.substring(0, 300) : "Unknown") + "\n\n" +
-          "You can regenerate the receipt later from the payout history."
-        );
-      }
+      await claimsFinishPayoutReceiptAndAudit({
+        dealershipName: dealershipName,
+        batchId: batchId,
+        totalAmount: totalAmount,
+        ticketCount: ticketCount,
+        paymentRef: paymentRef,
+        cycleStart: cycleStart,
+        todayStr: todayStr
+      });
     } catch (e) {
       console.error("claimsMarkDealerPaid error:", e);
       alert("Could not complete payout. Please try again. Check the browser console for details.");
@@ -9391,7 +9497,6 @@ document.addEventListener("DOMContentLoaded", function() {
       el.querySelectorAll(".btn-claims-paid").forEach(function(btn) {
         btn.addEventListener("click", function() {
           var dn = decodeURIComponent(btn.getAttribute("data-dealer-enc") || "");
-          if (!confirm("Mark all approved pending reimbursements for " + dn + " as paid?")) return;
           claimsMarkDealerPaid(dn);
         });
       });
