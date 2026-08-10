@@ -247,6 +247,7 @@ async function handler(req, res) {
         key: g.key,
         name: g.name,
         dealer_ids: g.dealer_ids,
+        canonical_dealer_id: g.dealer_ids[0],
         duplicate_rows: g.dealer_ids.length,
         stage: stage,
         active: g.active,
