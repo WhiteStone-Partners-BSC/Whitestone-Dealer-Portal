@@ -50,8 +50,8 @@
   }
 
   function emptyRow(msg) {
-    return '<tr><td colspan="7" style="text-align:center;padding:3rem;color:var(--light);' +
-      'font-size:13px;">' + esc(msg) + '</td></tr>';
+    return '<tr style="background:#fff;"><td colspan="7" style="text-align:center;padding:3rem;' +
+      'color:#6b7a88;font-size:13px;background:#fff;">' + esc(msg) + '</td></tr>';
   }
 
   window.crmLoadPipeline = async function crmLoadPipeline(force) {
@@ -124,21 +124,21 @@
         : '';
       html +=
         '<tr class="admin-mc-summary" data-crm-key="' + esc(p.key) + '" ' +
-        'style="cursor:pointer;" ' +
-        'onmouseover="this.style.background=\'#f8f9fb\'" onmouseout="this.style.background=\'\'">' +
+        'style="cursor:pointer;background:#fff;color:#0c1e2e;" ' +
+        'onmouseover="this.style.background=\'#f4f6f8\'" onmouseout="this.style.background=\'#fff\'">' +
           '<td>' + flag + '<strong>' + esc(p.name) + '</strong>' +
             (p.duplicate_rows > 1
-              ? '<div style="font-size:11px;color:var(--light);">' + p.duplicate_rows + ' merged records</div>'
+              ? '<div style="font-size:11px;color:#6b7a88;">' + p.duplicate_rows + ' merged records</div>'
               : '') +
           '</td>' +
           '<td>' + stagePill(p.stage) + '</td>' +
-          '<td>' + (p.scan_days || 0) + (p.scan_count > p.scan_days ? ' <span style="color:var(--light);font-size:11px;">(' + p.scan_count + ' taps)</span>' : '') + '</td>' +
+          '<td>' + (p.scan_days || 0) + (p.scan_count > p.scan_days ? ' <span style="color:#6b7a88;font-size:11px;">(' + p.scan_count + ' taps)</span>' : '') + '</td>' +
           '<td>' + fmtDate(p.last_scan) + '</td>' +
           '<td>' + ago(p.days_since_activity) + '</td>' +
           '<td>' + esc((p.contact && (p.contact.city || p.contact.state)) ? [p.contact.city, p.contact.state].filter(Boolean).join(', ') : '—') + '</td>' +
           '<td>' + (p.contact && p.contact.email
             ? '<a href="mailto:' + esc(p.contact.email) + '" onclick="event.stopPropagation();" style="color:#2c6a9b;">Email</a>'
-            : '<span style="color:var(--light);">no email</span>') + '</td>' +
+            : '<span style="color:#6b7a88;">no email</span>') + '</td>' +
         '</tr>';
       if (crmOpenKey === p.key) html += detailRow(p);
     });
@@ -156,7 +156,7 @@
   function statBox(n, label) {
     return '<div style="text-align:center;padding:0 1.5rem;">' +
       '<div style="font-size:30px;font-weight:600;color:#0c1e2e;line-height:1;">' + n + '</div>' +
-      '<div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--light);margin-top:6px;">' +
+      '<div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#6b7a88;margin-top:6px;">' +
       esc(label) + '</div></div>';
   }
 
@@ -170,18 +170,18 @@
     if (ct.website) lines += kv('Website', esc(ct.website));
     if (ct.boat_brands) lines += kv('Brands', esc(ct.boat_brands));
     if (ct.service_volume) lines += kv('Service volume', esc(ct.service_volume));
-    if (!lines) lines = '<div style="color:var(--light);font-size:13px;">No contact details on file.</div>';
+    if (!lines) lines = '<div style="color:#6b7a88;font-size:13px;">No contact details on file.</div>';
 
     var tl = '';
     (p.events || []).forEach(function (e) {
       tl += '<div style="padding:8px 0;border-bottom:1px solid #eee;">' +
-        '<div style="font-size:12px;color:var(--light);">' + fmtDate(e.at) + '</div>' +
+        '<div style="font-size:12px;color:#6b7a88;">' + fmtDate(e.at) + '</div>' +
         '<div style="font-size:13px;">' + esc(e.label) +
         (e.person ? ' — ' + esc(e.person) : '') + '</div>' +
         (e.detail ? '<div style="font-size:12px;color:#555;margin-top:3px;">' + esc(e.detail) + '</div>' : '') +
         '</div>';
     });
-    if (!tl) tl = '<div style="color:var(--light);font-size:13px;">No recorded activity.</div>';
+    if (!tl) tl = '<div style="color:#6b7a88;font-size:13px;">No recorded activity.</div>';
 
     var mailto = ct.email
       ? '<a href="mailto:' + esc(ct.email) +
@@ -191,14 +191,14 @@
         'text-transform:uppercase;">Open email</a>'
       : '';
 
-    return '<tr class="admin-mc-expand"><td colspan="7" style="background:#fafbfc;padding:1.5rem;">' +
+    return '<tr class="admin-mc-expand"><td colspan="7" style="background:#fafbfc;color:#0c1e2e;padding:1.5rem;">' +
       '<div style="display:flex;gap:2.5rem;flex-wrap:wrap;">' +
         '<div style="flex:1;min-width:260px;">' +
-          '<div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);margin-bottom:10px;">Contact</div>' +
+          '<div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#6b7a88;margin-bottom:10px;">Contact</div>' +
           lines + mailto +
         '</div>' +
         '<div style="flex:1.4;min-width:300px;">' +
-          '<div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);margin-bottom:10px;">Activity</div>' +
+          '<div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#6b7a88;margin-bottom:10px;">Activity</div>' +
           tl +
         '</div>' +
       '</div></td></tr>';
@@ -206,7 +206,7 @@
 
   function kv(k, v) {
     return '<div style="margin-bottom:8px;">' +
-      '<span style="font-size:12px;color:var(--light);display:inline-block;min-width:110px;">' + esc(k) + '</span>' +
+      '<span style="font-size:12px;color:#6b7a88;display:inline-block;min-width:110px;">' + esc(k) + '</span>' +
       '<span style="font-size:13px;">' + v + '</span></div>';
   }
 

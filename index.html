@@ -1525,11 +1525,12 @@
 
         <div id="crm-loading" style="text-align:center;padding:3rem;color:var(--light);font-size:13px;display:none;">Loading pipeline…</div>
 
-        <div class="table-scroll admin-master-table-wrap">
-          <table class="dealer-table admin-master-table" id="crm-table">
+        <div class="card" style="padding:0;overflow:hidden;">
+        <div class="table-scroll admin-master-table-wrap" style="background:#fff;">
+          <table class="dealer-table admin-master-table" id="crm-table" style="background:#fff;color:#0c1e2e;width:100%;">
             <thead>
-              <tr>
-                <th>Dealership</th>
+              <tr style="background:#f4f6f8;color:#0c1e2e;">
+                <th style="color:#0c1e2e;">Dealership</th>
                 <th>Stage</th>
                 <th>Scan days</th>
                 <th>Last scan</th>
@@ -1540,6 +1541,7 @@
             </thead>
             <tbody id="crm-tbody"></tbody>
           </table>
+        </div>
         </div>
 
       </div>
