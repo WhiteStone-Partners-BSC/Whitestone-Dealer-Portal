@@ -1261,6 +1261,7 @@
       <button type="button" class="admin-nav-item" data-admin-panel="customers">Customers</button>
       <button type="button" class="admin-nav-item" data-admin-panel="claims">Claims</button>
       <button type="button" class="admin-nav-item" data-admin-panel="cancellations">Cancellations</button>
+      <button type="button" class="admin-nav-item" data-admin-panel="crm">Pipeline</button>
       <button type="button" class="admin-nav-item" data-admin-panel="billing" onclick="if(typeof adminNav==='function'){adminNav('billing');} if(typeof loadAdminBilling==='function'){loadAdminBilling();}">
         Billing
       </button>
@@ -1485,6 +1486,63 @@
         </div>
       </div>
     </div>
+    </div>
+
+    <div id="admin-panel-crm" class="admin-panel" style="display:none;">
+      <div class="admin-panel-shell">
+
+        <div class="card" style="margin-bottom:1.25rem;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;">
+            <div>
+              <h2 style="margin:0 0 4px;">Dealer Pipeline</h2>
+              <p style="margin:0;font-size:13px;color:var(--light);">
+                Every prospect, stitched from box scans, enrollments, inquiries and applications.
+                Read-only. Sorted by engagement.
+              </p>
+            </div>
+            <button type="button" onclick="crmRefresh()"
+              style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:8px 16px;font-size:12px;cursor:pointer;">
+              Refresh
+            </button>
+          </div>
+
+          <div id="crm-stats" style="display:flex;gap:0;flex-wrap:wrap;margin-top:1.5rem;"></div>
+        </div>
+
+        <div class="card" style="margin-bottom:1.25rem;">
+          <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;">
+            <div id="crm-filters" style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="button" class="crm-filter-btn" data-crm-filter="all"      onclick="crmSetFilter('all')"      style="border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;background:#0c1e2e;color:#fff;">All</button>
+              <button type="button" class="crm-filter-btn" data-crm-filter="followup" onclick="crmSetFilter('followup')" style="border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;background:#fff;color:#0c1e2e;">Needs follow-up</button>
+              <button type="button" class="crm-filter-btn" data-crm-filter="engaged"  onclick="crmSetFilter('engaged')"  style="border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;background:#fff;color:#0c1e2e;">Engaged</button>
+              <button type="button" class="crm-filter-btn" data-crm-filter="active"   onclick="crmSetFilter('active')"   style="border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;background:#fff;color:#0c1e2e;">Active dealers</button>
+            </div>
+            <input type="text" id="crm-search" placeholder="Search name or email"
+              oninput="crmSetSearch(this.value)"
+              style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          </div>
+        </div>
+
+        <div id="crm-loading" style="text-align:center;padding:3rem;color:var(--light);font-size:13px;display:none;">Loading pipeline…</div>
+
+        <div class="table-scroll admin-master-table-wrap">
+          <table class="dealer-table admin-master-table" id="crm-table">
+            <thead>
+              <tr>
+                <th>Dealership</th>
+                <th>Stage</th>
+                <th>Scan days</th>
+                <th>Last scan</th>
+                <th>Last activity</th>
+                <th>Location</th>
+                <th>Contact</th>
+              </tr>
+            </thead>
+            <tbody id="crm-tbody"></tbody>
+          </table>
+        </div>
+
+      </div>
     </div>
 
     <div id="admin-panel-cancellations" class="admin-panel" style="display:none;">
@@ -2500,6 +2558,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="assets/js/dealer-portal.js" defer></script>
+<script src="assets/js/admin-crm.js" defer></script>
 <script src="assets/js/customer-view.js" defer></script>
 <script>
 window.addEventListener("load", function() {

@@ -6637,6 +6637,9 @@ document.addEventListener("DOMContentLoaded", function() {
       case "cancellations":
         setCancellationFilter(currentCancellationFilter || "pending");
         break;
+      case "crm":
+        if (typeof window.crmLoadPipeline === "function") window.crmLoadPipeline();
+        break;
       case "financials":
         window.financialsShowSection("overview");
         window.financialsLoad();
