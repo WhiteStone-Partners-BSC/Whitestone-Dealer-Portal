@@ -1,3 +1,9 @@
 .DS_Store
 Thumbs.db
 *.log
+
+# Local editor / copy backups — do not commit
+*.bak
+*.bak.*
+*.BAK
+*.BAK.*
